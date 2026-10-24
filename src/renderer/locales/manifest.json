@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "languages": {
+    "tr": {
+      "keys": 606,
+      "sha256": "380a6b00164064635937aefc90824062acf61b5aba5dc3526daca60308aa01c3"
+    },
+    "en": {
+      "keys": 606,
+      "sha256": "b160ece5b6c6ea899d76a967a82a57982eadc191b7a00a7814f740b8501c161c"
+    },
+    "de": {
+      "keys": 606,
+      "sha256": "01113be4431fb6905d93522f42c9c728248e062c0f98966de90af084d2184d92"
+    },
+    "sv": {
+      "keys": 606,
+      "sha256": "42483144e0057b57649f9b2846f4ec2efe41a8347de3aa4ffdcc2e47c9f7f034"
+    },
+    "no": {
+      "keys": 606,
+      "sha256": "f21d95f15dad787620002061f0dd5f989c3b661ef11eb987221e9ef86c429e3f"
+    },
+    "da": {
+      "keys": 606,
+      "sha256": "f8b986212185a3e58b85aa8da36e46c37b0e7e6c0b43825d9bc759214d66e8d3"
+    },
+    "fr": {
+      "keys": 606,
+      "sha256": "d1533dccc919c876b3060c204c4eea3b1fdd9a7429b166479e182eeb9a575544"
+    },
+    "pl": {
+      "keys": 606,
+      "sha256": "5899d150785ca6a1e5e87af0837764c03b3892c6c45b9b9aed74d563cb2e451a"
+    },
+    "it": {
+      "keys": 606,
+      "sha256": "94605915436a8be6d5c4213684dd605851dc2d7d1ffb93265b76aeb6b9c6a433"
+    },
+    "nl": {
+      "keys": 606,
+      "sha256": "a3483762487ad6a4f2a7be448407955bc15f94384914d668592627822e8ccf66"
+    },
+    "cs": {
+      "keys": 606,
+      "sha256": "c2278116e06196fadc066d42a4b408c5e5d5fe3ed5e3683f7189716e67efcf98"
+    },
+    "es": {
+      "keys": 606,
+      "sha256": "6ec1f5e93ea0f89ba136288a80d7d2ef6d350e3588cf5d32aa17248b79b9a5c9"
+    },
+    "pt": {
+      "keys": 606,
+      "sha256": "0c29b67d9e8aca564016db67809192197a1cad47dd82f3bf204a9add6c1980c1"
+    },
+    "ja": {
+      "keys": 606,
+      "sha256": "07651baad626282d6b5778a47ee126e916a16d3bb236f266abd091e1a07daaed"
+    },
+    "zh": {
+      "keys": 606,
+      "sha256": "208de18d94d638c502190ad8e2f3ba7f05ac19a3a14b1c63eda25185b674e2a9"
+    },
+    "ko": {
+      "keys": 606,
+      "sha256": "6fac54141b53c4406feb414d509be6be8b5a6aa0e000c16724676c538326e3bb"
+    },
+    "ar": {
+      "keys": 606,
+      "sha256": "015d16f02ac1478fa3a2b471ce1a48ac9c53004328bf47b081eb00a71d678528"
+    }
+  },
+  "generatedAt": "2026-10-23T15:46:04.102Z"
+}

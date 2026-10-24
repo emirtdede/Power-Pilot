@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html class="dark" lang="tr">
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; worker-src 'none'" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Power Pilot</title>
+    <script src="vendor/qrcode-generator.js"></script>
+    <link href="vendor/fonts/public-sans.css" rel="stylesheet" />
+    <link href="vendor/fonts/material-symbols.css" rel="stylesheet" />
+    <link href="renderer/tailwind.css" rel="stylesheet" />
+    <link href="renderer/app.css" rel="stylesheet" />
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-0 m-0 overflow-hidden relative">
+    
+
+
+    <!-- Title Bar -->
+    <div class="fixed top-0 left-0 w-full h-8 flex items-center justify-between z-50 window-drag bg-transparent">
+        <div class="px-4 text-xs font-semibold text-slate-500">Power Pilot</div>
+        <div class="flex h-full no-drag">
+            <button id="btn-minimize"
+                class="px-4 hover:bg-white/10 transition-colors flex items-center justify-center"><span
+                    class="material-symbols-outlined text-[16px]">remove</span></button>
+            <button id="btn-maximize"
+                class="px-4 hover:bg-white/10 transition-colors flex items-center justify-center"><span
+                    class="material-symbols-outlined text-[16px]">crop_square</span></button>
+            <button id="btn-close"
+                class="px-4 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center"><span
+                    class="material-symbols-outlined text-[16px]">close</span></button>
+        </div>
+    </div>
+
+    <!-- Main Window Simulation -->
+    <div class="w-full h-screen bg-white dark:bg-[#0f1a23] overflow-hidden flex pt-8">
+
+        <!-- Sidebar Navigation -->
+        <aside
+            class="w-64 sidebar-blur border-r border-slate-200 dark:border-slate-800 flex flex-col h-full bg-slate-100/50 dark:bg-background-dark/50">
+            <div class="p-6 flex items-center gap-3">
+                <div class="w-10 h-10 shrink-0 overflow-hidden rounded-lg">
+                    <img src="../powerpilot_icon.png" alt="Power Pilot Logo" class="w-full h-full object-cover" />
+                </div>
+                <div>
+                    <h1 class="text-base font-bold leading-tight">Power Pilot</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="subtitle">Akıllı Güç Yöneticisi</p>
+                </div>
+            </div>
+            <nav class="flex-1 px-3 space-y-1 overflow-y-auto">
+                <a id="nav-dashboard"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer bg-primary/10 text-primary font-medium border border-primary/20">
+                    <span class="material-symbols-outlined text-[20px]">dashboard</span>
+                    <span class="text-sm" data-i18n="dashboard">Dashboard</span>
+                </a>
+                <a id="nav-active"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">timer</span>
+                    <span class="text-sm" data-i18n="activeTask">Aktif Görevler</span>
+                </a>
+                <a id="nav-tasks"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">checklist</span>
+                    <span class="text-sm" data-i18n="tasks">Görevler</span>
+                </a>
+                <a id="nav-smartfinish"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">auto_mode</span>
+                    <span class="text-sm">Smart Finish</span>
+                </a>
+                <a id="nav-assistant"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">smart_toy</span>
+                    <span class="text-sm" data-i18n="navAssistant">AI Asistan</span>
+                </a>
+                <a id="nav-templates"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">widgets</span>
+                    <span class="text-sm" data-i18n="navTemplates">Şablonlar</span>
+                </a>
+                <a id="nav-history"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">history</span>
+                    <span class="text-sm" data-i18n="navHistory">Geçmiş</span>
+                </a>
+                <a id="nav-stats"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">bolt</span>
+                    <span class="text-sm" data-i18n="navStats">İstatistikler</span>
+                </a>
+                <a id="nav-integrations"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">hub</span>
+                    <span class="text-sm" data-i18n="navIntegrations">Entegrasyonlar</span>
+                </a>
+                <a id="nav-settings"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">settings</span>
+                    <span class="text-sm" data-i18n="settings">Ayarlar</span>
+                </a>
+                <a id="nav-about"
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">info</span>
+                    <span class="text-sm" data-i18n="about">Hakkında</span>
+                </a>
+            </nav>
+            <div class="p-4 mt-auto border-t border-slate-200 dark:border-slate-800">
+                <div class="flex items-center gap-3 p-2">
+                    <div
+                        class="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-700 overflow-hidden flex items-center justify-center">
+                        <span class="material-symbols-outlined text-sm text-slate-500">person</span>
+                    </div>
+                    <div class="flex-1 overflow-hidden">
+                        <p class="text-xs font-semibold truncate" data-i18n="localUser">Yerel Kullanıcı</p>
+                        <p class="text-[10px] text-slate-500 truncate">Windows</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-slate-50/50 dark:bg-transparent h-full relative"
+            id="main-content">
+
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="view-section w-full h-full flex flex-col">
+                <div class="px-8 pt-10 pb-6">
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1" data-i18n="hello">Merhaba!</h2>
+                    <p class="text-slate-500 dark:text-slate-400" data-i18n="whenShutdown">Bilgisayarınızı ne zaman kapatalım?</p>
+                </div>
+
+                <div class="px-8 grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
+                    <button
+                        class="action-btn min-w-0 flex flex-col items-center justify-center px-3 py-6 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 transition-all group"
+                        data-action="shutdown">
+                        <div
+                            class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center mb-3 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-3xl">power_settings_new</span>
+                        </div>
+                        <span class="text-sm font-bold" data-i18n="actionShutdown">Bilgisayarı Kapat</span>
+                        <span class="text-[11px] leading-tight text-slate-400 mt-1" data-i18n="descShutdown">Gücü tamamen keser</span>
+                    </button>
+                    <button
+                        class="action-btn min-w-0 flex flex-col items-center justify-center px-3 py-6 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 transition-all group"
+                        data-action="restart">
+                        <div
+                            class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center mb-3 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-3xl">restart_alt</span>
+                        </div>
+                        <span class="text-sm font-bold" data-i18n="actionRestart">Yeniden Başlat</span>
+                        <span class="text-[11px] leading-tight text-slate-400 mt-1" data-i18n="descRestart">Sistemi tazeler</span>
+                    </button>
+                    <button
+                        class="action-btn min-w-0 flex flex-col items-center justify-center px-3 py-6 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 transition-all group"
+                        data-action="sleep">
+                        <div
+                            class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center mb-3 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-3xl">bedtime</span>
+                        </div>
+                        <span class="text-sm font-bold" data-i18n="actionSleep">Uyku Modu</span>
+                        <span class="text-[11px] leading-tight text-slate-400 mt-1" data-i18n="descSleep">Düşük güç modu</span>
+                    </button>
+                    <button
+                        class="action-btn min-w-0 flex flex-col items-center justify-center px-3 py-6 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 transition-all group"
+                        data-action="hibernate">
+                        <div
+                            class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center mb-3 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-3xl">save</span>
+                        </div>
+                        <span class="text-sm font-bold" data-i18n="actionHibernate">Hazırda Beklet</span>
+                        <span class="text-[11px] leading-tight text-slate-400 mt-1" data-i18n="descHibernate">Oturumu diske kaydeder</span>
+                    </button>
+                    <button
+                        class="action-btn min-w-0 flex flex-col items-center justify-center px-3 py-6 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 transition-all group"
+                        data-action="lock">
+                        <div
+                            class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center mb-3 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-3xl">lock</span>
+                        </div>
+                        <span class="text-sm font-bold" data-i18n="actionLock">Kilitle</span>
+                        <span class="text-[11px] leading-tight text-slate-400 mt-1" data-i18n="descLock">Ekranı kilitler</span>
+                    </button>
+                    <button
+                        class="action-btn min-w-0 flex flex-col items-center justify-center px-3 py-6 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 transition-all group"
+                        data-action="signout">
+                        <div
+                            class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center mb-3 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-3xl">logout</span>
+                        </div>
+                        <span class="text-sm font-bold" data-i18n="actionSignout">Oturumu Kapat</span>
+                        <span class="text-[11px] leading-tight text-slate-400 mt-1" data-i18n="descSignout">Oturumu güvenle kapatır</span>
+                    </button>
+                </div>
+
+                <div class="px-8 space-y-6">
+                    <div
+                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <h3
+                            class="text-sm font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-lg">schedule</span>
+                            <span data-i18n="timeSetting">Zaman Ayarı</span>
+                        </h3>
+                        <div
+                            class="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg mb-6 border border-slate-200 dark:border-slate-800">
+                            <button
+                                class="time-btn flex-1 py-1.5 text-xs font-semibold rounded-md text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800"
+                                data-mins="15" data-i18n="min15">15 dk</button>
+                            <button
+                                class="time-btn flex-1 py-1.5 text-xs font-semibold rounded-md text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800"
+                                data-mins="30" data-i18n="min30">30 dk</button>
+                            <button
+                                class="time-btn flex-1 py-1.5 text-xs font-semibold rounded-md text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800"
+                                data-mins="60" data-i18n="hour1">1 saat</button>
+                            <button
+                                class="time-btn flex-1 py-1.5 text-xs font-semibold rounded-md text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800"
+                                data-mins="120" data-i18n="hour2">2 saat</button>
+                            <button
+                                class="time-btn flex-1 py-1.5 text-xs font-semibold rounded-md bg-white dark:bg-slate-800 text-primary shadow-sm border border-slate-200 dark:border-slate-700 custom-time-btn"
+                                data-mins="custom" data-i18n="custom">Özel</button>
+                        </div>
+
+                        <div class="flex items-center justify-center gap-4">
+                            <div class="flex flex-col items-center">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase mb-1" data-i18n="day">Gün</label>
+                                <div class="relative w-24">
+                                    <input id="input-days"
+                                        class="w-full text-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-2xl font-bold p-3 pr-8 focus:ring-primary focus:border-primary"
+                                        max="24" min="0" type="number" value="0" />
+                                    <div class="absolute right-1 top-1 bottom-1 flex flex-col justify-between py-1">
+                                        <button
+                                            class="text-slate-400 hover:text-primary transition-colors h-1/2 flex items-center justify-center p-0.5 group focus:outline-none"
+                                            data-pp-step="up" data-pp-target="input-days">
+                                            <span
+                                                class="material-symbols-outlined text-[20px] group-active:scale-90">expand_less</span>
+                                        </button>
+                                        <button
+                                            class="text-slate-400 hover:text-primary transition-colors h-1/2 flex items-center justify-center p-0.5 group focus:outline-none"
+                                            data-pp-step="down" data-pp-target="input-days">
+                                            <span
+                                                class="material-symbols-outlined text-[20px] group-active:scale-90">expand_more</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="text-2xl font-bold text-slate-300 self-end mb-4">:</span>
+                            <div class="flex flex-col items-center">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase mb-1" data-i18n="hour">Saat</label>
+                                <div class="relative w-24">
+                                    <input id="input-hours"
+                                        class="w-full text-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-2xl font-bold p-3 pr-8 focus:ring-primary focus:border-primary"
+                                        max="23" min="0" type="number" value="0" />
+                                    <div class="absolute right-1 top-1 bottom-1 flex flex-col justify-between py-1">
+                                        <button
+                                            class="text-slate-400 hover:text-primary transition-colors h-1/2 flex items-center justify-center p-0.5 group focus:outline-none"
+                                            data-pp-step="up" data-pp-target="input-hours">
+                                            <span
+                                                class="material-symbols-outlined text-[20px] group-active:scale-90">expand_less</span>
+                                        </button>
+                                        <button
+                                            class="text-slate-400 hover:text-primary transition-colors h-1/2 flex items-center justify-center p-0.5 group focus:outline-none"
+                                            data-pp-step="down" data-pp-target="input-hours">
+                                            <span
+                                                class="material-symbols-outlined text-[20px] group-active:scale-90">expand_more</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="text-2xl font-bold text-slate-300 self-end mb-4">:</span>
+                            <div class="flex flex-col items-center">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase mb-1" data-i18n="minute">Dakika</label>
+                                <div class="relative w-24">
+                                    <input id="input-mins"
+                                        class="w-full text-center bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-2xl font-bold p-3 pr-8 focus:ring-primary focus:border-primary"
+                                        max="59" min="0" type="number" value="45" />
+                                    <div class="absolute right-1 top-1 bottom-1 flex flex-col justify-between py-1">
+                                        <button
+                                            class="text-slate-400 hover:text-primary transition-colors h-1/2 flex items-center justify-center p-0.5 group focus:outline-none"
+                                            data-pp-step="up" data-pp-target="input-mins">
+                                            <span
+                                                class="material-symbols-outlined text-[20px] group-active:scale-90">expand_less</span>
+                                        </button>
+                                        <button
+                                            class="text-slate-400 hover:text-primary transition-colors h-1/2 flex items-center justify-center p-0.5 group focus:outline-none"
+                                            data-pp-step="down" data-pp-target="input-mins">
+                                            <span
+                                                class="material-symbols-outlined text-[20px] group-active:scale-90">expand_more</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Limit Açıklaması -->
+                        <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/50 text-center">
+                            <p class="text-[11px] text-slate-400 dark:text-slate-500 font-medium leading-relaxed mx-auto max-w-md" data-i18n="timerLimitDesc">
+                                Güvenlik ve sistem kararlılığı nedeniyle maksimum zamanlayıcı süresi 24 gün (2.073.600 saniye) ile sınırlandırılmıştır.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="mt-auto p-8 border-t border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40">
+                    <button id="btn-start"
+                        class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
+                        <span class="material-symbols-outlined">play_arrow</span>
+                        <span data-i18n="startTimer">Zamanlayıcıyı Başlat</span>
+                    </button>
+                    <p id="status-no-timer" class="text-center text-[10px] text-slate-400 mt-4 uppercase tracking-widest font-semibold" data-i18n="noActiveTimer">Aktif
+                        bir zamanlayıcı bulunmuyor</p>
+                </div>
+            </div>
+
+            <!-- Active Timer View -->
+            <div id="view-active" class="view-section hidden w-full h-full flex flex-col">
+                <div class="px-8 pt-10 pb-6">
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1" data-i18n="activeTimerRunning">Aktif bir
+                        zamanlayıcı çalışıyor.</h2>
+                    <p class="text-slate-500 dark:text-slate-400" data-i18n="countdownMode">Sistem geri sayım modunda.</p>
+                </div>
+                <div class="px-8 mb-8">
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-2xl p-10 border-2 border-primary/30 flex flex-col items-center justify-center shadow-xl">
+                        <div
+                            class="w-48 h-48 rounded-full border-8 border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center mb-6 relative">
+                            <span id="display-time-left"
+                                class="font-black tracking-tighter flex flex-col items-center justify-center gap-0.5"><span
+                                    class="text-4xl">00:00</span></span>
+                            <span class="text-[10px] uppercase font-bold text-slate-400 mt-1" data-i18n="timeRemaining">Kalan Süre</span>
+                            <svg class="absolute inset-0 w-full h-full -rotate-90">
+                                <circle class="text-primary/10 hidden" cx="50%" cy="50%" fill="transparent" r="46%"
+                                    stroke="currentColor" stroke-width="8"></circle>
+                                <circle id="progress-circle" class="text-primary" cx="50%" cy="50%" fill="transparent"
+                                    r="46%" stroke="currentColor" stroke-dasharray="289" stroke-dashoffset="0"
+                                    stroke-linecap="round" stroke-width="8"
+                                    class="pp-transition-stroke"></circle>
+                            </svg>
+                        </div>
+                        <div class="text-center">
+                            <p id="display-timer-sentence" class="text-lg font-semibold"></p>
+                            <p class="text-sm text-slate-500 mt-1" data-i18n="saveWork">Lütfen çalışmalarınızı kaydedin.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="monitoring-card"
+                    class="hidden mx-8 mb-8 bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <p class="text-sm font-bold text-slate-900 dark:text-white mb-2" data-i18n="tasksTitle">Görevler</p>
+                    <ul id="monitoring-card-list" class="space-y-1 text-xs text-slate-600 dark:text-slate-300"></ul>
+                </div>
+
+                <div
+                    class="mt-auto p-8 border-t border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40">
+                    <button id="btn-cancel"
+                        class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
+                        <span class="material-symbols-outlined">close</span>
+                        <span data-i18n="cancelTimer">Zamanlayıcıyı İptal Et</span>
+                    </button>
+                    <p class="text-center text-[10px] text-slate-400 mt-4 uppercase tracking-widest font-semibold" data-i18n="stopsTimer">
+                        Zamanlayıcıyı durdurur</p>
+                </div>
+            </div>
+
+            <!-- Tasks View: list / cancel / snooze every tracked automation -->
+            <div id="view-tasks" class="view-section hidden w-full h-full flex flex-col overflow-y-auto px-8 py-6">
+                <div class="flex items-start justify-between gap-4 mb-6 max-w-5xl">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-1" data-i18n="tasksTitle">Görevler</h2>
+                        <p class="text-sm text-slate-500" data-i18n="tasksSubtitle">Zamanlanmış ve izlenen tüm otomasyonlarınızı yönetin.</p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <div class="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+                            <button data-task-filter="active" class="task-filter-btn px-3 py-1.5 text-xs font-bold bg-primary text-white" data-i18n="filterActive">Aktif</button>
+                            <button data-task-filter="all" class="task-filter-btn px-3 py-1.5 text-xs font-bold bg-white dark:bg-slate-800 text-slate-500" data-i18n="filterAll">Tümü</button>
+                        </div>
+                        <button id="btn-refresh-tasks" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-primary/20 border border-primary/50 text-primary hover:bg-primary/30 transition-all flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[16px]">refresh</span>
+                            <span data-i18n="refresh">Yenile</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden max-w-5xl">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-100 dark:bg-slate-900 text-xs uppercase text-slate-400">
+                            <tr>
+                                <th class="p-3" data-i18n="historyTaskName">Görev Adı</th>
+                                <th class="p-3" data-i18n="historyAction">İşlem</th>
+                                <th class="p-3" data-i18n="taskTrigger">Tetikleyici</th>
+                                <th class="p-3" data-i18n="taskNextRun">Sonraki Çalışma</th>
+                                <th class="p-3" data-i18n="taskStatus">Durum</th>
+                                <th class="p-3 text-right" data-i18n="taskActions">Eylemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasks-table-body" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                    </table>
+                    <p id="tasks-empty" class="hidden p-6 text-center text-xs text-slate-400" data-i18n="tasksEmpty">Henüz kayıtlı görev yok.</p>
+                    <p id="tasks-error" class="hidden p-6 text-center text-xs text-red-500"></p>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="view-settings" class="view-section hidden w-full h-full flex flex-col">
+                <header class="h-16 flex items-center px-8 shrink-0">
+                    <h2 class="text-xl font-bold" data-i18n="settings">Ayarlar</h2>
+                </header>
+                <div class="flex-1 overflow-y-auto px-8 pb-8 space-y-8">
+                    <!-- Section: Genel -->
+                    <section>
+                        <div class="flex items-center gap-2 mb-4 text-primary">
+                            <span class="material-symbols-outlined text-lg">tune</span>
+                            <h3 class="text-sm font-bold uppercase tracking-widest" data-i18n="general">Genel</h3>
+                        </div>
+                        <div class="space-y-2">
+                            <!-- Bildirimler -->
+                            <div
+                                class="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5">
+                                    <p class="text-sm font-medium" data-i18n="showNotifications">Bildirimleri Göster</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="descNotifications">İşlem geri bildirimleri için
+                                        uyarı pencerelerini aç veya kapat.</p>
+                                </div>
+                                <label
+                                    class="relative flex h-6 w-11 cursor-pointer items-center rounded-full bg-slate-300 dark:bg-slate-700 p-1 has-[:checked]:bg-primary transition-colors">
+                                    <input id="setting-notifications" class="invisible absolute peer" type="checkbox" />
+                                    <div
+                                        class="h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5">
+                                    </div>
+                                </label>
+                            </div>
+                            <!-- Autostart -->
+                            <div
+                                class="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5">
+                                    <p class="text-sm font-medium" data-i18n="autostartWindows">Uygulama açılışta Windows ile başlasın</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="descAutostart">Bilgisayar her açıldığında
+                                        Power Pilot arka planda otomatik çalışır.</p>
+                                </div>
+                                <label
+                                    class="relative flex h-6 w-11 cursor-pointer items-center rounded-full bg-slate-300 dark:bg-slate-700 p-1 has-[:checked]:bg-primary transition-colors">
+                                    <input id="setting-autostart" class="invisible absolute peer" type="checkbox" />
+                                    <div
+                                        class="h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5">
+                                    </div>
+                                </label>
+                            </div>
+                            <!-- Sesli Geri Bildirim (WBS-8.4) -->
+                            <div
+                                class="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5">
+                                    <p class="text-sm font-medium" data-i18n="settingsVoice">Sesli Geri Bildirim</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="settingsVoiceDesc">AI yanıtlarını sesli okur (yerel sistem sesi, internetsiz).</p>
+                                </div>
+                                <label
+                                    class="relative flex h-6 w-11 cursor-pointer items-center rounded-full bg-slate-300 dark:bg-slate-700 p-1 has-[:checked]:bg-primary transition-colors">
+                                    <input id="setting-voice" class="invisible absolute peer" type="checkbox" />
+                                    <div
+                                        class="h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5">
+                                    </div>
+                                </label>
+                            </div>
+                            <!-- Görünüm -->
+                            <div
+                                class="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5">
+                                    <p class="text-sm font-medium" data-i18n="appearance">Görünüm</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="descAppearance">Uygulama arayüzü temasını
+                                        seçin.</p>
+                                </div>
+                                <select id="setting-theme"
+                                    class="bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary min-w-[140px] py-1.5 px-3 cursor-pointer">
+                                    <option value="light" data-i18n="themeLight">Açık Tema</option>
+                                    <option value="dark" data-i18n="themeDark">Koyu Tema</option>
+                                </select>
+                            </div>
+                            <!-- Dil Seçimi -->
+                            <div
+                                class="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5">
+                                    <p class="text-sm font-medium" data-i18n="language">Dil</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="descLanguage">Uygulama dilini seçin.</p>
+                                </div>
+                                <select id="setting-language"
+                                    class="bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary min-w-[140px] py-1.5 px-3 cursor-pointer">
+                                    <option value="tr">Türkçe</option>
+                                    <option value="en">English</option>
+                                    <option value="de">Deutsch</option>
+                                    <option value="sv">Svenska</option>
+                                    <option value="no">Norsk</option>
+                                    <option value="da">Dansk</option>
+                                    <option value="fr">Français</option>
+                                    <option value="pl">Polski</option>
+                                    <option value="it">Italiano</option>
+                                    <option value="nl">Nederlands</option>
+                                    <option value="cs">Čeština</option>
+                                    <option value="es">Español</option>
+                                    <option value="pt">Português</option>
+                                    <option value="ja">日本語</option>
+                                    <option value="zh">简体中文</option>
+                                    <option value="ko">한국어</option>
+                                    <option value="ar">العربية</option>
+                                </select>
+                            </div>
+                            <!-- AI Özerklik Modu (WBS-9.4) -->
+                            <div
+                                class="p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5 mb-3">
+                                    <p class="text-sm font-medium" data-i18n="autonomyTitle">AI Özerklik Modu</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="autonomyDesc">AI görevlerinde onay davranışı. Değişim sonraki görevden geçerli olur.</p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
+                                        <input type="radio" name="autonomyMode" value="classic" checked class="mt-1 accent-[#4f7cff]" />
+                                        <span><span class="block text-xs font-bold" data-i18n="autonomyClassic">Klasik (Onaylı)</span>
+                                        <span class="block text-[11px] text-slate-400" data-i18n="autonomyClassicDesc">Her adımda sorar, vade dolunca durur.</span></span>
+                                    </label>
+                                    <label class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
+                                        <input type="radio" name="autonomyMode" value="full" class="mt-1 accent-[#4f7cff]" />
+                                        <span><span class="block text-xs font-bold" data-i18n="autonomyFull">Tam Yetki</span>
+                                        <span class="block text-[11px] text-slate-400" data-i18n="autonomyFullDesc">Yapar, deftere yazar, geri-al sunar.</span></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- İptal PIN'i (WBS-11.2) -->
+                            <div
+                                class="p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5 mb-3">
+                                    <p class="text-sm font-medium" data-i18n="cancelPinTitle">İptal PIN'i</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400"><span data-i18n="cancelPinDesc">Kurulursa zamanlayıcı iptali PIN ister.</span> <span id="pin-state" data-i18n="statusChecking" class="font-bold">Durum denetleniyor...</span></p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <input id="pin-input" type="password" inputmode="numeric" maxlength="8" placeholder="4-8 hane" data-i18n-placeholder="pinInputPlaceholder" class="flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm font-mono" />
+                                    <button id="btn-pin-set" data-i18n="pinSetButton" class="px-4 py-2 bg-primary/20 border border-primary/50 text-primary text-xs font-bold rounded-lg hover:bg-primary/30">Kur</button>
+                                    <button id="btn-pin-clear" data-i18n="clear" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-red-500">Temizle</button>
+                                </div>
+                            </div>
+                            <!-- Enerji Hesabı (WBS-E5) -->
+                            <div id="settings-energy"
+                                class="p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5 mb-3">
+                                    <p class="text-sm font-medium" data-i18n="energyAccount">Enerji Hesabı</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400"><span data-i18n="energyAccountDesc">Boş bırakılabilir — boş alanların kartları "—" gösterir.</span> <span id="nrg-source" class="font-bold"></span></p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 mb-2">
+                                    <label class="block text-xs font-bold uppercase text-slate-400"><span data-i18n="powerWatt">Güç (Watt)</span>
+                                        <input id="nrg-watt" type="number" min="5" max="2000" placeholder="Örn: 65" data-i18n-placeholder="wattPlaceholder" class="mt-1 w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm" />
+                                    </label>
+                                    <label class="block text-xs font-bold uppercase text-slate-400"><span data-i18n="unitPrice">Birim fiyat (TL/kWh)</span>
+                                        <input id="nrg-price" type="text" inputmode="decimal" placeholder="Örn: 3,24" data-i18n-placeholder="pricePlaceholder" class="mt-1 w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm" />
+                                    </label>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="btn-nrg-measure" class="px-4 py-2 bg-primary/20 border border-primary/50 text-primary text-xs font-bold rounded-lg hover:bg-primary/30" data-i18n="autoMeasure">Otomatik Ölç</button>
+                                    <button id="btn-nrg-clear" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-red-500" data-i18n="clear">Temizle</button>
+                                </div>
+                                <p id="nrg-measure-note" class="text-[11px] text-slate-400 mt-2 hidden"></p>
+                            </div>
+                            <!-- AI Paketi -->
+                            <div
+                                class="p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                <div class="space-y-0.5 mb-3">
+                                    <p class="text-sm font-medium" data-i18n="aiPackage">AI Paketi</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="aiPackageDesc">Dil + ses modeli (~1.5GB, tek seferlik indirme). Sihirbazı kaçırdıysanız buradan kurun.</p>
+                                </div>
+                                <p id="set-ai-status" data-i18n="aiStatusChecking" class="text-xs text-slate-500 mb-2">Durum denetleniyor...</p>
+                                <div id="set-ai-progress-wrap" class="hidden mb-2">
+                                    <div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                        <div id="set-ai-progress-bar" class="h-full bg-primary rounded-full" ></div>
+                                    </div>
+                                    <p id="set-ai-progress-text" class="text-[11px] text-slate-400 mt-1">%0</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="btn-set-ai-download" class="flex-1 py-2 bg-primary/20 border border-primary/50 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 cursor-pointer disabled:cursor-default" data-i18n="downloadAiPackage">AI Paketini İndir</button>
+                                    <button id="btn-set-ai-load" class="flex-1 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90" data-i18n="enableAi">AI'yi Etkinleştir</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <footer
+                    class="p-6 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3 bg-white/50 dark:bg-slate-900/50 mt-auto">
+                    <button id="btn-settings-default"
+                        class="px-6 py-2 rounded-lg text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-i18n="restoreDefaults">Varsayılana
+                        Dön</button>
+                    <button id="btn-settings-save"
+                        class="px-8 py-2 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all" data-i18n="saveApply">Kaydet
+                        ve Uygula</button>
+                </footer>
+            </div>
+
+            <!-- About View -->
+            <div id="view-about" class="view-section hidden w-full h-full flex flex-col overflow-hidden">
+
+
+
+                <!-- Scrollable body -->
+                <div class="flex-1 overflow-y-auto px-8 py-8 flex flex-col items-center gap-6">
+
+                    <!-- Product Identity Block -->
+                    <div class="flex flex-col items-center gap-3 mb-2">
+                        <div class="w-20 h-20 rounded-2xl overflow-hidden shadow-lg shadow-primary/30 bg-transparent shrink-0">
+                            <img src="../powerpilot_icon.png" alt="Power Pilot Logo" class="w-full h-full object-cover" />
+                        </div>
+                        <div class="text-center">
+                            <h3 class="text-2xl font-bold text-slate-900 dark:text-white leading-tight">Power Pilot</h3>
+                            <p id="app-version" class="text-xs text-slate-400 font-semibold tracking-widest uppercase mt-0.5">v—</p>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-xs" data-i18n="aboutDesc">Bilgisayarınızın güç yönetimini otomatikleştiren modern ve sade bir yazılım.</p>
+                        </div>
+                    </div>
+
+                    <!-- Developer / Publisher Card -->
+                    <div class="w-full max-w-lg bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-center gap-4">
+                            <div class="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center shrink-0 overflow-hidden">
+                                <img src="../public/Vellium-logo.svg" alt="Vellium Logo" class="w-6 h-6 object-contain filter drop-shadow-[0_0_8px_rgba(15,188,249,0.65)] hover:drop-shadow-[0_0_12px_rgba(15,188,249,0.9)] transition-all duration-300" />
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5" data-i18n="developer">Geliştirici</p>
+                                <p class="text-base font-bold text-slate-900 dark:text-slate-100">Vellium.dev</p>
+                                <a href="https://vellium.dev" target="_blank"
+                                   class="text-xs text-primary hover:underline font-medium">vellium.dev</a>
+                            </div>
+                            <a href="https://vellium.dev" target="_blank"
+                               class="shrink-0 px-3 py-1.5 rounded-lg bg-primary/20 border border-primary/50 text-primary text-xs font-semibold hover:bg-primary/30 transition-colors flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">open_in_new</span>
+                                <span data-i18n="websiteButton">Website</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Legal Links -->
+                    <div class="w-full max-w-lg bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3" data-i18n="legalTitle">Yasal</p>
+                        <div class="flex flex-col gap-1">
+                            <button id="btn-eula"
+                                class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors text-left group">
+                                <span class="material-symbols-outlined text-slate-400 text-lg group-hover:text-primary transition-colors">gavel</span>
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold text-slate-700 dark:text-slate-200" data-i18n="eulaTitle">Kullanım Koşulları (EULA)</p>
+                                    <p class="text-xs text-slate-400" data-i18n="eulaSubtitle">Son kullanıcı lisans sözleşmesi</p>
+                                </div>
+                                <span class="material-symbols-outlined text-slate-300 text-base">chevron_right</span>
+                            </button>
+                            <button id="btn-privacy"
+                                class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors text-left group">
+                                <span class="material-symbols-outlined text-slate-400 text-lg group-hover:text-primary transition-colors">shield</span>
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold text-slate-700 dark:text-slate-200" data-i18n="privacyTitle">Gizlilik Politikası</p>
+                                    <p class="text-xs text-slate-400" data-i18n="privacySubtitle">Veri toplama ve gizlilik bilgileri</p>
+                                </div>
+                                <span class="material-symbols-outlined text-slate-300 text-base">chevron_right</span>
+                            </button>
+                            <button id="btn-oss-licenses"
+                                class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors text-left group">
+                                <span class="material-symbols-outlined text-slate-400 text-lg group-hover:text-primary transition-colors">folder_open</span>
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold text-slate-700 dark:text-slate-200" data-i18n="ossTitle">Açık Kaynak Lisansları</p>
+                                    <p class="text-xs text-slate-400" data-i18n="ossSubtitle">Üçüncü parti yazılım bildirimleri</p>
+                                </div>
+                                <span class="material-symbols-outlined text-slate-300 text-base">chevron_right</span>
+                            </button>
+                            <button id="btn-report-content"
+                                class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors text-left group">
+                                <span class="material-symbols-outlined text-slate-400 text-lg group-hover:text-primary transition-colors">flag</span>
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold text-slate-700 dark:text-slate-200" data-i18n="reportContent">Uygunsuz İçeriği Bildir</p>
+                                    <p class="text-xs text-slate-400" data-i18n="reportContentDesc">AI yanıtlarıyla ilgili geri bildirim</p>
+                                </div>
+                                <span class="material-symbols-outlined text-slate-300 text-base">chevron_right</span>
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-3 leading-relaxed" data-i18n="aiPrivacyNote">AI Asistan tamamen cihazınızda çalışır; sesiniz ve komutlarınız internete gönderilmez. / The AI Assistant runs fully on-device; your voice and commands never leave your computer.</p>
+                    </div>
+
+                    <!-- Copyright Footer -->
+                    <p class="text-xs text-slate-400 text-center mt-2 pb-2">
+                        Copyright &copy; <span class="copyright-year"></span> Vellium. <span data-i18n="copyrightText">All rights reserved.</span><br>
+                        <span class="text-slate-500" data-i18n="copyrightDisclaimer">Power Pilot tescilli bir yazılımdır. İzinsiz kopyalanması, dağıtılması veya tersine mühendislik yapılması kesinlikle yasaktır.</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Smart Finish View -->
+            <div id="view-smartfinish" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="sfTitle">Smart Finish Koşul Motoru</h2>
+                <p class="text-sm text-slate-500 mb-6" data-i18n="sfSubtitle">İşleminiz bittiğinde (Render, İndirme, Boşta kalma vb.) bilgisayarı otomatik yönetin.</p>
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm max-w-xl space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1" data-i18n="sfConditionType">Koşul Türü Seçin</label>
+                        <select id="sf-condition-type" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm">
+                            <option value="process_running" data-i18n="sfProcessClose">İşlem Kapanınca (Process Close)</option>
+                            <option value="cpu_usage" data-i18n="sfCpuBelow">CPU Kullanımı Eşik Altı (%)</option>
+                            <option value="user_idle" data-i18n="sfUserIdle">Kullanıcı Boşta Kalma (Saniye)</option>
+                            <option value="network_speed" data-i18n="sfNetworkBelow">Ağ Hızı Eşik Altı (Kbps)</option>
+                            <option value="disk_activity" data-i18n="sfDiskBelow">Disk Hareketi Eşik Altı (Kbps)</option>
+                            <option value="battery_level" data-i18n="sfBatteryLevel">Batarya Seviyesi (%)</option>
+                            <option value="file_stable" data-i18n="sfFileStable">Dosya Değişmezse (Yol)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label id="sf-value-label" data-i18n="sfValueLabel" class="block text-xs font-bold uppercase text-slate-400 mb-1">Değer / İşlem Adı</label>
+                        <input id="sf-condition-value" type="text" placeholder="Örn: handbrake.exe" data-i18n-placeholder="sfConditionValuePlaceholder" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm">
+                    </div>
+                    <div id="sf-extra-row" class="hidden">
+                        <label id="sf-extra-label" class="block text-xs font-bold uppercase text-slate-400 mb-1" data-i18n="sfExtraLabel">Ek Değer</label>
+                        <div class="flex gap-2 items-center">
+                            <input id="sf-extra" type="number" min="0" class="flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm" />
+                            <select id="sf-direction" class="hidden bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm">
+                                <option value="below" data-i18n="sfBelow">Altına düşünce</option>
+                                <option value="above" data-i18n="sfAbove">Üstüne çıkınca</option>
+                            </select>
+                            <label id="sf-onclose-wrap" class="hidden items-center gap-2 text-xs text-slate-500 whitespace-nowrap">
+                                <input id="sf-onclose" type="checkbox" checked class="w-4 h-4 accent-[#4f7cff]" /> <span data-i18n="sfTriggerOnClose">Kapanınca tetikle</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="sf-operator" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm font-bold" data-i18n-title="sfOperatorTitle" title="Çoklu koşul bağlacı">
+                            <option value="AND" data-i18n="sfAnd">VE (tümü)</option>
+                            <option value="OR" data-i18n="sfOr">VEYA (biri)</option>
+                        </select>
+                        <input id="sf-stability" type="number" min="0" max="3600" value="15" data-i18n-title="sfStabilityTitle" title="Kararlılık süresi (sn)" class="w-24 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm" />
+                        <button id="btn-add-sf-condition" class="flex-1 py-2.5 bg-primary/20 border border-primary/50 text-primary text-sm font-bold rounded-lg hover:bg-primary/30 transition-all" data-i18n="sfAddCondition">+ Koşul Ekle</button>
+                    </div>
+                    <div id="sf-chip-list" class="flex flex-wrap gap-2"></div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1" data-i18n="sfSpecificTime">Belirli Saat (opsiyonel — seçilirse koşul izlenmez, o saatte çalışır)</label>
+                        <input id="sf-time" type="time" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1" data-i18n="sfActionLabel">Çalıştırılacak Güç İşlemi</label>
+                        <select id="sf-action" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm">
+                            <option value="shutdown" data-i18n="sfShutdown">Kapat</option>
+                            <option value="sleep" data-i18n="sfSleep">Uyku</option>
+                            <option value="hibernate" data-i18n="sfHibernate">Hazırda Beklet</option>
+                            <option value="lock" data-i18n="sfLock">Kilitle</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1" data-i18n="sfChainLabel">Sonrasında (opsiyonel zincir)</label>
+                        <div class="flex gap-2">
+                            <select id="sf-chain-action" class="flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm">
+                                <option value="" data-i18n="sfNoChain">— Zincir yok —</option>
+                                <option value="shutdown" data-i18n="sfShutdown">Kapat</option>
+                                <option value="restart" data-i18n="sfRestart">Yeniden Başlat</option>
+                                <option value="sleep" data-i18n="sfSleep">Uyku</option>
+                                <option value="hibernate" data-i18n="sfHibernate">Hazırda Beklet</option>
+                                <option value="lock" data-i18n="sfLock">Kilitle</option>
+                            </select>
+                            <input id="sf-chain-delay" type="number" min="1" max="43200" value="60" data-i18n-title="sfChainDelayTitle" title="Kaç dakika sonra" class="w-24 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm" />
+                            <span class="text-xs text-slate-400 self-center whitespace-nowrap" data-i18n="sfMinutesLater">dk sonra</span>
+                        </div>
+                    </div>
+                    <button id="btn-save-sf-task" class="w-full py-3 bg-primary text-white font-bold text-sm rounded-lg hover:bg-primary/90 transition-all" data-i18n="sfCreateTask">Smart Finish Görevi Oluştur</button>
+                    <div class="flex gap-2">
+                        <input id="sf-template-name" type="text" maxlength="80" placeholder="Şablon adı (örn: Gece render)" data-i18n-placeholder="sfTemplateNamePlaceholder" class="flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm" />
+                        <button id="btn-save-sf-template" class="px-4 py-2.5 bg-primary/20 border border-primary/50 text-primary text-sm font-bold rounded-lg hover:bg-primary/30 transition-all whitespace-nowrap" data-i18n="sfSaveTemplate">Şablon Kaydet</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assistant View (WBS-7.4) -->
+            <div id="view-assistant" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="navAssistant">AI Asistan</h2>
+                <p class="text-sm text-slate-500 mb-4" data-i18n="assistantSubtitle">Cümleyle anlatın, görevi AI kursun. Örnek: "HandBrake bitince bilgisayarı kapat".</p>
+                <p id="ai-status-line" data-i18n="aiStatusChecking" class="text-xs text-slate-400 mb-4">AI durumu denetleniyor...</p>
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm max-w-xl space-y-3">
+                    <textarea id="ai-input" rows="3" placeholder="Örn: 2 saat sonra kapat" data-i18n-placeholder="aiInputPlaceholder" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm"></textarea>
+                    <div class="flex gap-2">
+                        <button id="btn-ai-parse" class="flex-1 py-2.5 bg-primary text-white font-bold text-sm rounded-lg hover:bg-primary/90 transition-all" data-i18n="parse">Çözümle</button>
+                        <button id="btn-ai-mic" title="Sesli komut" data-i18n-title="voiceCommandTitle" class="px-4 py-2.5 bg-primary/20 border border-primary/50 text-primary font-bold rounded-lg hover:bg-primary/30 transition-all text-lg leading-none">🎤</button>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button id="chip-ai-why" class="px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-900 text-slate-500 rounded-full hover:bg-primary/20 hover:text-primary transition-colors" data-i18n="chipWhy">Neden kapanmadı?</button>
+                        <button id="chip-ai-energy" class="px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-900 text-slate-500 rounded-full hover:bg-primary/20 hover:text-primary transition-colors" data-i18n="chipEnergy">Enerji özetim</button>
+                        <button id="chip-ai-suggest" class="px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-900 text-slate-500 rounded-full hover:bg-primary/20 hover:text-primary transition-colors" data-i18n="chipSuggest">Öneri ver</button>
+                    </div>
+                    <p id="ai-mic-status" class="text-xs text-slate-400 hidden"></p>
+                    <div id="ai-result"></div>
+                </div>
+            </div>
+
+            <!-- Templates View -->
+            <div id="view-templates" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="templatesTitle">Hazır Otomasyon Şablonları</h2>
+                <p class="text-sm text-slate-500 mb-6" data-i18n="templatesSubtitle">Tek tıkla özelleştirebileceğiniz hazır senaryolar.</p>
+                <div id="templates-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl"></div>
+            </div>
+
+            <!-- History View -->
+            <div id="view-history" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+                <div class="flex items-center justify-between mb-4 max-w-4xl">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900 dark:text-white" data-i18n="historyTitle">Görev Geçmişi ve Olay Kayıtları</h2>
+                        <p class="text-sm text-slate-500" data-i18n="historySubtitle">Gizlilik odaklı otomasyon çalıştırma kayıtları.</p>
+                    </div>
+                    <button id="btn-clear-history" class="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg text-xs font-bold transition-colors" data-i18n="clearHistory">Geçmişi Temizle</button>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden max-w-4xl">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-100 dark:bg-slate-900 text-xs uppercase text-slate-400">
+                            <tr>
+                                <th class="p-3" data-i18n="historyTime">Zaman</th>
+                                <th class="p-3" data-i18n="historyTaskName">Görev Adı</th>
+                                <th class="p-3" data-i18n="historyAction">İşlem</th>
+                                <th class="p-3" data-i18n="historySource">Kaynak</th>
+                                <th class="p-3" data-i18n="historyResult">Sonuç</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Statistics View -->
+            <div id="view-stats" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="statsTitle">Enerji &amp; Açık Kalma Süresi Tahminleri</h2>
+                <p class="text-sm text-slate-500 mb-6" data-i18n="statsSubtitle">Power Pilot ile elde ettiğiniz yerel tasarruf istatistikleri.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mb-8">
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <span class="text-xs font-bold text-slate-400 uppercase" data-i18n="statPreventedUptime">Önlenen Açık Kalma</span>
+                        <h3 id="stat-hours" class="text-3xl font-extrabold text-primary mt-2">—</h3>
+                        <span class="text-[10px] text-slate-400" data-i18n="statEstimated">Tahmini</span>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <span class="text-xs font-bold text-slate-400 uppercase" data-i18n="statEnergySavings">Enerji Tasarrufu</span>
+                        <h3 id="stat-kwh" class="text-3xl font-extrabold text-green-500 mt-2">—</h3>
+                        <span class="text-[10px] text-slate-400" data-i18n="statEstimated">Tahmini</span>
+                        <button id="chip-watt" class="hidden mt-2 text-[11px] font-bold text-amber-500 hover:underline" data-i18n="chipWatt">kWh için watt girin →</button>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <span class="text-xs font-bold text-slate-400 uppercase" data-i18n="statCostSavings">Maliyet Tasarrufu</span>
+                        <h3 id="stat-cost" class="text-3xl font-extrabold text-slate-900 dark:text-white mt-2">—</h3>
+                        <span class="text-[10px] text-slate-400" data-i18n="statEstimated">Tahmini</span>
+                        <button id="chip-price" class="hidden mt-2 text-[11px] font-bold text-amber-500 hover:underline" data-i18n="chipPrice">TL için birim fiyat girin →</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integrations View -->
+            <div id="view-integrations" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="integrationsTitle">Yerel Entegrasyonlar &amp; API</h2>
+                <p class="text-sm text-slate-500 mb-6" data-i18n="integrationsSubtitle">n8n, CLI, Webhook ve Wake-on-LAN ayarlarını yerel olarak yönetin.</p>
+                <div class="space-y-6 max-w-3xl">
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between mb-3">
+                            <div>
+                                <h3 class="font-bold text-base" data-i18n="localRestApi">Yerel REST API (127.0.0.1)</h3>
+                                <p class="text-xs text-slate-400" data-i18n="apiPortLine">Port: 18456 | n8n &amp; CLI erişimi için yerel sunucu.</p>
+                            </div>
+                            <button id="btn-gen-api-key" class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-all" data-i18n="apiCreateKey">API Anahtarı Oluştur</button>
+                        </div>
+                        <div class="bg-slate-100 dark:bg-slate-900 p-3 rounded-lg flex items-center justify-between">
+                            <span data-i18n="apiKeyLabel" class="text-xs font-mono text-slate-500">API Key:</span>
+                            <span id="display-api-key" class="text-xs font-mono font-bold text-primary" data-i18n="apiNotCreated">Oluşturulmadı</span>
+                        </div>
+                        <div class="bg-slate-100 dark:bg-slate-900 p-3 rounded-lg flex items-center justify-between mt-3">
+                            <span class="text-xs font-mono text-slate-500" data-i18n="apiServerStatus">Sunucu Durumu:</span>
+                            <span id="api-status-badge" class="text-xs font-bold text-slate-400" data-i18n="apiOff">Kapalı</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg cursor-pointer">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiServer">API Sunucusu</span>
+                                <input id="api-enabled" type="checkbox" class="w-4 h-4 accent-[#4f7cff]" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg gap-2">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiPort">Port</span>
+                                <input id="api-port" type="number" min="1024" max="65535" value="18456" class="w-24 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 text-xs text-right" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg cursor-pointer">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiLan">LAN Erişimi</span>
+                                <input id="api-lan" type="checkbox" class="w-4 h-4 accent-[#4f7cff]" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg gap-2">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiAllowedIps">İzinli IP'ler</span>
+                                <input id="api-ips" type="text" value="127.0.0.1" placeholder="192.168.1.10, ..." class="w-36 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 text-xs text-right font-mono" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg cursor-pointer md:col-span-2">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiBlockRemote">Kullanıcı aktifken uzaktan kapatmayı engelle</span>
+                                <input id="api-block-remote" type="checkbox" checked class="w-4 h-4 accent-[#4f7cff]" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg cursor-pointer">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiTls">TLS kullan</span>
+                                <input id="api-tls" type="checkbox" class="w-4 h-4 accent-[#4f7cff]" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg cursor-pointer">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiTlsStrict">Sıkı TLS (TLS 1.2+)</span>
+                                <input id="api-tls-strict" type="checkbox" class="w-4 h-4 accent-[#4f7cff]" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg cursor-pointer md:col-span-2">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiRequireClientCert">İstemci sertifikası zorunlu (mTLS)</span>
+                                <input id="api-client-cert" type="checkbox" class="w-4 h-4 accent-[#4f7cff]" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg gap-2">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiCertFile">Sertifika dosyası</span>
+                                <input id="api-cert-file" type="text" placeholder="C:\...\server.crt" class="w-44 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 text-xs text-right font-mono" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg gap-2">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiKeyFile">Özel anahtar dosyası</span>
+                                <input id="api-key-file" type="text" placeholder="C:\...\server.key" class="w-44 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 text-xs text-right font-mono" />
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg gap-2 md:col-span-2">
+                                <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiClientFingerprints">İzinli istemci SHA-256 parmak izleri (virgülle)</span>
+                                <input id="api-client-fingerprints" type="text" placeholder="AB:CD:..." class="w-56 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-1.5 text-xs text-right font-mono" />
+                            </label>
+                        </div>
+                        <p class="text-[11px] text-amber-500 mt-2" data-i18n="apiLanNote">LAN erişimi yalnızca listedeki IP/CIDR kayıtlarına açıktır. Liste boşsa yalnızca bu bilgisayar bağlanabilir.</p>
+                        <p class="text-[11px] text-slate-500 mt-1" data-i18n="apiTlsNote">LAN modu TLS gerektirir. Sertifika/anahtar yolları ana süreçte okunur; özel anahtar bu makineden çıkmaz.</p>
+                        <div class="flex gap-2 items-center">
+                            <button id="btn-save-api" class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-all" data-i18n="apiSave">API Ayarlarını Kaydet</button>
+                            <button id="btn-qr-api" class="px-4 py-2 bg-primary/20 border border-primary/50 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 transition-all" data-i18n="apiPhoneQr">Telefon QR'ı</button>
+                        </div>
+                        <div id="qr-api-box" class="hidden mt-3 p-3 bg-white dark:bg-slate-900 rounded-lg text-center">
+                            <p class="text-[11px] text-slate-400 mb-2" data-i18n="apiQrNote">Telefon kamerasıyla okutun (anahtar ekranda görünür — çevrenize dikkat edin).</p>
+                            <div id="qr-api-img" class="inline-block"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <h3 class="font-bold text-base mb-3" data-i18n="wolWizard">Wake-on-LAN (WoL) Sihirbazı</h3>
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <input id="wol-mac" type="text" placeholder="MAC Adresi (AA:BB:CC:DD:EE:FF)" data-i18n-placeholder="wolMacPlaceholder" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs">
+                            <input id="wol-ip" type="text" placeholder="Broadcast IP (255.255.255.255)" data-i18n-placeholder="wolBroadcastPlaceholder" value="255.255.255.255" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs">
+                        </div>
+                        <button id="btn-send-wol" class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-all" data-i18n="wolSend">Magic Packet Gönder</button>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <h3 class="font-bold text-base mb-1" data-i18n="webhookTitle">Webhook Bildirimleri</h3>
+                        <p class="text-xs text-slate-400 mb-3" data-i18n="webhookSubtitle">Olay olunca adresinize bildirim gider. Gizli anahtarlar bir kez yazılır, bir daha gösterilmez.</p>
+                        <div id="webhook-list" class="space-y-2 mb-3"></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <input id="wh-name" type="text" placeholder="Ad (örn: n8n)" data-i18n-placeholder="webhookNamePlaceholder" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs" />
+                            <input id="wh-url" type="text" placeholder="https://..." class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs font-mono" />
+                            <select id="wh-auth" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs">
+                                <option value="none" data-i18n="webhookAuthNone">Kimliksiz</option>
+                                <option value="bearer">Bearer Token</option>
+                                <option value="basic">Basic Auth</option>
+                                <option value="hmac" data-i18n="webhookHmac">HMAC İmza</option>
+                            </select>
+                            <input id="wh-secret" type="password" placeholder="Gizli değer" data-i18n-placeholder="webhookSecretPlaceholder" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs font-mono" />
+                            <input id="wh-user" type="text" placeholder="Basic kullanıcı adı" data-i18n-placeholder="webhookBasicUserPlaceholder" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs hidden" />
+                            <label class="flex items-center gap-2 text-xs text-slate-500">
+                                <input id="wh-enabled" type="checkbox" checked class="w-4 h-4 accent-[#4f7cff]" /> <span data-i18n="webhookEnabled">Etkin</span>
+                            </label>
+                        </div>
+                        <p class="text-[11px] font-bold text-slate-500 mt-3 mb-1" data-i18n="webhookEvents">Olaylar:</p>
+                        <div id="wh-events" class="flex flex-wrap gap-2 mb-3"></div>
+                        <div class="flex gap-2">
+                            <button id="btn-add-webhook" class="px-4 py-2 bg-primary/20 border border-primary/50 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 transition-all" data-i18n="webhookAdd">Listeye Ekle</button>
+                            <button id="btn-save-webhooks" class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-all" data-i18n="webhookSaveAll">Tümünü Kaydet</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+    <!-- Setup Wizard Overlay (WBS-7.5) — tıklamaları yutmaz: başlık çubuğu
+         (kapat/küçült) ve arka plan her zaman çalışır, yalnızca kart tıklanır.
+         Perde bilerek hafiftir + nabız göstergesi uygulamanın canlı olduğunu kanıtlar. -->
+    <div id="wizard-overlay" class="hidden fixed inset-0 z-[60] bg-slate-950/45 flex items-center justify-center p-4 pointer-events-none">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 pointer-events-auto">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-extrabold text-slate-900 dark:text-white" data-i18n="wizardTitle">Power Pilot Kurulumu</h3>
+                <button id="btn-wz-skip" class="text-xs font-bold text-slate-400 hover:text-slate-600" data-i18n="wizardSkip">Atla</button>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                </span>
+                <span data-i18n="wizardRunning">Uygulama çalışıyor — kurulumu istediğiniz zaman tamamlayabilirsiniz.</span>
+                <span id="wz-clock" class="ml-auto font-mono font-bold text-slate-400"></span>
+            </div>
+            <div class="flex gap-1.5" id="wz-dots">
+                <div class="h-1.5 flex-1 rounded-full bg-primary" data-dot="1"></div>
+                <div class="h-1.5 flex-1 rounded-full bg-slate-200 dark:bg-slate-700" data-dot="2"></div>
+                <div class="h-1.5 flex-1 rounded-full bg-slate-200 dark:bg-slate-700" data-dot="3"></div>
+            </div>
+            <div id="wz-step-1" class="space-y-3">
+                <p class="text-sm font-bold" data-i18n="wizardStep1">1. Dil seçin</p>
+                <select id="wz-lang" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm">
+                    <option value="tr">Türkçe</option>
+                    <option value="en">English</option>
+                    <option value="de">Deutsch</option>
+                    <option value="sv">Svenska</option>
+                    <option value="no">Norsk</option>
+                    <option value="da">Dansk</option>
+                    <option value="fr">Français</option>
+                    <option value="pl">Polski</option>
+                    <option value="it">Italiano</option>
+                    <option value="nl">Nederlands</option>
+                    <option value="cs">Čeština</option>
+                    <option value="es">Español</option>
+                    <option value="pt">Português</option>
+                    <option value="ja">日本語</option>
+                    <option value="zh">简体中文</option>
+                    <option value="ko">한국어</option>
+                    <option value="ar">العربية</option>
+                </select>
+            </div>
+            <div id="wz-step-2" class="space-y-3 hidden">
+                <p class="text-sm font-bold"><span data-i18n="wizardStep2">2. Enerji hesabı</span> <span class="font-normal text-slate-400" data-i18n="wizardOptional">(opsiyonel — boş geçilebilir)</span></p>
+                <div id="wz-auto-card" class="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg text-xs text-slate-500" data-i18n="wizardDetecting">
+                    t('wizardDetecting')
+                </div>
+                <label class="block text-xs font-bold uppercase text-slate-400" data-i18n="wizardWattLabel">Güç tüketimi (Watt, boş bırakılabilir)</label>
+                <input id="wz-watt" type="number" min="5" max="2000" placeholder="Örn: 65" data-i18n-placeholder="wattPlaceholder" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm" />
+                <label class="block text-xs font-bold uppercase text-slate-400" data-i18n="wizardBillLabel">Elektrik bedeli (birim/kWh, boş bırakılabilir)</label>
+                <input id="wz-bill" type="text" inputmode="decimal" placeholder="Örn: 3,24" data-i18n-placeholder="pricePlaceholder" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm" />
+                <p class="text-[11px] text-slate-400" data-i18n="wizardBillNote">Güncel mesken varsayılanı ~3,24 TL'dir; boş bırakırsanız TL hesabı yapılmaz, kWh gösterilir.</p>
+            </div>
+            <div id="wz-step-3" class="space-y-3 hidden">
+                <p class="text-sm font-bold" data-i18n="wizardStep3">3. AI Paketi (opsiyonel, ~1.5GB: dil + ses modeli)</p>
+                <p id="wz-ai-status" data-i18n="statusChecking" class="text-xs text-slate-500">Durum denetleniyor...</p>
+                <p id="wz-ram-warn" class="text-xs text-amber-500 hidden" data-i18n="wizardRamWarn">RAM 4GB altında: AI yavaş çalışabilir. Yine de kurabilirsiniz.</p>
+                <p class="text-[11px] text-slate-400" data-i18n="wizardDataWarn">Mobil veri kullanıyorsanız indirme kotanıza dikkat edin.</p>
+                <div id="wz-progress-wrap" class="hidden">
+                    <div class="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div id="wz-progress-bar" class="h-full bg-primary rounded-full" ></div>
+                    </div>
+                    <p id="wz-progress-text" class="text-[11px] text-slate-400 mt-1">%0</p>
+                </div>
+                <div class="flex gap-2">
+                    <button id="btn-wz-download" class="flex-1 py-2 bg-primary/20 border border-primary/50 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 cursor-pointer disabled:cursor-default" data-i18n="downloadAiPackage">AI Paketini İndir</button>
+                    <button id="btn-wz-load" class="flex-1 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90" data-i18n="enableAi">AI'yi Etkinleştir</button>
+                </div>
+            </div>
+            <div class="flex gap-2 pt-1 items-center justify-between">
+                <button id="btn-wz-back" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600" data-i18n="wizardBack">Geri</button>
+                <button id="btn-wz-next" class="px-8 py-2 text-xs font-bold bg-primary text-white rounded-lg hover:bg-primary/90" data-i18n="wizardNext">Devam</button>
+                <button id="btn-wz-finish" class="px-8 py-2 text-xs font-bold bg-primary text-white rounded-lg hover:bg-primary/90 hidden" data-i18n="wizardFinish">Bitir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Warning Banner (WBS-9.4): classic modda son çıkış, full modda geri sayım -->
+    <div id="warning-banner" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[70] bg-white dark:bg-slate-800 border border-amber-400/60 rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-3 max-w-xl">
+        <span class="material-symbols-outlined text-amber-500">warning</span>
+        <div class="min-w-0">
+            <p id="warning-banner-text" class="text-sm font-bold truncate"></p>
+            <p id="warning-banner-count" class="text-xs text-slate-400"></p>
+        </div>
+        <div class="flex gap-1.5 shrink-0">
+            <button id="btn-warn-stop" class="px-3 py-1.5 bg-red-500/10 text-red-500 text-xs font-bold rounded-lg hover:bg-red-500/20" data-i18n="warnStop">Durdur</button>
+            <button id="btn-warn-snooze" class="px-3 py-1.5 bg-primary/20 border border-primary/50 text-primary text-xs font-bold rounded-lg hover:bg-primary/30" data-i18n="warnSnooze">Ertele</button>
+            <button id="btn-warn-now" class="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90" data-i18n="warnNow">Şimdi Çalıştır</button>
+        </div>
+    </div>
+
+    <!-- Harici bağlantı onayı (WP-10.T6) -->
+    <div id="modal-confirm-link" class="hidden fixed inset-0 z-[80] bg-slate-950/70 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3">
+            <p class="text-sm font-extrabold" data-i18n="confirmExternalTitle">Harici bağlantı</p>
+            <p class="text-xs text-slate-500" data-i18n="confirmExternalMessage">Bu bağlantı tarayıcınızda açılacak. Devam edilsin mi?</p>
+            <p id="confirm-link-target" class="text-[11px] font-mono break-all text-slate-400"></p>
+            <div class="flex gap-2">
+                <button id="modal-confirm-link-cancel" class="flex-1 py-2 text-xs font-bold text-slate-400 hover:text-slate-600" data-i18n="confirmExternalNo">Vazgeç</button>
+                <button id="modal-confirm-link-yes" class="flex-1 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90" data-i18n="confirmExternalYes">Devam et</button>
+            </div>
+            <button id="modal-confirm-link-close" class="sr-only" tabindex="-1" aria-hidden="true">×</button>
+            <div id="modal-confirm-link-backdrop" class="hidden"></div>
+        </div>
+    </div>
+
+    <!-- EULA -->
+    <div id="modal-eula" class="hidden fixed inset-0 z-[80] bg-slate-950/70 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="font-bold text-base" data-i18n="eulaHeader">Son Kullanıcı Lisans Sözleşmesi</h3>
+                <button id="modal-eula-close" class="text-slate-400 hover:text-slate-600 text-xl" aria-label="Close">×</button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                <p class="font-bold text-sm" data-i18n="eulaBodyTitle">Power Pilot — EULA</p>
+                <p data-i18n="eulaBodyP1"></p>
+                <p class="font-bold" data-i18n="eulaSec1Title">1. Lisans Kapsamı</p>
+                <p data-i18n="eulaSec1P"></p>
+                <p class="font-bold" data-i18n="eulaSec2Title">2. Kısıtlamalar</p>
+                <p data-i18n="eulaSec2P"></p>
+                <ul class="list-disc ps-5 space-y-1">
+                    <li data-i18n="eulaSec2Li1"></li>
+                    <li data-i18n="eulaSec2Li2"></li>
+                    <li data-i18n="eulaSec2Li3"></li>
+                    <li data-i18n="eulaSec2Li4"></li>
+                    <li data-i18n="eulaSec2Li5"></li>
+                </ul>
+                <p class="font-bold" data-i18n="eulaSec3Title">3. Fikri Mülkiyet</p>
+                <p data-i18n="eulaSec3P"></p>
+                <p class="font-bold" data-i18n="eulaSec4Title">4. Garanti Reddi</p>
+                <p data-i18n="eulaSec4P"></p>
+                <p class="font-bold" data-i18n="eulaSec5Title">5. Sorumluluk Sınırı</p>
+                <p data-i18n="eulaSec5P"></p>
+                <p class="font-bold" data-i18n="eulaSec6Title">6. Fesih</p>
+                <p data-i18n="eulaSec6P"></p>
+                <p class="font-bold" data-i18n="eulaSec7Title">7. Uygulanacak Hukuk</p>
+                <p data-i18n="eulaSec7P"></p>
+                <p class="font-bold" data-i18n="eulaSec8Title">8. İletişim</p>
+                <p data-i18n="eulaSec8P"></p>
+                <p class="text-[11px] text-slate-400" data-i18n="eulaFooter"></p>
+            </div>
+            <div class="p-5 border-t border-slate-200 dark:border-slate-700 text-right">
+                <button id="modal-eula-accept" class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90" data-i18n="modalClose">Kapat</button>
+            </div>
+            <div id="modal-eula-backdrop" class="hidden"></div>
+        </div>
+    </div>
+
+    <!-- Gizlilik -->
+    <div id="modal-privacy" class="hidden fixed inset-0 z-[80] bg-slate-950/70 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="font-bold text-base" data-i18n="privacyHeader">Gizlilik Politikası</h3>
+                <button id="modal-privacy-close" class="text-slate-400 hover:text-slate-600 text-xl" aria-label="Close">×</button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                <p class="font-bold text-sm" data-i18n="privacyBodyTitle">Power Pilot — Gizlilik</p>
+                <p data-i18n="privacyBodyP1"></p>
+                <p class="font-bold" data-i18n="privacyNoDataTitle"></p>
+                <p data-i18n="privacyNoDataP"></p>
+                <p class="font-bold" data-i18n="privacyStorageTitle"></p>
+                <p data-i18n="privacyStorageP"></p>
+                <ul class="list-disc ps-5 space-y-1">
+                    <li data-i18n="privacyStorageLi1"></li>
+                    <li data-i18n="privacyStorageLi2"></li>
+                    <li data-i18n="privacyStorageLi3"></li>
+                    <li data-i18n="privacyStorageLi4"></li>
+                </ul>
+                <p data-i18n="privacyStorageDesc"></p>
+                <p class="font-bold" data-i18n="privacyInternetTitle"></p>
+                <p data-i18n="privacyInternetP"></p>
+                <p data-i18n="privacyInternetP2"></p>
+                <p class="font-bold" data-i18n="privacyThirdPartyTitle"></p>
+                <p data-i18n="privacyThirdPartyP"></p>
+                <p class="font-bold" data-i18n="privacyChildrenTitle"></p>
+                <p data-i18n="privacyChildrenP"></p>
+                <p class="font-bold" data-i18n="privacyContactTitle"></p>
+                <p data-i18n="privacyContactP"></p>
+                <p class="text-[11px] text-slate-400" data-i18n="privacyFooter"></p>
+            </div>
+            <div class="p-5 border-t border-slate-200 dark:border-slate-700 text-right">
+                <button id="modal-privacy-close2" class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90" data-i18n="modalClose">Kapat</button>
+            </div>
+            <div id="modal-privacy-backdrop" class="hidden"></div>
+        </div>
+    </div>
+
+    <!-- Açık kaynak lisansları -->
+    <div id="modal-oss" class="hidden fixed inset-0 z-[80] bg-slate-950/70 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+                <h3 class="font-bold text-base" data-i18n="ossTitle">Açık Kaynak Lisansları</h3>
+                <button id="modal-oss-close" class="text-slate-400 hover:text-slate-600 text-xl" aria-label="Close">×</button>
+            </div>
+            <div class="p-5 overflow-y-auto space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                <p class="font-bold text-sm" data-i18n="ossSubtitle"></p>
+                <p data-i18n="ossDescription"></p>
+                <p><strong>Electron</strong> — <span data-i18n="ossElectronDesc"></span></p>
+                <p><strong>electron-log</strong> — <span data-i18n="ossElectronLogDesc"></span></p>
+                <p><strong>ipaddr.js</strong> — <span data-i18n="ossIpaddrDesc"></span></p>
+                <p><strong>Material Symbols</strong> — <span data-i18n="ossMaterialSymbolsDesc"></span></p>
+                <p><strong>node-llama-cpp</strong> — <span data-i18n="ossNodeLlamaDesc"></span></p>
+                <p><strong>ps-list</strong> — <span data-i18n="ossPsListDesc"></span></p>
+                <p><strong>Public Sans</strong> — <span data-i18n="ossPublicSansDesc"></span></p>
+                <p><strong>qrcode-generator</strong> — <span data-i18n="ossQrcodeDesc"></span></p>
+                <p><strong>systeminformation</strong> — <span data-i18n="ossSysteminformationDesc"></span></p>
+                <p><strong>Tailwind CSS</strong> — <span data-i18n="ossTailwindDesc"></span></p>
+                <p><strong>Whisper</strong> — <span data-i18n="ossWhisperDesc"></span></p>
+                <p class="text-[11px] text-slate-400" data-i18n="ossFooterText"></p>
+            </div>
+            <div class="p-5 border-t border-slate-200 dark:border-slate-700 text-right">
+                <button id="modal-oss-close2" class="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90" data-i18n="modalClose">Kapat</button>
+            </div>
+            <div id="modal-oss-backdrop" class="hidden"></div>
+        </div>
+    </div>
+
+    <!-- PIN Modal (WBS-11.2) -->
+    <div id="modal-pin" class="hidden fixed inset-0 z-[80] bg-slate-950/70 flex items-center justify-center p-4 pointer-events-none">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-xs w-full p-5 space-y-3 pointer-events-auto">
+            <p class="text-sm font-extrabold" data-i18n="pinRequired">PIN Gerekli</p>
+            <p id="pin-modal-text" class="text-xs text-slate-500" data-i18n="pinPromptCancel">Devam etmek için iptal PIN’ini girin.</p>
+            <input id="pin-modal-input" type="password" inputmode="numeric" maxlength="8" class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-sm font-mono text-center tracking-[0.5em]" />
+            <p id="pin-modal-error" class="text-xs text-red-500 min-h-[1rem]"></p>
+            <div class="flex gap-2">
+                <button id="pin-modal-cancel" class="flex-1 py-2 text-xs font-bold text-slate-400 hover:text-slate-600" data-i18n="pinDecline">Vazgeç</button>
+                <button id="pin-modal-ok" class="flex-1 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90" data-i18n="pinConfirm">Onayla</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-24 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+    </div>
+
+    <!-- Application Logic -->
+    <script src="renderer/i18n.js"></script>
+    <script src="renderer/tasksView.js"></script>
+    <script src="renderer/app.js"></script>
+</body>
+
+</html>

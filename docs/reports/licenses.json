@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-10-24T19:18:34.470Z",
+  "packages": 181,
+  "licenses": {
+    "MIT": 158,
+    "ISC": 15,
+    "Apache-2.0": 1,
+    "BlueOak-1.0.0": 6,
+    "(BSD-2-Clause OR MIT OR Apache-2.0)": 1
+  },
+  "issues": []
+}

@@ -1,0 +1,613 @@
+{
+  "generatedAt": "2026-10-23T17:14:54.313Z",
+  "mode": "sqlite",
+  "agents": 100,
+  "hours": 1,
+  "intervalMs": 5000,
+  "orderCycles": 3,
+  "cycles": 720,
+  "ordersQueued": 300,
+  "ordersAcked": 300,
+  "ordersLost": 0,
+  "p50Ms": 0.92,
+  "p95Ms": 1.64,
+  "p99Ms": 3.16,
+  "rssBaselineMb": 82.34,
+  "rssEndMb": 80.93,
+  "rssGrowthPct": -1.71,
+  "rssSamples": [
+    {
+      "cycle": 1,
+      "rssMb": 72.36,
+      "heapUsedMb": 8.6,
+      "externalMb": 2.7,
+      "queued": 100,
+      "acked": 0
+    },
+    {
+      "cycle": 10,
+      "rssMb": 81.79,
+      "heapUsedMb": 8.6,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 20,
+      "rssMb": 82.15,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 30,
+      "rssMb": 82.13,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 40,
+      "rssMb": 82.15,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 50,
+      "rssMb": 82.15,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 60,
+      "rssMb": 82.2,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 70,
+      "rssMb": 82.34,
+      "heapUsedMb": 9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 72,
+      "rssMb": 82.34,
+      "heapUsedMb": 7.4,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 80,
+      "rssMb": 82.35,
+      "heapUsedMb": 8.2,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 90,
+      "rssMb": 82.31,
+      "heapUsedMb": 8.2,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 100,
+      "rssMb": 82.31,
+      "heapUsedMb": 8.2,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 110,
+      "rssMb": 82.5,
+      "heapUsedMb": 8.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 120,
+      "rssMb": 81.98,
+      "heapUsedMb": 8.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 130,
+      "rssMb": 82,
+      "heapUsedMb": 8.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 140,
+      "rssMb": 81.98,
+      "heapUsedMb": 8.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 150,
+      "rssMb": 81.98,
+      "heapUsedMb": 8.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 160,
+      "rssMb": 82.16,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 170,
+      "rssMb": 82.16,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 180,
+      "rssMb": 82.16,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 190,
+      "rssMb": 82.16,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 200,
+      "rssMb": 82.16,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 210,
+      "rssMb": 78.17,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 220,
+      "rssMb": 101.33,
+      "heapUsedMb": 8.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 230,
+      "rssMb": 101.64,
+      "heapUsedMb": 8.2,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 240,
+      "rssMb": 101.64,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 250,
+      "rssMb": 95.1,
+      "heapUsedMb": 8.3,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 260,
+      "rssMb": 95.1,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 270,
+      "rssMb": 95.1,
+      "heapUsedMb": 8.4,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 280,
+      "rssMb": 95.1,
+      "heapUsedMb": 8.9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 290,
+      "rssMb": 95.1,
+      "heapUsedMb": 8.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 300,
+      "rssMb": 95.1,
+      "heapUsedMb": 9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 310,
+      "rssMb": 95.1,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 320,
+      "rssMb": 90.07,
+      "heapUsedMb": 8.3,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 330,
+      "rssMb": 90.08,
+      "heapUsedMb": 8.9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 340,
+      "rssMb": 90.5,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 350,
+      "rssMb": 90.5,
+      "heapUsedMb": 9.3,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 360,
+      "rssMb": 90.5,
+      "heapUsedMb": 9.1,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 370,
+      "rssMb": 90.52,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 380,
+      "rssMb": 84.27,
+      "heapUsedMb": 9.2,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 390,
+      "rssMb": 84.27,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 400,
+      "rssMb": 84.28,
+      "heapUsedMb": 9.3,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 410,
+      "rssMb": 84.3,
+      "heapUsedMb": 8.9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 420,
+      "rssMb": 84.35,
+      "heapUsedMb": 9.4,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 430,
+      "rssMb": 84.35,
+      "heapUsedMb": 9.1,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 440,
+      "rssMb": 79.97,
+      "heapUsedMb": 8.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 450,
+      "rssMb": 79.97,
+      "heapUsedMb": 9.3,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 460,
+      "rssMb": 79.98,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 470,
+      "rssMb": 79.99,
+      "heapUsedMb": 9.3,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 480,
+      "rssMb": 79.99,
+      "heapUsedMb": 9.1,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 490,
+      "rssMb": 79.99,
+      "heapUsedMb": 8.8,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 500,
+      "rssMb": 76.99,
+      "heapUsedMb": 9.3,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 510,
+      "rssMb": 77.63,
+      "heapUsedMb": 9.4,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 520,
+      "rssMb": 77.91,
+      "heapUsedMb": 9.9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 530,
+      "rssMb": 77.91,
+      "heapUsedMb": 9.4,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 540,
+      "rssMb": 77.93,
+      "heapUsedMb": 9.9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 550,
+      "rssMb": 77.93,
+      "heapUsedMb": 9.4,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 560,
+      "rssMb": 77.18,
+      "heapUsedMb": 9.9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 570,
+      "rssMb": 77.24,
+      "heapUsedMb": 9.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 580,
+      "rssMb": 77.45,
+      "heapUsedMb": 10,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 590,
+      "rssMb": 77.45,
+      "heapUsedMb": 9.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 600,
+      "rssMb": 77.45,
+      "heapUsedMb": 9.4,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 610,
+      "rssMb": 77.45,
+      "heapUsedMb": 9.9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 620,
+      "rssMb": 76.9,
+      "heapUsedMb": 9.4,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 630,
+      "rssMb": 76.9,
+      "heapUsedMb": 10,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 640,
+      "rssMb": 76.9,
+      "heapUsedMb": 9.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 650,
+      "rssMb": 76.9,
+      "heapUsedMb": 10,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 660,
+      "rssMb": 76.9,
+      "heapUsedMb": 9.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 670,
+      "rssMb": 76.9,
+      "heapUsedMb": 9.9,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 680,
+      "rssMb": 76.2,
+      "heapUsedMb": 9.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 690,
+      "rssMb": 76.2,
+      "heapUsedMb": 10,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 700,
+      "rssMb": 76.2,
+      "heapUsedMb": 9.5,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 710,
+      "rssMb": 76.2,
+      "heapUsedMb": 10,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    },
+    {
+      "cycle": 720,
+      "rssMb": 76.2,
+      "heapUsedMb": 9.7,
+      "externalMb": 2.8,
+      "queued": 300,
+      "acked": 300
+    }
+  ],
+  "elapsedSec": 3606
+}

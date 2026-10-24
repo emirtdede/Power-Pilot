@@ -1,0 +1,159 @@
+{
+  "name": "powerpilot",
+  "version": "1.1.0",
+  "description": "A modern and simple software that automates your computer's power management.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:renderer": "node scripts/build-renderer.mjs",
+    "build:locales": "node scripts/build-locales.mjs",
+    "prepack": "npm run build:renderer",
+    "pack": "electron-builder --dir --config electron-builder.js",
+    "dist": "electron-builder --win nsis --config electron-builder.js",
+    "dist:nsis": "electron-builder --win nsis --config electron-builder.js",
+    "dist:appx": "node scripts/build-appx.js",
+    "verify:pack": "node scripts/verify-pack.js",
+    "spike:pslist": "node scripts/spike-pslist.js",
+    "release:rc": "node scripts/release-check.js --strict-git",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:security": "node scripts/security-check.mjs",
+    "test:smoke": "electron tests/smoke/electron-version.js",
+    "coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "locales:check": "node scripts/check-i18n.js",
+    "models:verify": "node scripts/verify-models.js",
+    "release:check": "node scripts/release-check.js",
+    "postinstall": "electron-rebuild",
+    "verify:signature": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-signature.ps1",
+    "test:load": "node --expose-gc scripts/load-test.mjs",
+    "sbom": "node scripts/sbom.mjs",
+    "audit:licenses": "node scripts/license-check.mjs"
+  },
+  "build": {
+    "appId": "Vellium.PowerPilot",
+    "productName": "Power Pilot",
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!dist-*/**",
+      "!test-results/**",
+      "!playwright-report/**",
+      "!blob-report/**",
+      "!coverage/**",
+      "!scratch/**",
+      "!build-sign*.log",
+      "!**/*.log"
+    ],
+    "asarUnpack": [
+      "**/*.node",
+      "**/node_modules/ps-list/vendor/*.exe"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "powerpilot_icon.ico",
+      "signtoolOptions": {
+        "signingHashAlgorithms": [
+          "sha256"
+        ],
+        "rfc3161TimeStampServer": "https://timestamp.digicert.com",
+        "certificateSubjectName": "${env.WIN_CERT_SUBJECT}"
+      }
+    },
+    "nsis": {
+      "shortcutName": "${productName}",
+      "uninstallDisplayName": "${productName}",
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "appx": {
+      "artifactName": "${productName} ${version}.${ext}",
+      "applicationId": "PowerPilot",
+      "identityName": "Vellium.PowerPilot",
+      "publisher": "${env.APPX_PUBLISHER}",
+      "publisherDisplayName": "Vellium.dev",
+      "languages": [
+        "TR-TR",
+        "EN-US",
+        "DE-DE",
+        "SV-SE",
+        "NB-NO",
+        "DA-DK",
+        "FR-FR",
+        "PL-PL",
+        "IT-IT",
+        "NL-NL",
+        "CS-CZ",
+        "ES-ES",
+        "PT-PT",
+        "JA-JP",
+        "ZH-CN",
+        "KO-KR",
+        "AR-SA"
+      ],
+      "makeappxArgs": [
+        "/v"
+      ]
+    },
+    "copyright": "Copyright © 2026 Vellium. All rights reserved.",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
+    "afterPack": "scripts/after-pack.cjs",
+    "electronDist": "node_modules/electron/dist"
+  },
+  "keywords": [],
+  "author": {
+    "name": "Vellium.dev",
+    "email": "info@vellium.dev",
+    "url": "https://vellium.dev"
+  },
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=24.18.1"
+  },
+  "devDependencies": {
+    "@electron/fuses": "2.1.3",
+    "@electron/rebuild": "4.2.1",
+    "@playwright/test": "1.64.1",
+    "@vitest/coverage-v8": "3.2.4",
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3",
+    "jsdom": "30.1.2",
+    "memfs": "4.80.0",
+    "node-abi": "4.39.0",
+    "png-to-ico": "3.0.1",
+    "selfsigned": "^2.4.1",
+    "tailwindcss": "^3.4.19",
+    "vitest": "3.2.4"
+  },
+  "homepage": "https://vellium.dev",
+  "overrides": {
+    "simple-git": "4.0.2",
+    "@simple-git/argv-parser": "2.0.1",
+    "brace-expansion@5.0.4": "5.0.12"
+  },
+  "dependencies": {
+    "@fugood/whisper.node": "^1.2.0-rc.1",
+    "@node-rs/argon2": "^2.2.2",
+    "better-sqlite3": "^13.0.3",
+    "canonicalize": "^5.1.0",
+    "electron-log": "^5.4.4",
+    "ipaddr.js": "2.5.0",
+    "node-llama-cpp": "^3.20.0",
+    "ps-list": "9.0.0",
+    "qrcode-generator": "^2.0.4",
+    "systeminformation": "^5.31.0"
+  }
+}

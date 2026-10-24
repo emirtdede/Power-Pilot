@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+
+# NOT: package-lock.json bilerek IZLENIR (npm ci tekrarlanabilirligi icin).
+# WBS-3.3: uretim ciktisi ve gecici calisma dosyalari repoya girmez.
+scratch/
+Power-Pilot-docs/
+test-results/
+playwright-report/
+blob-report/
+dist-*/
+audit.json

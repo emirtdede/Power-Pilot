@@ -1,0 +1,17 @@
+{
+  "version": 0,
+  "tasks": [
+    {
+      "id": "legacy-task",
+      "name": "Eski görev",
+      "action": "lock",
+      "status": "pending"
+    }
+  ],
+  "history": [],
+  "settings": {
+    "theme": "light",
+    "localApiEnabled": false
+  },
+  "webhooks": []
+}

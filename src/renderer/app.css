@@ -1,0 +1,89 @@
+body {
+            font-family: 'Public Sans', 'Segoe UI', sans-serif;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .sidebar-blur {
+            backdrop-filter: blur(20px);
+            background-color: rgba(15, 26, 35, 0.8);
+        }
+
+        /* Custom Title Bar Dragging */
+        .window-drag {
+            -webkit-app-region: drag;
+        }
+
+        .no-drag {
+            -webkit-app-region: no-drag;
+        }
+
+        /* Hide default number spinners */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            appearance: none;
+            margin: 0;
+        }
+
+        input[type="number"] {
+            -moz-appearance: textfield;
+            /* Firefox */
+            appearance: textfield;
+        }
+
+        /* Sihirbaz AI indirani: buton-içi dönen imleç */
+        .pp-spin {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-right: 6px;
+            vertical-align: -2px;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: pp-rotate 0.8s linear infinite;
+        }
+
+        @keyframes pp-rotate {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Sihirbaz AI indirani: akan çizgili bar + yumuşak genişleme */
+        #wz-progress-bar {
+            transition: width 0.3s ease;
+        }
+
+        #wz-progress-bar.pp-stripes {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.25) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.25) 75%, transparent 75%);
+            background-size: 16px 16px;
+            animation: pp-stripes 0.8s linear infinite;
+        }
+
+        @keyframes pp-stripes {
+            to { background-position: 16px 0; }
+        }
+
+        .pp-transition-stroke {
+            transition: stroke-dashoffset 1s linear;
+        }
+
+        #set-ai-progress-bar,
+        #wz-progress-bar {
+            width: 0;
+        }

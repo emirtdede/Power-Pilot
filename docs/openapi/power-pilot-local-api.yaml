@@ -1,0 +1,208 @@
+openapi: 3.0.3
+info:
+  title: Power Pilot Local API
+  description: Local REST API for controlling Power Pilot automation tasks, retrieving device status, and triggering power actions.
+  version: 1.1.0
+servers:
+  - url: http://127.0.0.1:18456/api/v1
+    description: Default Localhost Server
+paths:
+  /status:
+    get:
+      summary: Get device and app status
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /tasks:
+    get:
+      summary: List all automation tasks
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /tasks/timer:
+    post:
+      summary: Create a quick timer automation task
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+                - durationMs
+              properties:
+                name:
+                  type: string
+                action:
+                  type: string
+                  enum: [shutdown, restart, sleep, hibernate, lock, signout]
+                durationMs:
+                  type: integer
+      responses:
+        '201':
+          description: Task Created
+  /power/lock:
+    post:
+      summary: Schedule workstation lock via safety pipeline (5s + warning)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /power/signout:
+    post:
+      summary: Schedule sign-out via safety pipeline (5s + warning)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /power/restart:
+    post:
+      summary: Schedule restart via safety pipeline, admin only (5s + warning)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /power/sleep:
+    post:
+      summary: Schedule sleep via safety pipeline (5s + warning)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /power/hibernate:
+    post:
+      summary: Schedule hibernate via safety pipeline (5s + warning)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /power/shutdown:
+    post:
+      summary: Schedule safe shutdown via task pipeline (5s + warning), admin only
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /tasks/{id}/cancel:
+    post:
+      summary: Cancel a scheduled task by id
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task Cancelled
+  /inventory:
+    get:
+      summary: Get device inventory (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /orders:
+    post:
+      summary: Submit a signed console order (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '201':
+          description: Order Queued
+  /orders/pending:
+    get:
+      summary: List pending console orders (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+  /exemptions:
+    get:
+      summary: List policy exemptions (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Grant a policy exemption, admin only (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '201':
+          description: Exemption Granted
+  /exemptions/{id}:
+    delete:
+      summary: Revoke a policy exemption, admin only (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exemption Revoked
+  /maintenance-windows:
+    get:
+      summary: List maintenance windows (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Add a maintenance window, admin only (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '201':
+          description: Window Added
+  /maintenance-windows/{id}:
+    delete:
+      summary: Remove a maintenance window, admin only (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Window Removed
+  /audit:
+    get:
+      summary: Get hash-chained audit log with verification (FAZ B enterprise)
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: OK
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key

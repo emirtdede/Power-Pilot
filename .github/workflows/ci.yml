@@ -1,0 +1,68 @@
+# WBS-4.3 / WP-12: Her PR'da test + kapsam + i18n + model pin + release hijyeni
+# + paketleme + paketli ps-list spike + Electron E2E.
+# Windows + Node 24.18.1 (üretim hedefiyle birebir).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  # WP-00.T2: Electron içi Node sürümünü ayrı job'da doğrula (host Node'dan bağımsız).
+  electron-node:
+    runs-on: windows-latest
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+          cache: npm
+      - run: npm ci
+      - run: npm run test:smoke
+
+  test:
+    runs-on: windows-latest
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Lisans taraması (WP-15.T5)
+        run: npm run audit:licenses
+      - run: npm run test:security
+      - run: npm run coverage
+      - run: npm run locales:check
+      - run: npm run models:verify
+      - run: npm run release:check
+      - name: 100 ajan yük testi (WP-15.T4)
+        run: npm run test:load -- --agents 100 --hours 0.002 --interval-ms 250
+      - run: npm run pack
+      - run: npm run verify:pack
+      - run: npm run spike:pslist
+      - run: npm run test:e2e
+      - name: NSIS paket + kurulum E2E (WP-15.T3)
+        if: github.event_name == 'push'
+        run: |
+          npm run dist:nsis
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/packaged-e2e.ps1 -Installer "dist\Power Pilot Setup 1.1.0.exe"
+      - name: SBOM + yayın manifesti (WP-15.T8)
+        run: npm run sbom
+      - name: Artefakt (NSIS + SBOM + manifest)
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: power-pilot-release
+          path: |
+            dist/Power Pilot Setup 1.1.0.exe
+            dist/Power Pilot Setup 1.1.0.exe.blockmap
+            dist/sbom.cdx.json
+            dist/release-manifest.json
+          if-no-files-found: error
