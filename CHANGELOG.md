@@ -1,5 +1,14 @@
 # Changelog — Power Pilot (WBS-10.4)
 
+## [Unreleased]
+
+### Düzeltmeler
+- Renderer `app://powerpilot` üzerinden yüklendiği için yalnızca `src` dizini
+  sunuluyor; `../powerpilot_icon.png` ve `../public/Vellium-logo.svg` yolları
+  404 dönüyordu ve arayüzde kırık görsel olarak görünüyordu. Logolar
+  `src/assets/` altına alındı ve yollar güncellendi; `src` dışına işaret eden
+  varlıkları yakalayan regresyon testi eklendi.
+
 ## [1.1.0] — Security & Reliability Hardening (2026-10-23)
 
 ### Güvenlik

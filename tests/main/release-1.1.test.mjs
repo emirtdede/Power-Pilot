@@ -128,4 +128,29 @@ describe('WP-10.T2/T6/T8 — CSP ve dış bağlantı allowlist', () => {
         expect(isAllowedExternalUrl('https://evil.example/?vellium.dev')).toBe(false);
         expect(isAllowedExternalUrl('file:///C:/Windows/System32/calc.exe')).toBe(false);
     });
+
+    it('renderer yerel varlıkları app:// kökü (src) içinde kalır', () => {
+        // Regresyon: renderer artık file:// değil app://powerpilot üzerinden
+        // yüklenir ve protokol yalnızca `src` dizinini sunar. `src` dışına
+        // (`../powerpilot_icon.png` gibi) işaret eden varlıklar 404 döner ve
+        // arayüzde kırık görsel olarak görünür.
+        const srcRoot = path.join(ROOT, 'src');
+        const prefix = path.resolve(srcRoot) + path.sep;
+        const htmlFiles = fs.readdirSync(srcRoot).filter((name) => name.endsWith('.html'));
+        expect(htmlFiles.length).toBeGreaterThan(0);
+
+        for (const file of htmlFiles) {
+            const html = fs.readFileSync(path.join(srcRoot, file), 'utf8');
+            const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
+                .map((m) => m[1])
+                .filter((url) => !/^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(url));
+            expect(refs.length, `${file}: yerel varlık referansı yok`).toBeGreaterThan(0);
+
+            for (const ref of refs) {
+                const target = path.resolve(srcRoot, ref);
+                expect(target.startsWith(prefix), `${file}: ${ref} src dışına çıkıyor`).toBe(true);
+                expect(fs.existsSync(target), `${file}: ${ref} bulunamadı`).toBe(true);
+            }
+        }
+    });
 });
