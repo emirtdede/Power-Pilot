@@ -8,6 +8,13 @@
   404 dönüyordu ve arayüzde kırık görsel olarak görünüyordu. Logolar
   `src/assets/` altına alındı ve yollar güncellendi; `src` dışına işaret eden
   varlıkları yakalayan regresyon testi eklendi.
+- Yerel REST API kartında not metinleri düğmelere yapışıyordu: 12 px yazı,
+  notlar arası ve düğme öncesi düzenli boşluk, dar pencerede sarma eklendi.
+  İkincil düğme kontrastı artırıldı.
+- Koyu temada yerel form denetimleri (onay kutuları) beyaz çiziliyordu;
+  `color-scheme: dark` ile tema uyumlu hale getirildi.
+- Türkçe metinler düzeltildi: `Telefon QR'si` → `Telefon QR Kodu`,
+  QR notundaki `tuş` → `anahtar`.
 
 ## [1.1.0] — Security & Reliability Hardening (2026-10-23)
 

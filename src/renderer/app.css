@@ -1,3 +1,13 @@
+:root {
+    /* Yerel form denetimleri (checkbox, number spinner, kaydırma çubuğu)
+       açık temada açık, koyu temada koyu çizilsin. */
+    color-scheme: light;
+}
+
+html.dark {
+    color-scheme: dark;
+}
+
 body {
             font-family: 'Public Sans', 'Segoe UI', sans-serif;
         }

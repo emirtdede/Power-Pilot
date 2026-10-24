@@ -3,7 +3,7 @@
   "languages": {
     "tr": {
       "keys": 606,
-      "sha256": "380a6b00164064635937aefc90824062acf61b5aba5dc3526daca60308aa01c3"
+      "sha256": "8ae1520c9e151fdd3bc74c91cd8daeb5581f0e953112e28c4c0a33aef3738ea4"
     },
     "en": {
       "keys": 606,
@@ -70,5 +70,5 @@
       "sha256": "015d16f02ac1478fa3a2b471ce1a48ac9c53004328bf47b081eb00a71d678528"
     }
   },
-  "generatedAt": "2026-10-23T15:46:04.102Z"
+  "generatedAt": "2026-10-24T19:54:33.563Z"
 }
