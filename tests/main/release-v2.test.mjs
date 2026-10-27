@@ -260,11 +260,11 @@ describe('WP-12 sürüm hattı dondurma', () => {
     const nvmrc = fs.readFileSync(path.join(ROOT, '.nvmrc'), 'utf8').trim();
 
     it('Electron, electron-builder, Vitest ve Playwright tam pinlidir', () => {
-        expect(pkg.devDependencies.electron).toBe('43.4.0');
-        expect(pkg.devDependencies['electron-builder']).toBe('26.15.3');
-        expect(pkg.devDependencies.vitest).toBe('3.2.4');
-        expect(pkg.devDependencies['@vitest/coverage-v8']).toBe('3.2.4');
-        expect(pkg.devDependencies['@playwright/test']).toBe('1.64.1');
+        // Sürümler Dependabot ile güncellenebilir; kapı belirli bir sürümü
+        // değil, aralık işareti içermeyen tam pinleri doğrular.
+        for (const name of ['electron', 'electron-builder', 'vitest', '@vitest/coverage-v8', '@playwright/test']) {
+            expect(pkg.devDependencies[name], `${name} tam sürümle pinlenmeli`).toMatch(/^\d+\.\d+\.\d+$/);
+        }
     });
 
     it('Node sürümü .nvmrc + engines ile hizalıdır', () => {
