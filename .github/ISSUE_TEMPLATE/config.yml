@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/emirtdede/Power-Pilot/tree/main/docs
+    about: Architecture, audit, release, and operations documentation.
+  - name: Security policy
+    url: https://github.com/emirtdede/Power-Pilot/security/policy
+    about: Report vulnerabilities privately. Do not open a public issue.
+  - name: Microsoft Store
+    url: https://apps.microsoft.com/detail/9NQJTP1BKP5R
+    about: Install Power Pilot or check the latest Store release.

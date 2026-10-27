@@ -181,7 +181,7 @@ describe('SecretStore (WP-04)', () => {
         expect(sids).toContain(Acl.ADMINS_SID);
         expect(sids).not.toContain('S-1-1-0'); // Everyone
         expect(sids).not.toContain('S-1-5-32-545'); // Users
-    });
+    }, 20000); // icacls/PowerShell alt süreçleri paralel yükte 5 sn'yi aşabiliyor
 
     it('T-SEC-04: 5 yanlış → 15 dk kilit → süre sonunda doğru PIN', async () => {
         let now = 1000;

@@ -1,8 +1,8 @@
 # Power Pilot — Mevcut Mimari Analizi Belgesi (Aşama 0)
 
 > **Tarihsel not:** Bu belge geliştirme öncesi Aşama 0 envanteridir. `1.0.1`
-> itibarıyla güncel davranış için `docs/RELEASE_HARDENING_1.0.1.md`,
-> `docs/LOCAL_API_SECURITY.md` ve kaynak kod esas alınır.
+> itibarıyla güncel davranış için `docs/release/RELEASE_HARDENING_1.0.1.md`,
+> `docs/architecture/LOCAL_API_SECURITY.md` ve kaynak kod esas alınır.
 
 Bu belge, **Power Pilot** uygulamasının mevcut teknik mimarisini, veri akışını, IPC sınırlarını ve geliştirme öncesi durumunu belgelemektedir.
 

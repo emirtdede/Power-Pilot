@@ -250,7 +250,9 @@ describe('WP-13/WP-15 renderer sözleşmesi', () => {
     });
 
     it('CANCEL_TOO_LATE IPC yanıtı başarı gibi sunulmaz', () => {
-        expect(main).toMatch(/r\.code === 'CANCEL_TOO_LATE'[\s\S]{0,220}success: false/);
+        // C-01: iptal gövdesi src/main/ipc/warningActions.js'e taşındı.
+        const warningActions = fs.readFileSync(path.join(ROOT, 'src/main/ipc/warningActions.js'), 'utf8');
+        expect(warningActions).toMatch(/r\.code === 'CANCEL_TOO_LATE'[\s\S]{0,220}success: false/);
         expect(main).toMatch(/activeResult\.code === 'CANCEL_TOO_LATE'[\s\S]{0,220}success: false/);
     });
 });

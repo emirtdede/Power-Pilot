@@ -1,6 +1,7 @@
 {
   "name": "powerpilot",
   "version": "1.1.0",
+  "private": true,
   "description": "A modern and simple software that automates your computer's power management.",
   "main": "main.js",
   "scripts": {
@@ -8,9 +9,9 @@
     "build:renderer": "node scripts/build-renderer.mjs",
     "build:locales": "node scripts/build-locales.mjs",
     "prepack": "npm run build:renderer",
-    "pack": "electron-builder --dir --config electron-builder.js",
-    "dist": "electron-builder --win nsis --config electron-builder.js",
-    "dist:nsis": "electron-builder --win nsis --config electron-builder.js",
+    "pack": "electron-builder --dir --config electron-builder.config.cjs --publish never",
+    "dist": "electron-builder --win nsis --config electron-builder.config.cjs --publish never",
+    "dist:nsis": "electron-builder --win nsis --config electron-builder.config.cjs --publish never",
     "dist:appx": "node scripts/build-appx.js",
     "verify:pack": "node scripts/verify-pack.js",
     "spike:pslist": "node scripts/spike-pslist.js",
@@ -112,7 +113,6 @@
     "afterPack": "scripts/after-pack.cjs",
     "electronDist": "node_modules/electron/dist"
   },
-  "keywords": [],
   "author": {
     "name": "Vellium.dev",
     "email": "info@vellium.dev",
@@ -139,6 +139,23 @@
     "vitest": "5.0.5"
   },
   "homepage": "https://vellium.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/emirtdede/Power-Pilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/emirtdede/Power-Pilot/issues"
+  },
+  "keywords": [
+    "electron",
+    "power-management",
+    "windows",
+    "shutdown",
+    "restart",
+    "sleep",
+    "hibernate",
+    "automation"
+  ],
   "overrides": {
     "simple-git": "4.0.2",
     "@simple-git/argv-parser": "2.0.1",

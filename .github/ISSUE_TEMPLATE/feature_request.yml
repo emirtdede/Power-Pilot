@@ -1,0 +1,74 @@
+name: Feature request
+description: Suggest a new capability or an improvement to Power Pilot.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea. Describe the problem first; the proposed
+        solution is easier to review in that context.
+
+        You can write in Turkish or English.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This request does not contain a security vulnerability.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior, UI, or API you expect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds, competing tools, or simpler options.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Power actions and timers
+        - Automation engine
+        - Renderer / UI
+        - Local API and integrations
+        - Security and secrets
+        - Packaging, updates, and Store
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups, logs, related work packages, or constraints.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to test a preview build or provide feedback.
+          required: false

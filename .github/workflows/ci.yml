@@ -1,68 +1,134 @@
-# WBS-4.3 / WP-12: Her PR'da test + kapsam + i18n + model pin + release hijyeni
-# + paketleme + paketli ps-list spike + Electron E2E.
-# Windows + Node 24.18.1 (üretim hedefiyle birebir).
+# Power Pilot CI
+# Windows-only Electron application. Runs on the production Node version.
 name: CI
 
 on:
   push:
     branches: [main, master]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # WP-00.T2: Electron içi Node sürümünü ayrı job'da doğrula (host Node'dan bağımsız).
   electron-node:
+    name: Electron runtime / smoke
     runs-on: windows-latest
+    timeout-minutes: 20
     env:
       CI: "true"
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.1
           cache: npm
-      - run: npm ci
-      - run: npm run test:smoke
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Electron's bundled Node and smoke boot
+        run: npm run test:smoke
 
   test:
+    name: Test, security, and packaging
     runs-on: windows-latest
+    timeout-minutes: 60
     env:
       CI: "true"
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.1
           cache: npm
-      - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
-      - name: Lisans taraması (WP-15.T5)
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: License policy
         run: npm run audit:licenses
-      - run: npm run test:security
-      - run: npm run coverage
-      - run: npm run locales:check
-      - run: npm run models:verify
-      - run: npm run release:check
-      - name: 100 ajan yük testi (WP-15.T4)
+
+      - name: Security checks
+        run: npm run test:security
+
+      - name: Unit and integration tests with coverage
+        run: npm run coverage
+
+      - name: Locale parity
+        run: npm run locales:check
+
+      - name: Model pins
+        run: npm run models:verify
+
+      - name: Release hygiene
+        run: npm run release:check
+
+      - name: 100-agent load test
         run: npm run test:load -- --agents 100 --hours 0.002 --interval-ms 250
-      - run: npm run pack
-      - run: npm run verify:pack
-      - run: npm run spike:pslist
-      - run: npm run test:e2e
-      - name: NSIS paket + kurulum E2E (WP-15.T3)
+
+      - name: Upload coverage summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage/coverage-summary.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Build unpacked app
+        run: npm run pack
+
+      - name: Verify packaged app
+        run: npm run verify:pack
+
+      - name: ps-list spike
+        run: npm run spike:pslist
+
+      - name: Electron E2E
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Build NSIS installer and run install/uninstall E2E
         if: github.event_name == 'push'
+        shell: pwsh
         run: |
           npm run dist:nsis
-          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/packaged-e2e.ps1 -Installer "dist\Power Pilot Setup 1.1.0.exe"
-      - name: SBOM + yayın manifesti (WP-15.T8)
+          $installer = Get-ChildItem dist -Filter 'Power Pilot Setup *.exe' |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer not found in dist/' }
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/packaged-e2e.ps1 -Installer $installer.FullName
+
+      - name: Generate SBOM and release manifest
         run: npm run sbom
-      - name: Artefakt (NSIS + SBOM + manifest)
+
+      - name: Upload release artifacts
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: power-pilot-release
           path: |
-            dist/Power Pilot Setup 1.1.0.exe
-            dist/Power Pilot Setup 1.1.0.exe.blockmap
+            dist/Power Pilot Setup *.exe
+            dist/Power Pilot Setup *.exe.blockmap
             dist/sbom.cdx.json
             dist/release-manifest.json
           if-no-files-found: error
+          retention-days: 14

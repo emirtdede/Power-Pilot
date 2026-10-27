@@ -13,6 +13,7 @@ const {
     validateCancelPin, validateSecuritySettings, SECURITY_SETTING_KEYS
 } = require('./src/main/ipc/validate');
 const { PinGuard } = require('./src/main/ipc/pinGuard');
+const { cancelWarningAction, snoozeWarningAction } = require('./src/main/ipc/warningActions');
 const Pin = require('./src/main/security/Pin');
 const { SecretStore, SECRET_SETTING_FIELDS } = require('./src/main/security/SecretStore');
 const { runBackup } = require('./src/main/storage/DbWorker');
@@ -1182,42 +1183,25 @@ ipcHandle('device-estimate', async () => {
 });
 // WBS-9.4: Uyarı bannerı düğmeleri (Durdur / Ertele / Şimdi Çalıştır).
 // WBS-11.2: Durdur/Ertele PIN korumalıdır (geriye uyumlu payload).
-ipcHandle('warning-cancel', (event, args) => {
-    const pinCheck = requireCancelPin(args && args.pin);
-    if (pinCheck) return pinCheck;
-    // WP-03: uyarıyı çöz + görevi CANCELLED yap (tek doğruluk kaynağı).
-    if (taskManager && typeof taskManager.cancelActiveTask === 'function') {
-        const r = taskManager.cancelActiveTask();
-        if (r.code === 'CANCEL_TOO_LATE') {
-            return {
-                success: false,
-                code: 'CANCEL_TOO_LATE',
-                message: t('errorCancelTooLate')
-            };
-        }
-        if (r.ok) return { success: true, code: r.code };
-    }
-    const closed = warningManager.cancelActiveWarning();
-    return { success: closed === true, code: closed ? 'CANCELLED' : 'NO_ACTIVE_WARNING' };
+// C-01/C-02: PIN kapısı async olduğu için eylemler await edilir; gövdeler
+// test edilebilir ortak modülde (src/main/ipc/warningActions.js).
+ipcHandle('warning-cancel', async (event, args) => {
+    return await cancelWarningAction({
+        pin: args && args.pin,
+        requireCancelPin,
+        taskManager,
+        warningManager,
+        t
+    });
 });
-ipcHandle('warning-snooze', (event, payload) => {
-    const minutes = payload && typeof payload === 'object' ? payload.minutes : payload;
-    const pin = payload && typeof payload === 'object' ? payload.pin : undefined;
-    const pinCheck = requireCancelPin(pin);
-    if (pinCheck) return pinCheck;
-    const m = Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440 ? minutes : 10;
-    if (taskManager && typeof taskManager.snoozeTask === 'function') {
-        const active = typeof warningManager.getActiveState === 'function' ? warningManager.getActiveState() : null;
-        if (active && active.taskId) {
-            const r = taskManager.snoozeTask(active.taskId, m);
-            if (r.ok) return { success: true, code: r.code, minutes: m };
-            if (r.code === 'ALREADY_RUNNING' || r.code === 'CANCEL_TOO_LATE') {
-                return { success: false, code: r.code, message: t('taskSnoozeFailed') };
-            }
-        }
-    }
-    const snoozed = warningManager.snoozeActiveWarning(m);
-    return { success: snoozed === true, code: snoozed ? 'SNOOZED' : 'NO_ACTIVE_WARNING' };
+ipcHandle('warning-snooze', async (event, payload) => {
+    return await snoozeWarningAction({
+        payload,
+        requireCancelPin,
+        taskManager,
+        warningManager,
+        t
+    });
 });
 ipcHandle('warning-confirm', () => {
     warningManager.finishWarning(true, false);

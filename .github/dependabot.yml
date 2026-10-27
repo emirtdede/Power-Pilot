@@ -1,0 +1,72 @@
+version: 2
+
+updates:
+  # Runtime and build dependencies. Node/native major upgrades are handled
+  # manually because they require electron-rebuild and packaging verification.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    labels:
+      - dependencies
+    assignees:
+      - emirtdede
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    groups:
+      npm-development:
+        applies-to: version-updates
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+      npm-production:
+        applies-to: version-updates
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: electron
+        update-types: ["version-update:semver-major"]
+      - dependency-name: better-sqlite3
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@node-rs/argon2"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: node-llama-cpp
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@fugood/whisper.node"
+        update-types: ["version-update:semver-major"]
+
+  # Keep the CI actions pinned and current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:30"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    assignees:
+      - emirtdede
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

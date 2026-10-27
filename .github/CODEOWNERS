@@ -1,0 +1,10 @@
+# Power Pilot owners.
+# The default owner reviews every change. High-risk areas are listed explicitly
+# so that ownership can be split without changing the default later.
+* @emirtdede
+
+/.github/ @emirtdede
+/scripts/ @emirtdede
+/src/main/ @emirtdede
+/tests/ @emirtdede
+/docs/release/ @emirtdede

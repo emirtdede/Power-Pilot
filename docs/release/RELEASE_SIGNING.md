@@ -16,10 +16,15 @@
 
 **PFX/`.p12` ve `CSC_LINK`/`CSC_KEY_PASSWORD` CI secret'ı olarak kabul edilmez.**
 Özel anahtar HSM/TPM'den dışarı çıkmaz. `package.json` sabit alanları taşır;
-`electron-builder.js` yalnızca `WIN_CERT_SUBJECT` ortam değişkenini
+`electron-builder.config.cjs` yalnızca `WIN_CERT_SUBJECT` ortam değişkenini
 `certificateSubjectName` alanına çözer. Ortam değişkeni yoksa yerel `pack`
 imzasız üretilir; release CI'da değişken zorunludur. SHA-256 +
 `https://timestamp.digicert.com` kullanılır.
+
+> **Neden `.cjs`?** Dosya adı `electron-builder.js` iken Windows `cmd`, `PATH`
+> aramasından önce çalışma dizinindeki bu dosyayı `.js` uzantısıyla çalıştırıyordu;
+> `npm run pack` gerçek CLI yerine yapılandırma dosyasını çalıştırıp **0 koduyla
+> hiç derleme yapmıyordu**. `.cjs` uzantısı bu gölgelemeyi kaldırır.
 
 ### 2.1 Yerel (bütçesiz) imzalama — kendinden imzalı sertifika
 
@@ -39,7 +44,7 @@ npm run verify:signature
   fazla sertifika varsa seçim belirsizleşir (signtool "No certificates were found" verir).
 - Uyarının kullanıcıda kaybolması için sertifika, Güvenilen Kök Sertifikalar
   deposuna eklenmelidir (GPO/Intune). Halka açık dağıtımda bunun yerine
-  Microsoft Store yolu kullanılır (bkz. kök dizindeki `YAPILACAKLAR.md`).
+  Microsoft Store yolu kullanılır (bkz. `docs/planning/YAPILACAKLAR.md`).
 - `WIN_TIMESTAMP_URL` yalnızca eski signtool içindir; CI'da yeni signtool ile
   varsayılan HTTPS adresi kullanılır.
 

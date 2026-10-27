@@ -53,20 +53,23 @@ function main() {
         notes.push('engines.node tanımsız (önerilir: >=24.18.1).');
     }
     // WP-12: sürüm hattı donduruldu; caret/tilde ile sessiz yükseltme yasak.
+    // Sürümler Dependabot ile güncellenebilir; kapı belirli bir sürümü değil,
+    // aralık işareti içermeyen tam pinleri doğrular.
+    const exactPin = /^\d+\.\d+\.\d+$/;
     const pinned = {
-        electron: ['devDependencies', '43.4.0'],
-        'electron-builder': ['devDependencies', '26.15.3'],
-        vitest: ['devDependencies', '3.2.4'],
-        '@vitest/coverage-v8': ['devDependencies', '3.2.4'],
-        '@playwright/test': ['devDependencies', '1.64.1'],
-        '@electron/fuses': ['devDependencies', '2.1.3'],
-        'ps-list': ['dependencies', '9.0.0'],
-        'ipaddr.js': ['dependencies', '2.5.0']
+        electron: 'devDependencies',
+        'electron-builder': 'devDependencies',
+        vitest: 'devDependencies',
+        '@vitest/coverage-v8': 'devDependencies',
+        '@playwright/test': 'devDependencies',
+        '@electron/fuses': 'devDependencies',
+        'ps-list': 'dependencies',
+        'ipaddr.js': 'dependencies'
     };
-    for (const [name, [section, expected]] of Object.entries(pinned)) {
+    for (const [name, section] of Object.entries(pinned)) {
         const actual = pkg[section] && pkg[section][name];
-        if (actual !== expected) {
-            issues.push(`${section}.${name} tam pinli olmalı: ${expected}; mevcut: ${actual}`);
+        if (typeof actual !== 'string' || !exactPin.test(actual)) {
+            issues.push(`${section}.${name} tam pinli olmalı (x.y.z); mevcut: ${actual}`);
         }
     }
     try {
@@ -105,12 +108,12 @@ function main() {
     if (!pkg.build || pkg.build.afterPack !== 'scripts/after-pack.cjs') {
         issues.push('afterPack wasmTrapHandlers kancası eksik.');
     }
-    if (!fs.existsSync(path.join(ROOT, 'electron-builder.js'))) {
-        issues.push('electron-builder.js (ortamdan imza konusu) eksik.');
+    if (!fs.existsSync(path.join(ROOT, 'electron-builder.config.cjs'))) {
+        issues.push('electron-builder.config.cjs (ortamdan imza konusu) eksik.');
     }
     for (const script of ['pack', 'dist:nsis']) {
-        if (!String((pkg.scripts && pkg.scripts[script]) || '').includes('--config electron-builder.js')) {
-            issues.push(`scripts.${script} electron-builder.js yapılandırmasını kullanmalı.`);
+        if (!String((pkg.scripts && pkg.scripts[script]) || '').includes('--config electron-builder.config.cjs')) {
+            issues.push(`scripts.${script} electron-builder.config.cjs yapılandırmasını kullanmalı.`);
         }
     }
     // WP-15.T2: PFX/CI secret kabul edilmez; HSM/TPM sertifika deposu + HTTPS timestamp.
@@ -171,7 +174,7 @@ function main() {
         'docs/reports/soak.md',
         'docs/reports/licenses.json',
         'docs/release/SBOM.md',
-        'docs/RELEASE_HARDENING_1.0.1.md'
+        'docs/release/RELEASE_HARDENING_1.0.1.md'
     ]) requireFile(rel);
 
     // WP-04/05: PowerShell idle probe ve tasklist spamı üretim kodunda yasak.

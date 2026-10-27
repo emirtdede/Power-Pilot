@@ -2,7 +2,22 @@
 
 ## [Unreleased]
 
+### Dokümantasyon ve Altyapı
+- GitHub topluluk dosyaları eklendi: güvenlik politikası, katkı rehberi,
+  davranış kuralları, destek rehberi, CODEOWNERS, issue/PR şablonları ve
+  sürüm notu kategorileri.
+- CI; salt-okunur izinler, eşzamanlılık, zaman aşımı, coverage/Playwright
+  artefaktları ve sürümden bağımsız installer yollarıyla güncellendi.
+  Haftalık bağımlılık denetimi ve Dependabot yapılandırması eklendi.
+- README sürüm rozeti 1.1.0'a güncellendi; dokümantasyon indeksi ve GitHub
+  politikaları bağlandı.
+
 ### Düzeltmeler
+- Uyarı bannerındaki Durdur/Ertele işlemleri PIN kapısını beklemiyordu; eylemler
+  async hale getirildi, TOCTOU koruması eklendi ve banner yalnızca başarılı
+  sonuçta kapanıyor.
+- Material Symbols ikon fontu yüklenene kadar ligatür adları görünüyordu;
+  `fonts-pending` açılış kapısı ile ikonlar font hazır olana kadar gizleniyor.
 - Renderer `app://powerpilot` üzerinden yüklendiği için yalnızca `src` dizini
   sunuluyor; `../powerpilot_icon.png` ve `../public/Vellium-logo.svg` yolları
   404 dönüyordu ve arayüzde kırık görsel olarak görünüyordu. Logolar

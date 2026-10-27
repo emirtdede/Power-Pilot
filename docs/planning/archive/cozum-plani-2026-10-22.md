@@ -2,7 +2,7 @@
 
 **Sürüm:** 1.0  
 **Tarih:** 22 Ekim 2026  
-**Kaynak denetim:** [`docs/denetim-raporu-2026-10-22.md`](docs/denetim-raporu-2026-10-22.md)  
+**Kaynak denetim:** [`docs/denetim-raporu-2026-10-22.md`](../../audit/2026-10-22/denetim-raporu-2026-10-22.md)  
 **Hedef sürüm:** 1.1.0  
 **Kapsam:** Electron 43.4.0 + vanilla JavaScript masaüstü uygulaması, yerel API, konsol sunucusu ve headless ajan  
 **Plan tipi:** Uygulanabilir WBS; her iş kalemi için bağımlılık, çıktı, risk, test ve kabul kriteri

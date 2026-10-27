@@ -69,17 +69,27 @@ describe('WP-15.T2 — kod imzası', () => {
     });
 
     it('CI/dağıtım dokümanı PFX secret kabul etmez', () => {
-        const doc = fs.readFileSync(path.join(ROOT, 'docs/RELEASE_SIGNING.md'), 'utf8');
+        const doc = fs.readFileSync(path.join(ROOT, 'docs/release/RELEASE_SIGNING.md'), 'utf8');
         expect(doc).toMatch(/PFX.*kabul edilmez/i);
         expect(doc).not.toMatch(/CSC_LINK.*zorunlu/i);
     });
 
     it('imza konu adı yalnızca ortamdan çözülür; yerelde imza atlanır', () => {
-        const config = fs.readFileSync(path.join(ROOT, 'electron-builder.js'), 'utf8');
+        // K-13: dosya adı electron-builder.js iken `npm run pack` CWD'deki bu
+        // dosyayı .js uzantısıyla çalıştırıp hiç derleme yapmıyordu.
+        const config = fs.readFileSync(path.join(ROOT, 'electron-builder.config.cjs'), 'utf8');
         expect(config).toMatch(/WIN_CERT_SUBJECT/);
         expect(config).toMatch(/certificateSubjectName/);
-        expect(pkg.scripts.pack).toContain('--config electron-builder.js');
-        expect(pkg.scripts['dist:nsis']).toContain('--config electron-builder.js');
+        expect(pkg.scripts.pack).toContain('--config electron-builder.config.cjs');
+        expect(pkg.scripts['dist:nsis']).toContain('--config electron-builder.config.cjs');
+    });
+
+    it('yapılandırma dosyası CWD gölgelemesine yol açmaz (K-13)', () => {
+        // Windows'ta cmd, PATH'ten önce CWD'deki `<ad>.js` dosyasını çalıştırır.
+        // `electron-builder.js` varken `npm run pack` gerçek CLI yerine bu dosyayı
+        // çalıştırıp 0 koduyla hiç derleme yapmıyordu.
+        expect(fs.existsSync(path.join(ROOT, 'electron-builder.js'))).toBe(false);
+        expect(fs.existsSync(path.join(ROOT, 'electron-builder.config.cjs'))).toBe(true);
     });
 });
 

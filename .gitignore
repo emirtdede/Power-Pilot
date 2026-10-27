@@ -7,9 +7,12 @@ coverage/
 # NOT: package-lock.json bilerek IZLENIR (npm ci tekrarlanabilirligi icin).
 # WBS-3.3: uretim ciktisi ve gecici calisma dosyalari repoya girmez.
 scratch/
-Power-Pilot-docs/
 test-results/
 playwright-report/
 blob-report/
 dist-*/
 audit.json
+
+# Yerel tasarim/magaza varliklari (docs altinda tutulur, repoya girmez).
+docs/assets/design/
+docs/store/assets/

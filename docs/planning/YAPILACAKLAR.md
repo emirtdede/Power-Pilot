@@ -18,8 +18,9 @@
       `app.asar` içine girmiyor (`build.files`). Ayrıntı: `docs/release/ASAR-INTEGRITY.md`.
 - [x] **`verify-signature.ps1`** — Windows SDK yoksa electron-builder önbelleğindeki
       `signtool.exe` kullanılıyor; dosya UTF-8 BOM ile kaydedildi (PowerShell 5.1 parse hatası giderildi).
-- [x] **`electron-builder.js`** — `WIN_CERT_SHA1` (parmak iziyle sertifika seçimi) ve
-      `WIN_TIMESTAMP_URL` (eski signtool için HTTP timestamp) desteği.
+- [x] **`electron-builder.config.cjs`** — `WIN_CERT_SHA1` (parmak iziyle sertifika seçimi) ve
+      `WIN_TIMESTAMP_URL` (eski signtool için HTTP timestamp) desteği. `.cjs` uzantısı,
+      `npm run pack`'in CWD'deki dosyayı çalıştırıp derlemeyi sessizce atlamasını engeller.
 - [x] **Paketli E2E** — temiz kurulum, `1.0.1 → 1.1.0` yükseltme, açılış, kaldırma: PASS.
 - [x] **Fuses** — paketlenmiş EXE'de 9/9 doğru.
 - [x] **Testler** — 66 dosya / 638 test PASS (2 ardışık tur), 11 E2E PASS.
@@ -50,7 +51,7 @@ Son kullanıcı "bilinmeyen yayıncı" uyarısı görmez; ticari sertifika gerek
       (Store yeniden imzalayacağı için ticari sertifika gerekmez).
 - [ ] `npm run dist:appx` ile MSIX/APPX üret (script publisher eşleşmesini zorunlu tutar).
 - [ ] Store gönderiminde yaş, kategori, gizlilik politikası ve ekran görüntülerini doldur
-      (`docs/store/` altındaki görseller kullanılabilir).
+      (`docs/store/assets/microsoft-store/` altındaki görseller kullanılabilir).
 - [ ] İnceleme sonrası yayınla; Store imzası sayesinde SmartScreen uyarısı kalkar.
 - [ ] Store sürümü yayınlandıktan sonra NSIS dağıtımını "manuel kurulum" olarak koru.
 
@@ -100,7 +101,7 @@ git commit -m "release: 1.1.0 imzalama, SBOM, paket hijyeni ve sertleştirme"
 - [ ] `PP_SBOM_SIGNING_KEY`: Ed25519 özel anahtarını GitHub Actions secret olarak ekle.
       Anahtar konumu (yerel): `%USERPROFILE%\.powerpilot\keys\release-ed25519.pem`.
 - [ ] Kod imzası: üretimde HSM/TPM zorunlu. Bütçe yoksa CI'da imzasız `pack` üretilir,
-      imzalı kurulum yerel makinede atılır (`docs/RELEASE_SIGNING.md` §2.1).
+      imzalı kurulum yerel makinede atılır (`docs/release/RELEASE_SIGNING.md` §2.1).
 - [ ] `npm audit`, `audit:licenses`, `test:security`, `release:check` zaten CI'da zorunlu.
 
 ---

@@ -2930,6 +2930,16 @@
             function hideWarningBanner() {
                 document.getElementById('warning-banner').classList.add('hidden');
             }
+            // C-01/C-02: banner yalnızca ana süreç başarı bildirdiğinde gizlenir;
+            // aksi halde kullanıcı iptal ettiğini sanarken güç işlemi sürer.
+            function applyWarningResult(res, fallbackMessage) {
+                if (res && res.success === true) {
+                    hideWarningBanner();
+                    return;
+                }
+                if (res && res.code === 'NO_ACTIVE_WARNING') return; // uyarı zaten kapandı
+                showToast((res && res.message) || fallbackMessage, 'error');
+            }
             if (window.electronAPI && window.electronAPI.onWarningStarted) {
                 window.electronAPI.onWarningStarted((data) => {
                     const b = document.getElementById('warning-banner');
@@ -2963,12 +2973,13 @@
                 if (isPinChallenge(res)) {
                     requestPin(t('warnStopPinPrompt'), {
                         run: (pin) => window.electronAPI.warningCancel(pin),
-                        done: () => hideWarningBanner()
+                        // C-01: yalnızca gerçekten iptal edildiyse banner gizlenir.
+                        done: (final) => { applyWarningResult(final, t('errorCancelTooLate')); }
                     });
                     paintPinError(res);
                     return;
                 }
-                hideWarningBanner();
+                applyWarningResult(res, t('errorCancelTooLate'));
             });
             const btnWarnSnooze = document.getElementById('btn-warn-snooze');
             if (btnWarnSnooze) btnWarnSnooze.addEventListener('click', async () => {
@@ -2977,12 +2988,13 @@
                 if (isPinChallenge(res)) {
                     requestPin(t('warnSnoozePinPrompt'), {
                         run: (pin) => window.electronAPI.warningSnooze(10, pin),
-                        done: () => hideWarningBanner()
+                        // C-02: yalnızca gerçekten ertelendiyse banner gizlenir.
+                        done: (final) => { applyWarningResult(final, t('taskSnoozeFailed')); }
                     });
                     paintPinError(res);
                     return;
                 }
-                hideWarningBanner();
+                applyWarningResult(res, t('taskSnoozeFailed'));
             });
             const btnWarnNow = document.getElementById('btn-warn-now');
             if (btnWarnNow) btnWarnNow.addEventListener('click', async () => {
