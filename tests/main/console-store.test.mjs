@@ -34,7 +34,7 @@ function closeAll() {
         try { cs.close(); } catch (_) { /* yut */ }
     }
 }
-function signedOrder(agentId, nonce, nowMs, action = 'lock') {
+function signedOrder(agentId, nonce, nowMs, action = 'lock', ttlMs = 60000) {
     return {
         order: {
             version: 2,
@@ -44,7 +44,7 @@ function signedOrder(agentId, nonce, nowMs, action = 'lock') {
             targets: [agentId],
             nonce,
             issuedAt: nowMs,
-            expiresAt: nowMs + 60000,
+            expiresAt: nowMs + ttlMs,
             keyId: 'default'
         },
         signature: 'x',
@@ -199,7 +199,9 @@ describe('ConsoleStore — WP-03', () => {
         for (let a = 0; a < 100; a += 1) {
             const agentId = `a${a}`;
             for (let i = 0; i < 100; i += 1) {
-                cs.enqueue(agentId, signedOrder(agentId, `n-${a}-${i}`, now));
+                // 10.000 emir + 1.000 heartbeat yavaş Windows runner'ında 60 sn'yi
+                // aşabildiği için emirler test süresinden uzun yaşamalı.
+                cs.enqueue(agentId, signedOrder(agentId, `n-${a}-${i}`, now, 'lock', 30 * 60_000));
             }
         }
         expect(cs.counts().pending).toBe(10000);
@@ -218,7 +220,7 @@ describe('ConsoleStore — WP-03', () => {
         expect(cs.counts().inflight).toBe(10000);
         expect(cs.counts().acked).toBe(0);
         expect(cs.listAgents()).toHaveLength(100);
-    }, 60000);
+    }, 180000);
 
     it('T-CON-06: yedekten geri yükleme tüm ajan/kuyruk/makbuz sayılarını korur', () => {
         const dir = freshDir();
