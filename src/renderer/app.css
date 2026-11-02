@@ -1,4 +1,25 @@
+/* ============================================================================
+ * Power Pilot — Premium UI layer (responsive shell + design tokens)
+ * Tailwind'den SONRA yüklenir; bu dosya yalnızca Tailwind'in ifade edemediği
+ * akışkan (fluid) ölçekleri, iskelet davranışını ve ince cilayı tanımlar.
+ * ========================================================================== */
+
 :root {
+    /* Renk/token katmanı: tek yerden tema duyarlı premium yüzeyler. */
+    --pp-brand: #4f7cff;
+    --pp-brand-strong: #0067c2;
+    --pp-surface: #ffffff;
+    --pp-surface-2: #f8fafc;
+    --pp-border: rgba(15, 23, 42, 0.10);
+    --pp-border-strong: rgba(15, 23, 42, 0.18);
+    --pp-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.06);
+    --pp-shadow-2: 0 10px 24px -12px rgba(15, 23, 42, 0.28), 0 2px 6px rgba(15, 23, 42, 0.06);
+    --pp-shadow-3: 0 24px 48px -20px rgba(15, 23, 42, 0.35);
+    --pp-ring: 0 0 0 3px rgba(79, 124, 255, 0.35);
+    --pp-ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --pp-titlebar-h: 2rem;
+    --pp-sidebar-bg: rgba(248, 250, 252, 0.88);
+
     /* Yerel form denetimleri (checkbox, number spinner, kaydırma çubuğu)
        açık temada açık, koyu temada koyu çizilsin. */
     color-scheme: light;
@@ -6,94 +27,474 @@
 
 html.dark {
     color-scheme: dark;
+    --pp-surface: #0f1a23;
+    --pp-surface-2: #0b141c;
+    --pp-border: rgba(148, 163, 184, 0.16);
+    --pp-border-strong: rgba(148, 163, 184, 0.28);
+    --pp-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --pp-shadow-2: 0 12px 28px -14px rgba(0, 0, 0, 0.75), 0 2px 8px rgba(0, 0, 0, 0.4);
+    --pp-shadow-3: 0 28px 56px -24px rgba(0, 0, 0, 0.85);
+    --pp-ring: 0 0 0 3px rgba(79, 124, 255, 0.45);
+    --pp-sidebar-bg: rgba(15, 26, 35, 0.82);
 }
 
+/* --- Base ---------------------------------------------------------------- */
+
 body {
-            font-family: 'Public Sans', 'Segoe UI', sans-serif;
-        }
+    font-family: 'Public Sans', 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+}
 
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
+::selection {
+    background: rgba(79, 124, 255, 0.28);
+}
 
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
+/* Tema duyarlı ince kaydırma çubuğu (light + dark). */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
 
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-        }
+::-webkit-scrollbar-track {
+    background: transparent;
+}
 
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
+::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.32);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+}
 
-        .sidebar-blur {
-            backdrop-filter: blur(20px);
-            background-color: rgba(15, 26, 35, 0.8);
-        }
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.5);
+    background-clip: padding-box;
+}
 
-        /* Custom Title Bar Dragging */
-        .window-drag {
-            -webkit-app-region: drag;
-        }
+html.dark ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+    background-clip: padding-box;
+}
 
-        .no-drag {
-            -webkit-app-region: no-drag;
-        }
+html.dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.38);
+    background-clip: padding-box;
+}
 
-        /* Hide default number spinners */
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            appearance: none;
-            margin: 0;
-        }
+/* Klavye erişilebilirliği: fare tıklamasında değil, yalnız odaklanmada halka. */
+:where(a, button, select, input, textarea, [tabindex]):focus-visible {
+    outline: none;
+    box-shadow: var(--pp-ring);
+    border-radius: 0.5rem;
+}
 
-        input[type="number"] {
-            -moz-appearance: textfield;
-            /* Firefox */
-            appearance: textfield;
-        }
+/* --- Fluid ölçekler (her genişlikte zarif aralık) ------------------------ */
 
-        /* Sihirbaz AI indirani: buton-içi dönen imleç */
-        .pp-spin {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            margin-right: 6px;
-            vertical-align: -2px;
-            border: 2px solid rgba(255, 255, 255, 0.35);
-            border-top-color: currentColor;
-            border-radius: 50%;
-            animation: pp-rotate 0.8s linear infinite;
-        }
+.page-x {
+    padding-inline: clamp(1rem, 2.4vw, 2rem);
+}
 
-        @keyframes pp-rotate {
-            to { transform: rotate(360deg); }
-        }
+.page-y {
+    padding-block: clamp(1.25rem, 2.4vw, 2rem);
+}
 
-        /* Sihirbaz AI indirani: akan çizgili bar + yumuşak genişleme */
-        #wz-progress-bar {
-            transition: width 0.3s ease;
-        }
+.page-title {
+    font-size: clamp(1.25rem, 1.4vw + 0.9rem, 1.5rem);
+    letter-spacing: -0.014em;
+    line-height: 1.2;
+}
 
-        #wz-progress-bar.pp-stripes {
-            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.25) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.25) 75%, transparent 75%);
-            background-size: 16px 16px;
-            animation: pp-stripes 0.8s linear infinite;
-        }
+.section-card {
+    border-radius: 1rem;
+    box-shadow: var(--pp-shadow-1);
+}
 
-        @keyframes pp-stripes {
-            to { background-position: 16px 0; }
-        }
+/* --- İskelet (shell) ----------------------------------------------------- */
 
-        .pp-transition-stroke {
-            transition: stroke-dashoffset 1s linear;
-        }
+.app-shell {
+    display: flex;
+    width: 100%;
+    height: 100vh;
+    padding-top: var(--pp-titlebar-h);
+    overflow: hidden;
+}
 
-        #set-ai-progress-bar,
-        #wz-progress-bar {
-            width: 0;
-        }
+.app-main {
+    min-width: 0; /* flex çocuğunun taşmasını engeller */
+    flex: 1 1 auto;
+}
+
+.app-sidebar {
+    width: 15.5rem;
+    flex: 0 0 auto;
+    transition: width 0.22s var(--pp-ease), transform 0.26s var(--pp-ease);
+    will-change: width;
+}
+
+/* Marka bloğu taşma koruması + kimlik hiyerarşisi. */
+.sidebar-brand .brand-text {
+    min-width: 0;
+}
+
+/* Navigasyon: aktif durum çubuğu (rail modunda da görünür). */
+.nav-btn {
+    position: relative;
+    transition: background-color 0.16s var(--pp-ease), color 0.16s var(--pp-ease),
+        border-color 0.16s var(--pp-ease), transform 0.16s var(--pp-ease);
+}
+
+.nav-btn:hover {
+    transform: translateX(1px);
+}
+
+html[dir='rtl'] .nav-btn:hover {
+    transform: translateX(-1px);
+}
+
+.nav-btn.is-active::before {
+    content: '';
+    position: absolute;
+    inset-block: 0.4rem;
+    inset-inline-start: -0.75rem;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--pp-brand);
+}
+
+.nav-btn .material-symbols-outlined {
+    flex: 0 0 auto;
+}
+
+.sidebar-blur {
+    /* Tema duyarlı yüzey: açık temada koyu sidebar okunaksız kalıyordu. */
+    background-color: var(--pp-sidebar-bg);
+    backdrop-filter: blur(20px);
+}
+
+/* --- Title bar ----------------------------------------------------------- */
+
+.pp-titlebar {
+    height: var(--pp-titlebar-h);
+    background: linear-gradient(180deg, rgba(15, 26, 35, 0.6), rgba(15, 26, 35, 0.2));
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--pp-border);
+}
+
+html:not(.dark) .pp-titlebar {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.6));
+}
+
+.pp-titlebar button {
+    height: 100%;
+    width: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.14s var(--pp-ease), color 0.14s var(--pp-ease);
+}
+
+.pp-titlebar button:hover {
+    background: rgba(100, 116, 139, 0.16);
+}
+
+.pp-titlebar #btn-close:hover {
+    background: #ef4444;
+    color: #fff;
+}
+
+/* Drawer açma düğmesi yalnız dar pencerede görünür. */
+#btn-nav-toggle {
+    display: none;
+}
+
+/* --- Premium bileşenler -------------------------------------------------- */
+
+.action-btn {
+    transition: transform 0.18s var(--pp-ease), box-shadow 0.18s var(--pp-ease),
+        border-color 0.18s var(--pp-ease);
+    box-shadow: var(--pp-shadow-1);
+}
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--pp-shadow-2);
+}
+
+.action-btn:active {
+    transform: translateY(0) scale(0.995);
+}
+
+/* Zamanlayıcı: rakamlar hizalı, vurgu daha net. */
+#display-time-left {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+}
+
+#timer-ring {
+    width: clamp(11rem, 34vmin, 13rem);
+    height: clamp(11rem, 34vmin, 13rem);
+}
+
+/* Görünüm geçişi: sakin, hızlı, yön bağımsız. */
+.view-section:not(.hidden) {
+    animation: pp-view-in 0.22s var(--pp-ease) both;
+}
+
+@keyframes pp-view-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* İçerik kolonu: geniş ekranda satır uzunluğu okunabilir kalır. */
+.content-col {
+    width: 100%;
+    max-width: min(100%, 72rem);
+    margin-inline: auto;
+}
+
+/* Ayarlar formu: tek sütunda çok geniş satırlar yerine odaklı kolon. */
+.settings-body > section {
+    width: 100%;
+    max-width: 56rem;
+    margin-inline: auto;
+}
+
+/* Birincil CTA: çok geniş pencerede sonsuza uzamaz. */
+#btn-start {
+    max-width: 44rem;
+    margin-inline: auto;
+}
+
+/* Grid çocukları taşmasın (uzun kelime/URL'ler). */
+.grid > * {
+    min-width: 0;
+}
+
+/* Bildirimler: dar pencerede taşmaz, uzun metin sarılır. */
+#toast-container {
+    max-width: calc(100vw - 2rem);
+}
+
+#toast-container > * {
+    min-width: 0 !important;
+    max-width: 100%;
+}
+
+#toast-container .text-sm {
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+}
+
+/* Açık temada kart/panel ayrımı: yalnız kenarlık yetmiyordu. */
+html:not(.dark) #view-settings .bg-white,
+html:not(.dark) #view-integrations .bg-white,
+html:not(.dark) #view-dashboard .bg-white {
+    box-shadow: var(--pp-shadow-1);
+}
+
+/* Geniş tablolar dar pencerede yatay kayar (sayfa taşmaz). */
+.table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
+.table-scroll table {
+    min-width: 36rem;
+}
+
+/* --- Responsive: RAIL (orta genişlik) ------------------------------------ */
+
+@media (max-width: 1119px) {
+    .app-sidebar {
+        width: 4.5rem;
+    }
+
+    .app-sidebar .sidebar-brand {
+        padding-inline: 0;
+        justify-content: center;
+    }
+
+    .app-sidebar .brand-text,
+    .app-sidebar .nav-label,
+    .app-sidebar .sidebar-footer .user-meta {
+        display: none;
+    }
+
+    .app-sidebar nav {
+        padding-inline: 0.5rem;
+    }
+
+    .app-sidebar .nav-btn {
+        justify-content: center;
+        padding-inline: 0;
+        border-color: transparent !important;
+    }
+
+    .app-sidebar .nav-btn.is-active::before {
+        inset-inline-start: 0.15rem;
+    }
+
+    .app-sidebar .sidebar-footer {
+        padding-inline: 0.75rem;
+    }
+
+    .app-sidebar .sidebar-footer > div {
+        justify-content: center;
+    }
+}
+
+/* --- Responsive: DRAWER (dar pencere) ------------------------------------ */
+
+@media (max-width: 899px) {
+    #btn-nav-toggle {
+        display: inline-flex;
+    }
+
+    .app-sidebar {
+        position: fixed;
+        inset-block: var(--pp-titlebar-h) 0;
+        inset-inline-start: 0;
+        width: 17rem;
+        z-index: 60;
+        transform: translateX(-101%);
+        box-shadow: var(--pp-shadow-3);
+        background: var(--pp-surface);
+    }
+
+    html[dir='rtl'] .app-sidebar {
+        transform: translateX(101%);
+    }
+
+    body.nav-open .app-sidebar {
+        transform: translateX(0);
+    }
+
+    /* Drawer açıkken etiketler yeniden görünür. */
+    .app-sidebar .brand-text,
+    .app-sidebar .nav-label,
+    .app-sidebar .sidebar-footer .user-meta {
+        display: block;
+    }
+
+    .app-sidebar .nav-btn {
+        justify-content: flex-start;
+        padding-inline: 0.75rem;
+    }
+
+    .app-sidebar .sidebar-brand {
+        padding-inline: 1.5rem;
+        justify-content: flex-start;
+    }
+}
+
+.nav-scrim {
+    position: fixed;
+    inset: var(--pp-titlebar-h) 0 0 0;
+    z-index: 55;
+    background: rgba(2, 6, 23, 0.55);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s var(--pp-ease);
+}
+
+body.nav-open .nav-scrim {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* --- Hareket hassasiyeti ------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .view-section:not(.hidden) {
+        animation: none;
+    }
+}
+
+/* --- Sürükleme / form yardımcıları -------------------------------------- */
+
+.window-drag {
+    -webkit-app-region: drag;
+}
+
+.no-drag {
+    -webkit-app-region: no-drag;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* Sihirbaz AI indirani: buton-içi dönen imleç */
+.pp-spin {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    vertical-align: -2px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: pp-rotate 0.8s linear infinite;
+}
+
+@keyframes pp-rotate {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Sihirbaz AI indirani: akan çizgili bar + yumuşak genişleme */
+#wz-progress-bar {
+    transition: width 0.3s ease;
+}
+
+#wz-progress-bar.pp-stripes {
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.25) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.25) 75%, transparent 75%);
+    background-size: 16px 16px;
+    animation: pp-stripes 0.8s linear infinite;
+}
+
+@keyframes pp-stripes {
+    to {
+        background-position: 16px 0;
+    }
+}
+
+.pp-transition-stroke {
+    transition: stroke-dashoffset 1s linear;
+}
+
+#set-ai-progress-bar,
+#wz-progress-bar {
+    width: 0;
+}

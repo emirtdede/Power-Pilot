@@ -20,100 +20,105 @@
 
 
     <!-- Title Bar -->
-    <div class="fixed top-0 left-0 w-full h-8 flex items-center justify-between z-50 window-drag bg-transparent">
-        <div class="px-4 text-xs font-semibold text-slate-500">Power Pilot</div>
+    <div class="fixed top-0 left-0 w-full pp-titlebar flex items-center justify-between z-50 window-drag">
+        <div class="flex items-center h-full min-w-0">
+            <button id="btn-nav-toggle" class="no-drag" aria-label="Menü" aria-controls="app-sidebar" aria-expanded="false">
+                <span class="material-symbols-outlined text-[18px]">menu</span>
+            </button>
+            <div class="px-4 text-xs font-semibold text-slate-500 truncate">Power Pilot</div>
+        </div>
         <div class="flex h-full no-drag">
-            <button id="btn-minimize"
-                class="px-4 hover:bg-white/10 transition-colors flex items-center justify-center"><span
-                    class="material-symbols-outlined text-[16px]">remove</span></button>
-            <button id="btn-maximize"
-                class="px-4 hover:bg-white/10 transition-colors flex items-center justify-center"><span
-                    class="material-symbols-outlined text-[16px]">crop_square</span></button>
-            <button id="btn-close"
-                class="px-4 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center"><span
-                    class="material-symbols-outlined text-[16px]">close</span></button>
+            <button id="btn-minimize" aria-label="Küçült">
+                <span class="material-symbols-outlined text-[16px]">remove</span>
+            </button>
+            <button id="btn-maximize" aria-label="Büyüt">
+                <span class="material-symbols-outlined text-[16px]">crop_square</span>
+            </button>
+            <button id="btn-close" aria-label="Kapat">
+                <span class="material-symbols-outlined text-[16px]">close</span>
+            </button>
         </div>
     </div>
 
     <!-- Main Window Simulation -->
-    <div class="w-full h-screen bg-white dark:bg-[#0f1a23] overflow-hidden flex pt-8">
+    <div class="app-shell bg-white dark:bg-[#0f1a23]">
 
         <!-- Sidebar Navigation -->
-        <aside
-            class="w-64 sidebar-blur border-r border-slate-200 dark:border-slate-800 flex flex-col h-full bg-slate-100/50 dark:bg-background-dark/50">
-            <div class="p-6 flex items-center gap-3">
+        <aside id="app-sidebar"
+            class="app-sidebar sidebar-blur border-r border-slate-200 dark:border-slate-800 flex flex-col h-full bg-slate-100/50 dark:bg-background-dark/50">
+            <div class="sidebar-brand p-6 flex items-center gap-3 min-w-0">
                 <div class="w-10 h-10 shrink-0 overflow-hidden rounded-lg">
                     <img src="assets/powerpilot_icon.png" alt="Power Pilot Logo" class="w-full h-full object-cover" />
                 </div>
-                <div>
-                    <h1 class="text-base font-bold leading-tight">Power Pilot</h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="subtitle">Akıllı Güç Yöneticisi</p>
+                <div class="brand-text min-w-0">
+                    <h1 class="text-base font-bold leading-tight truncate">Power Pilot</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 truncate" data-i18n="subtitle">Akıllı Güç Yöneticisi</p>
                 </div>
             </div>
             <nav class="flex-1 px-3 space-y-1 overflow-y-auto">
                 <a id="nav-dashboard"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer bg-primary/10 text-primary font-medium border border-primary/20">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer bg-primary/10 text-primary font-medium border border-primary/20" data-nav-key="dashboard">
                     <span class="material-symbols-outlined text-[20px]">dashboard</span>
-                    <span class="text-sm" data-i18n="dashboard">Dashboard</span>
+                    <span class="text-sm nav-label" data-i18n="dashboard">Dashboard</span>
                 </a>
                 <a id="nav-active"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="activeTask">
                     <span class="material-symbols-outlined text-[20px]">timer</span>
-                    <span class="text-sm" data-i18n="activeTask">Aktif Görevler</span>
+                    <span class="text-sm nav-label" data-i18n="activeTask">Aktif Görevler</span>
                 </a>
                 <a id="nav-tasks"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="tasks">
                     <span class="material-symbols-outlined text-[20px]">checklist</span>
-                    <span class="text-sm" data-i18n="tasks">Görevler</span>
+                    <span class="text-sm nav-label" data-i18n="tasks">Görevler</span>
                 </a>
                 <a id="nav-smartfinish"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="sfTitle">
                     <span class="material-symbols-outlined text-[20px]">auto_mode</span>
-                    <span class="text-sm">Smart Finish</span>
+                    <span class="text-sm nav-label" data-i18n="sfTitle">Smart Finish</span>
                 </a>
                 <a id="nav-assistant"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="navAssistant">
                     <span class="material-symbols-outlined text-[20px]">smart_toy</span>
-                    <span class="text-sm" data-i18n="navAssistant">AI Asistan</span>
+                    <span class="text-sm nav-label" data-i18n="navAssistant">AI Asistan</span>
                 </a>
                 <a id="nav-templates"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="navTemplates">
                     <span class="material-symbols-outlined text-[20px]">widgets</span>
-                    <span class="text-sm" data-i18n="navTemplates">Şablonlar</span>
+                    <span class="text-sm nav-label" data-i18n="navTemplates">Şablonlar</span>
                 </a>
                 <a id="nav-history"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="navHistory">
                     <span class="material-symbols-outlined text-[20px]">history</span>
-                    <span class="text-sm" data-i18n="navHistory">Geçmiş</span>
+                    <span class="text-sm nav-label" data-i18n="navHistory">Geçmiş</span>
                 </a>
                 <a id="nav-stats"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="navStats">
                     <span class="material-symbols-outlined text-[20px]">bolt</span>
-                    <span class="text-sm" data-i18n="navStats">İstatistikler</span>
+                    <span class="text-sm nav-label" data-i18n="navStats">İstatistikler</span>
                 </a>
                 <a id="nav-integrations"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="navIntegrations">
                     <span class="material-symbols-outlined text-[20px]">hub</span>
-                    <span class="text-sm" data-i18n="navIntegrations">Entegrasyonlar</span>
+                    <span class="text-sm nav-label" data-i18n="navIntegrations">Entegrasyonlar</span>
                 </a>
                 <a id="nav-settings"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="settings">
                     <span class="material-symbols-outlined text-[20px]">settings</span>
-                    <span class="text-sm" data-i18n="settings">Ayarlar</span>
+                    <span class="text-sm nav-label" data-i18n="settings">Ayarlar</span>
                 </a>
                 <a id="nav-about"
-                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    class="nav-btn flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer" data-nav-key="about">
                     <span class="material-symbols-outlined text-[20px]">info</span>
-                    <span class="text-sm" data-i18n="about">Hakkında</span>
+                    <span class="text-sm nav-label" data-i18n="about">Hakkında</span>
                 </a>
             </nav>
-            <div class="p-4 mt-auto border-t border-slate-200 dark:border-slate-800">
-                <div class="flex items-center gap-3 p-2">
+            <div class="sidebar-footer p-4 mt-auto border-t border-slate-200 dark:border-slate-800">
+                <div class="flex items-center gap-3 p-2 min-w-0">
                     <div
-                        class="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-700 overflow-hidden flex items-center justify-center">
+                        class="w-8 h-8 shrink-0 rounded-full bg-slate-300 dark:bg-slate-700 overflow-hidden flex items-center justify-center">
                         <span class="material-symbols-outlined text-sm text-slate-500">person</span>
                     </div>
-                    <div class="flex-1 overflow-hidden">
+                    <div class="user-meta flex-1 overflow-hidden min-w-0">
                         <p class="text-xs font-semibold truncate" data-i18n="localUser">Yerel Kullanıcı</p>
                         <p class="text-[10px] text-slate-500 truncate">Windows</p>
                     </div>
@@ -121,18 +126,21 @@
             </div>
         </aside>
 
+        <!-- Drawer scrim (yalnız dar pencere) -->
+        <div id="nav-scrim" class="nav-scrim" aria-hidden="true"></div>
+
         <!-- Main Content Area -->
-        <main class="flex-1 flex flex-col overflow-hidden bg-slate-50/50 dark:bg-transparent h-full relative"
+        <main class="app-main flex flex-col overflow-hidden bg-slate-50/50 dark:bg-transparent h-full relative"
             id="main-content">
 
             <!-- Dashboard View -->
             <div id="view-dashboard" class="view-section w-full h-full flex flex-col">
-                <div class="px-8 pt-10 pb-6">
+                <div class="page-x pt-10 pb-6">
                     <h2 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1" data-i18n="hello">Merhaba!</h2>
                     <p class="text-slate-500 dark:text-slate-400" data-i18n="whenShutdown">Bilgisayarınızı ne zaman kapatalım?</p>
                 </div>
 
-                <div class="px-8 grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
+                <div class="page-x content-col grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
                     <button
                         class="action-btn min-w-0 flex flex-col items-center justify-center px-3 py-6 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 transition-all group"
                         data-action="shutdown">
@@ -195,16 +203,16 @@
                     </button>
                 </div>
 
-                <div class="px-8 space-y-6">
+                <div class="page-x content-col space-y-6">
                     <div
-                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                        class="bg-white dark:bg-slate-800 p-6 rounded-2xl section-card border border-slate-200 dark:border-slate-700">
                         <h3
                             class="text-sm font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4 flex items-center gap-2">
                             <span class="material-symbols-outlined text-lg">schedule</span>
                             <span data-i18n="timeSetting">Zaman Ayarı</span>
                         </h3>
                         <div
-                            class="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg mb-6 border border-slate-200 dark:border-slate-800">
+                            class="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg mb-6 border border-slate-200 dark:border-slate-800 max-w-xl mx-auto">
                             <button
                                 class="time-btn flex-1 py-1.5 text-xs font-semibold rounded-md text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800"
                                 data-mins="15" data-i18n="min15">15 dk</button>
@@ -303,7 +311,7 @@
                 </div>
 
                 <div
-                    class="mt-auto p-8 border-t border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40">
+                    class="mt-auto page-x page-y border-t border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40">
                     <button id="btn-start"
                         class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
                         <span class="material-symbols-outlined">play_arrow</span>
@@ -316,27 +324,27 @@
 
             <!-- Active Timer View -->
             <div id="view-active" class="view-section hidden w-full h-full flex flex-col">
-                <div class="px-8 pt-10 pb-6">
+                <div class="page-x pt-10 pb-6">
                     <h2 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1" data-i18n="activeTimerRunning">Aktif bir
                         zamanlayıcı çalışıyor.</h2>
                     <p class="text-slate-500 dark:text-slate-400" data-i18n="countdownMode">Sistem geri sayım modunda.</p>
                 </div>
-                <div class="px-8 mb-8">
+                <div class="page-x mb-8">
                     <div
                         class="bg-white dark:bg-slate-800 rounded-2xl p-10 border-2 border-primary/30 flex flex-col items-center justify-center shadow-xl">
-                        <div
-                            class="w-48 h-48 rounded-full border-8 border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center mb-6 relative">
+                        <div id="timer-ring"
+                            class="rounded-full border-8 border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center mb-6 relative">
                             <span id="display-time-left"
                                 class="font-black tracking-tighter flex flex-col items-center justify-center gap-0.5"><span
                                     class="text-4xl">00:00</span></span>
                             <span class="text-[10px] uppercase font-bold text-slate-400 mt-1" data-i18n="timeRemaining">Kalan Süre</span>
-                            <svg class="absolute inset-0 w-full h-full -rotate-90">
-                                <circle class="text-primary/10 hidden" cx="50%" cy="50%" fill="transparent" r="46%"
+                            <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100"
+                                preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                                <circle class="text-primary/10 hidden" cx="50" cy="50" fill="transparent" r="46"
                                     stroke="currentColor" stroke-width="8"></circle>
-                                <circle id="progress-circle" class="text-primary" cx="50%" cy="50%" fill="transparent"
-                                    r="46%" stroke="currentColor" stroke-dasharray="289" stroke-dashoffset="0"
-                                    stroke-linecap="round" stroke-width="8"
-                                    class="pp-transition-stroke"></circle>
+                                <circle id="progress-circle" class="text-primary pp-transition-stroke" cx="50" cy="50"
+                                    fill="transparent" r="46" stroke="currentColor" stroke-dasharray="289"
+                                    stroke-dashoffset="0" stroke-linecap="round" stroke-width="8"></circle>
                             </svg>
                         </div>
                         <div class="text-center">
@@ -353,7 +361,7 @@
                 </div>
 
                 <div
-                    class="mt-auto p-8 border-t border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40">
+                    class="mt-auto page-x page-y border-t border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40">
                     <button id="btn-cancel"
                         class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
                         <span class="material-symbols-outlined">close</span>
@@ -365,7 +373,7 @@
             </div>
 
             <!-- Tasks View: list / cancel / snooze every tracked automation -->
-            <div id="view-tasks" class="view-section hidden w-full h-full flex flex-col overflow-y-auto px-8 py-6">
+            <div id="view-tasks" class="view-section hidden w-full h-full flex flex-col overflow-y-auto page-x page-y">
                 <div class="flex items-start justify-between gap-4 mb-6 max-w-5xl">
                     <div>
                         <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-1" data-i18n="tasksTitle">Görevler</h2>
@@ -382,7 +390,8 @@
                         </button>
                     </div>
                 </div>
-                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden max-w-5xl">
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden max-w-5xl w-full mx-auto">
+                    <div class="table-scroll">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-100 dark:bg-slate-900 text-xs uppercase text-slate-400">
                             <tr>
@@ -396,6 +405,7 @@
                         </thead>
                         <tbody id="tasks-table-body" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
                     </table>
+                    </div>
                     <p id="tasks-empty" class="hidden p-6 text-center text-xs text-slate-400" data-i18n="tasksEmpty">Henüz kayıtlı görev yok.</p>
                     <p id="tasks-error" class="hidden p-6 text-center text-xs text-red-500"></p>
                 </div>
@@ -403,10 +413,10 @@
 
             <!-- Settings View -->
             <div id="view-settings" class="view-section hidden w-full h-full flex flex-col">
-                <header class="h-16 flex items-center px-8 shrink-0">
+                <header class="h-16 flex items-center page-x shrink-0">
                     <h2 class="text-xl font-bold" data-i18n="settings">Ayarlar</h2>
                 </header>
-                <div class="flex-1 overflow-y-auto px-8 pb-8 space-y-8">
+                <div class="flex-1 overflow-y-auto page-x pb-8 space-y-8 settings-body">
                     <!-- Section: Genel -->
                     <section>
                         <div class="flex items-center gap-2 mb-4 text-primary">
@@ -580,13 +590,15 @@
                     </section>
                 </div>
                 <footer
-                    class="p-6 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3 bg-white/50 dark:bg-slate-900/50 mt-auto">
-                    <button id="btn-settings-default"
-                        class="px-6 py-2 rounded-lg text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-i18n="restoreDefaults">Varsayılana
-                        Dön</button>
-                    <button id="btn-settings-save"
-                        class="px-8 py-2 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all" data-i18n="saveApply">Kaydet
-                        ve Uygula</button>
+                    class="p-6 border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 mt-auto">
+                    <div class="w-full max-w-[56rem] mx-auto flex flex-wrap justify-end gap-3">
+                        <button id="btn-settings-default"
+                            class="px-6 py-2 rounded-lg text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-i18n="restoreDefaults">Varsayılana
+                            Dön</button>
+                        <button id="btn-settings-save"
+                            class="px-8 py-2 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all" data-i18n="saveApply">Kaydet
+                            ve Uygula</button>
+                    </div>
                 </footer>
             </div>
 
@@ -596,7 +608,7 @@
 
 
                 <!-- Scrollable body -->
-                <div class="flex-1 overflow-y-auto px-8 py-8 flex flex-col items-center gap-6">
+                <div class="flex-1 overflow-y-auto page-x page-y flex flex-col items-center gap-6">
 
                     <!-- Product Identity Block -->
                     <div class="flex flex-col items-center gap-3 mb-2">
@@ -683,7 +695,7 @@
             </div>
 
             <!-- Smart Finish View -->
-            <div id="view-smartfinish" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+            <div id="view-smartfinish" class="view-section w-full h-full flex flex-col hidden overflow-y-auto page-x page-y">
                 <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="sfTitle">Smart Finish Koşul Motoru</h2>
                 <p class="text-sm text-slate-500 mb-6" data-i18n="sfSubtitle">İşleminiz bittiğinde (Render, İndirme, Boşta kalma vb.) bilgisayarı otomatik yönetin.</p>
                 <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm max-w-xl space-y-4">
@@ -762,7 +774,7 @@
             </div>
 
             <!-- Assistant View (WBS-7.4) -->
-            <div id="view-assistant" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+            <div id="view-assistant" class="view-section w-full h-full flex flex-col hidden overflow-y-auto page-x page-y">
                 <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="navAssistant">AI Asistan</h2>
                 <p class="text-sm text-slate-500 mb-4" data-i18n="assistantSubtitle">Cümleyle anlatın, görevi AI kursun. Örnek: "HandBrake bitince bilgisayarı kapat".</p>
                 <p id="ai-status-line" data-i18n="aiStatusChecking" class="text-xs text-slate-400 mb-4">AI durumu denetleniyor...</p>
@@ -783,14 +795,14 @@
             </div>
 
             <!-- Templates View -->
-            <div id="view-templates" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+            <div id="view-templates" class="view-section w-full h-full flex flex-col hidden overflow-y-auto page-x page-y">
                 <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="templatesTitle">Hazır Otomasyon Şablonları</h2>
                 <p class="text-sm text-slate-500 mb-6" data-i18n="templatesSubtitle">Tek tıkla özelleştirebileceğiniz hazır senaryolar.</p>
-                <div id="templates-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl"></div>
+                <div id="templates-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 max-w-5xl w-full mx-auto"></div>
             </div>
 
             <!-- History View -->
-            <div id="view-history" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+            <div id="view-history" class="view-section w-full h-full flex flex-col hidden overflow-y-auto page-x page-y">
                 <div class="flex items-center justify-between mb-4 max-w-4xl">
                     <div>
                         <h2 class="text-2xl font-bold text-slate-900 dark:text-white" data-i18n="historyTitle">Görev Geçmişi ve Olay Kayıtları</h2>
@@ -798,7 +810,8 @@
                     </div>
                     <button id="btn-clear-history" class="px-4 py-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg text-xs font-bold transition-colors" data-i18n="clearHistory">Geçmişi Temizle</button>
                 </div>
-                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden max-w-4xl">
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden max-w-4xl w-full mx-auto">
+                    <div class="table-scroll">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-100 dark:bg-slate-900 text-xs uppercase text-slate-400">
                             <tr>
@@ -811,14 +824,15 @@
                         </thead>
                         <tbody id="history-table-body" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 
             <!-- Statistics View -->
-            <div id="view-stats" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+            <div id="view-stats" class="view-section w-full h-full flex flex-col hidden overflow-y-auto page-x page-y">
                 <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="statsTitle">Enerji &amp; Açık Kalma Süresi Tahminleri</h2>
                 <p class="text-sm text-slate-500 mb-6" data-i18n="statsSubtitle">Power Pilot ile elde ettiğiniz yerel tasarruf istatistikleri.</p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mb-8">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl w-full mx-auto mb-8">
                     <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                         <span class="text-xs font-bold text-slate-400 uppercase" data-i18n="statPreventedUptime">Önlenen Açık Kalma</span>
                         <h3 id="stat-hours" class="text-3xl font-extrabold text-primary mt-2">—</h3>
@@ -840,10 +854,10 @@
             </div>
 
             <!-- Integrations View -->
-            <div id="view-integrations" class="view-section w-full h-full flex flex-col hidden overflow-y-auto px-8 py-6">
+            <div id="view-integrations" class="view-section w-full h-full flex flex-col hidden overflow-y-auto page-x page-y">
                 <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2" data-i18n="integrationsTitle">Yerel Entegrasyonlar &amp; API</h2>
                 <p class="text-sm text-slate-500 mb-6" data-i18n="integrationsSubtitle">n8n, CLI, Webhook ve Wake-on-LAN ayarlarını yerel olarak yönetin.</p>
-                <div class="space-y-6 max-w-3xl">
+                <div class="space-y-6 max-w-3xl w-full mx-auto">
                     <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                         <div class="flex items-center justify-between mb-3">
                             <div>
@@ -860,7 +874,7 @@
                             <span class="text-xs font-mono text-slate-500" data-i18n="apiServerStatus">Sunucu Durumu:</span>
                             <span id="api-status-badge" class="text-xs font-bold text-slate-400" data-i18n="apiOff">Kapalı</span>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                             <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg cursor-pointer">
                                 <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiServer">API Sunucusu</span>
                                 <input id="api-enabled" type="checkbox" class="w-4 h-4 accent-[#4f7cff]" />
@@ -935,7 +949,7 @@
                         <h3 class="font-bold text-base mb-1" data-i18n="webhookTitle">Webhook Bildirimleri</h3>
                         <p class="text-xs text-slate-400 mb-3" data-i18n="webhookSubtitle">Olay olunca adresinize bildirim gider. Gizli anahtarlar bir kez yazılır, bir daha gösterilmez.</p>
                         <div id="webhook-list" class="space-y-2 mb-3"></div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <input id="wh-name" type="text" placeholder="Ad (örn: n8n)" data-i18n-placeholder="webhookNamePlaceholder" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs" />
                             <input id="wh-url" type="text" placeholder="https://..." class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs font-mono" />
                             <select id="wh-auth" class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs">
@@ -1195,7 +1209,8 @@
     </div>
 
     <!-- Toast Notification Container -->
-    <div id="toast-container" class="fixed bottom-24 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+    <div id="toast-container"
+        class="fixed top-12 right-4 z-[75] flex flex-col gap-2 pointer-events-none w-[min(24rem,calc(100vw-2rem))]"></div>
     </div>
 
     <!-- Application Logic -->

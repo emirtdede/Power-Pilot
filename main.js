@@ -595,8 +595,9 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1400,
         height: 840,
-        minWidth: 1100,
-        minHeight: 680,
+        // Responsive iskelet: 720px'e kadar daraltılabilir (drawer modu).
+        minWidth: 720,
+        minHeight: 520,
         resizable: true,
         frame: false,
         titleBarStyle: 'hidden',

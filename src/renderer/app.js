@@ -96,6 +96,17 @@
                 const value = dict[key];
                 if (value) el.title = value;
             });
+            // Rail modunda nav etiketleri gizlenir; ipucu + erişilebilir ad aynı
+            // sözlükten gelir (data-nav-key → data-tip / aria-label).
+            document.querySelectorAll('[data-nav-key]').forEach(el => {
+                const key = el.getAttribute('data-nav-key');
+                const value = key ? dict[key] : '';
+                if (!value) return;
+                el.setAttribute('data-tip', value);
+                el.setAttribute('aria-label', value);
+                // Rail modunda etiket gizlenir; fare kullanıcısı için yerel ipucu.
+                el.title = value;
+            });
             // Update the HTML class lang attribute
             document.documentElement.setAttribute('lang', lang);
             // WP-14: Arapça sağdan-sola; diğerleri soldan-sağa.
@@ -143,13 +154,16 @@
             };
 
             function switchView(navId) {
-                // Update active state in sidebar
+                // Update active state in sidebar (görsel + erişilebilir işaret)
                 document.querySelectorAll('.nav-btn').forEach(btn => {
-                    btn.classList.remove('bg-primary/10', 'text-primary', 'font-medium', 'border', 'border-primary/20');
+                    btn.classList.remove('bg-primary/10', 'text-primary', 'font-medium', 'border', 'border-primary/20', 'is-active');
+                    btn.removeAttribute('aria-current');
                     if (btn.id === navId) {
-                        btn.classList.add('bg-primary/10', 'text-primary', 'font-medium', 'border', 'border-primary/20');
+                        btn.classList.add('bg-primary/10', 'text-primary', 'font-medium', 'border', 'border-primary/20', 'is-active');
+                        btn.setAttribute('aria-current', 'page');
                     }
                 });
+                closeNavDrawer();
 
                 // Show view
                 document.querySelectorAll('.view-section').forEach(view => {
@@ -187,6 +201,34 @@
                 }
             }
 
+            // --- Responsive drawer (dar pencere iskeleti) -----------------
+            // Geniş pencerede sidebar kalıcıdır; <900px'te çekmeceye dönüşür.
+            const DRAWER_BREAKPOINT = 900;
+            const navToggle = document.getElementById('btn-nav-toggle');
+            const navScrim = document.getElementById('nav-scrim');
+
+            function setNavOpen(open) {
+                const shouldOpen = open === true && window.innerWidth < DRAWER_BREAKPOINT;
+                document.body.classList.toggle('nav-open', shouldOpen);
+                if (navToggle) navToggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+            }
+
+            function closeNavDrawer() {
+                setNavOpen(false);
+            }
+
+            if (navToggle) {
+                navToggle.addEventListener('click', () => {
+                    setNavOpen(!document.body.classList.contains('nav-open'));
+                });
+            }
+            if (navScrim) navScrim.addEventListener('click', closeNavDrawer);
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') closeNavDrawer();
+            });
+            window.addEventListener('resize', () => {
+                if (window.innerWidth >= DRAWER_BREAKPOINT) closeNavDrawer();
+            });
             Object.keys(navLinks).forEach(navId => {
                 document.getElementById(navId).addEventListener('click', () => switchView(navId));
             });
