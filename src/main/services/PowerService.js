@@ -63,8 +63,14 @@ class PowerService {
                     args = ['/r', '/t', '0'];
                     break;
                 case POWER_ACTIONS.SLEEP:
-                    file = 'rundll32.exe';
-                    args = ['powrprof.dll,SetSuspendState', '0,1,0'];
+                    // L-09: rundll32 parametre yorumu hibernation ayarına göre
+                    // değişebiliyor. Doğrudan SetSuspendState(FALSE, TRUE, FALSE)
+                    // çağrısı uyku/hibernate ayrımını netleştirir.
+                    file = 'powershell.exe';
+                    args = [
+                        '-NoProfile', '-NonInteractive', '-Command',
+                        "Add-Type -MemberDefinition '[DllImport(\"powrprof.dll\", SetLastError=true)] public static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);' -Name PowrProf -Namespace Win32; if (-not [Win32.PowrProf]::SetSuspendState($false, $true, $false)) { exit 1 }"
+                    ];
                     break;
                 case POWER_ACTIONS.HIBERNATE:
                     file = 'shutdown.exe';

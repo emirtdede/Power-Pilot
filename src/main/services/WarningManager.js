@@ -24,7 +24,9 @@ class WarningManager extends EventEmitter {
         return new Promise((resolve) => {
             // Aynı anda tek aktif uyarı. Eski uyarı varsa güvenli biçimde kapatılır.
             if (this.activeWarning) this.finishWarning(false, false);
-            const warningSec = (task.warningConfig && task.warningConfig.durationSeconds) || 30;
+            const rawSeconds = task.warningConfig && task.warningConfig.durationSeconds;
+            // O-02: 0 geçerli bir değerdir ("hemen icra"); `|| 30` onu yutuyordu.
+            const warningSec = Number.isInteger(rawSeconds) ? Math.min(Math.max(rawSeconds, 0), 3600) : 30;
             const autoProceed = task.mode === 'full' || task._schedulerFired === true;
             log.info(`[WarningManager] Starting ${warningSec}s warning for task "${task.name}" (mode=${task.mode || 'classic'}, autoProceed=${autoProceed})`);
 
@@ -37,7 +39,8 @@ class WarningManager extends EventEmitter {
                 action: task.action,
                 secondsLeft: secondsLeft,
                 resolve: resolve,
-                interval: null
+                interval: null,
+                silentMode: !!(task.warningConfig && task.warningConfig.silentMode)
             };
 
             // Notify UI via event
@@ -45,8 +48,26 @@ class WarningManager extends EventEmitter {
                 taskId: task.id,
                 taskName: task.name,
                 action: task.action,
-                secondsLeft: secondsLeft
+                secondsLeft: secondsLeft,
+                // D-05: sessiz mod sesi bastırır; banner görünür kalır.
+                silentMode: !!(task.warningConfig && task.warningConfig.silentMode)
             });
+
+            // O-02: 0 saniye = "hemen icra" (uyarısız geçiş); moddan bağımsız
+            // olarak proceed:true döner. Zamanlayıcı bir sonraki tura bırakılır
+            // ki `warning-started` dinleyicisi durumu görebilsin.
+            if (warningSec === 0) {
+                const immediate = setTimeout(() => {
+                    if (this.activeWarning && this.activeWarning.taskId === task.id) {
+                        this.finishWarning(true, false);
+                    }
+                }, 0);
+                if (typeof immediate.unref === 'function') immediate.unref();
+                if (this.activeWarning && this.activeWarning.taskId === task.id) {
+                    this.activeWarning.interval = immediate;
+                }
+                return;
+            }
 
             timerInterval = setInterval(() => {
                 secondsLeft--;
@@ -77,7 +98,8 @@ class WarningManager extends EventEmitter {
             taskId: this.activeWarning.taskId,
             taskName: this.activeWarning.taskName,
             action: this.activeWarning.action,
-            secondsLeft: this.activeWarning.secondsLeft
+            secondsLeft: this.activeWarning.secondsLeft,
+            silentMode: !!this.activeWarning.silentMode
         };
     }
 

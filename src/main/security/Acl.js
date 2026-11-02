@@ -6,7 +6,7 @@
  * EFS şifreleme (`cipher /E`) opsiyoneldir ve Windows dışında no-op'tur.
  */
 
-const { execFileSync } = require('child_process');
+const { execFileSync, execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -88,6 +88,41 @@ function secureFile(file) {
 }
 
 /**
+ * L-08: async ACL — başlangıç/kapanışta ana thread'i bloke etmez.
+ * @returns {Promise<{ok:boolean, code?:string, error?:string, sid?:string}>}
+ */
+function securePathAsync(target, { isDirectory = null } = {}) {
+    if (!isWindows()) return Promise.resolve({ ok: false, code: 'UNSUPPORTED_PLATFORM' });
+    if (typeof target !== 'string' || target.length === 0) {
+        return Promise.resolve({ ok: false, code: 'INVALID_PATH' });
+    }
+    const resolved = path.resolve(target);
+    let dir = isDirectory;
+    try {
+        if (dir === null) dir = fs.statSync(resolved).isDirectory();
+    } catch (err) {
+        return Promise.resolve({ ok: false, code: 'NOT_FOUND', error: err.message });
+    }
+    const sid = currentUserSid();
+    if (!sid) return Promise.resolve({ ok: false, code: 'SID_UNAVAILABLE' });
+    return new Promise((resolve) => {
+        execFile('icacls', aclArgs(resolved, sid, dir), { windowsHide: true, timeout: 30000 }, (err) => {
+            resolve(err
+                ? { ok: false, code: 'ICACLS_FAILED', error: (err && err.message) || 'icacls başarısız', sid }
+                : { ok: true, sid });
+        });
+    });
+}
+
+function secureDirectoryAsync(dir) {
+    return securePathAsync(dir, { isDirectory: true });
+}
+
+function secureFileAsync(file) {
+    return securePathAsync(file, { isDirectory: false });
+}
+
+/**
  * `icacls` çıktısını döner (test/denetim için).
  */
 function listAces(target) {
@@ -141,6 +176,9 @@ module.exports = {
     securePath,
     secureDirectory,
     secureFile,
+    securePathAsync,
+    secureDirectoryAsync,
+    secureFileAsync,
     listAces,
     encryptFileEfs,
     ensurePrivateDir,

@@ -158,24 +158,30 @@ async function bootAgent({
     const consoleClient = new ConsoleClient({ storage, inventoryService: inventory, orderQueue: queue, auditLog: audit });
     const executor = new OrderExecutor({ taskManager: tasks, deviceService: devices, audit });
 
-    api.start();
+    // O-01/O-21: bind hatası sessizce yutulmaz; başlatma sonucu beklenir.
+    const started = await api.start();
+    if (!started || started.ok === false) {
+        log.error('[Headless] Local API başlatılamadı:', started && started.code);
+    }
 
     let stopped = false;
     const tick = async () => {
         if (stopped) return;
         try {
             if (!consoleClient.isConfigured()) return;
-            if (tasks.pausedAll) return;
-            const s = storage.getSettings();
-            if (s.agentDisabled === true) return; // kill-switch: yalnızca heartbeat sürer
+            // Y-03: duraklatma yalnızca drain/icrayı engeller; heartbeat sürer.
             const res = await consoleClient.sync();
             if (res && res.disabled) return;
-            if (res && res.ok) await executor.drain(queue);
+            if (res && res.ok && !tasks.pausedAll) await executor.drain(queue);
         } catch (err) {
             try { log.warn('[Headless] sync hatası:', err && err.message); } catch (_) {}
         }
     };
-    timers.setInterval(tick, syncIntervalMs);
+    const rawSync = Number(syncIntervalMs);
+    const effectiveSyncMs = Number.isFinite(rawSync)
+        ? Math.min(3_600_000, Math.max(5_000, rawSync))
+        : 60_000;
+    timers.setInterval(tick, effectiveSyncMs);
     timers.setTimeout(tick, 5000);
 
     try { log.info(`[Headless] ajan başladı (veri: ${dir})`); } catch (_) {}
@@ -183,13 +189,13 @@ async function bootAgent({
     return {
         dir, storage, history, tasks, api, inventory, exemptions, queue, audit,
         consoleClient, executor, devices, energy, secretStore: secrets,
-        stop() {
+        async stop() {
             stopped = true;
             try { timers.clearAll(); } catch (_) {}
             try { metrics.stopSampling(); } catch (_) {}
             try { if (upsMonitor) upsMonitor.close(); } catch (_) {}
-            try { api.stop(); } catch (_) {}
-            try { if (storage.auditCheckpoint) storage.auditCheckpoint.write(storage.getAuditLog()); } catch (_) {}
+            try { await api.stop(); } catch (_) {}
+            try { if (storage.auditCheckpoint) storage.auditCheckpoint.write(storage.getAuditLog(), { eventLog: false }); } catch (_) {}
             try { storage.close(); } catch (_) {}
         }
     };
@@ -197,12 +203,15 @@ async function bootAgent({
 
 if (require.main === module) {
     // PP_SYNC_MS: konsol senkron aralığı (servis ayarı; varsayılan 60000).
-    const syncMs = Number(process.env.PP_SYNC_MS) || 60000;
+    const rawSyncMs = Number(process.env.PP_SYNC_MS);
+    const syncMs = Number.isFinite(rawSyncMs)
+        ? Math.min(3_600_000, Math.max(5_000, rawSyncMs))
+        : 60_000;
     (async () => {
         try {
             const handle = await bootAgent({ userDataPath: process.argv[2] || null, syncIntervalMs: syncMs });
-            const shutdown = () => {
-                try { handle.stop(); } catch (_) {}
+            const shutdown = async () => {
+                try { await handle.stop(); } catch (_) {}
                 process.exit(0);
             };
             process.on('SIGINT', shutdown);

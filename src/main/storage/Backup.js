@@ -29,6 +29,13 @@ function sha256File(filePath) {
     return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
+function logRestoreRollbackError(dbPath, err) {
+    try {
+        // eslint-disable-next-line no-console
+        console.error(`[Backup] Geri yükleme rollback başarısız (${dbPath}):`, err && err.message);
+    } catch (_) { /* yut */ }
+}
+
 function normalizeKey(key) {
     if (Buffer.isBuffer(key)) {
         if (key.length === 32) return key;
@@ -192,6 +199,8 @@ function backupDatabase({ dbPath, backupDir, key, prefix = 'powerpilot', keep = 
 function restoreDatabase({ inputPath, dbPath, key, quarantineDir = null }) {
     if (!key) throw Object.assign(new Error('Yedek anahtarı gerekli.'), { code: 'BACKUP_KEY_MISSING' });
     const tmp = `${dbPath}.restoring-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+    let quarantined = null;
+    let installed = false;
     try {
         decryptFile(inputPath, tmp, key);
         const check = quickCheck(tmp);
@@ -200,7 +209,6 @@ function restoreDatabase({ inputPath, dbPath, key, quarantineDir = null }) {
         }
         const qDir = quarantineDir || path.join(path.dirname(dbPath), 'quarantine');
         fs.mkdirSync(qDir, { recursive: true });
-        let quarantined = null;
         if (fs.existsSync(dbPath)) {
             quarantined = path.join(qDir, `powerpilot_${timestamp()}.db`);
             fs.renameSync(dbPath, quarantined);
@@ -209,7 +217,27 @@ function restoreDatabase({ inputPath, dbPath, key, quarantineDir = null }) {
             try { fs.rmSync(`${dbPath}${suffix}`, { force: true }); } catch (_) { /* yut */ }
         }
         fs.renameSync(tmp, dbPath);
+        installed = true;
+        // Y-09: yerine konan dosya da doğrulanır; bozuksa eski DB geri gelir.
+        const installedCheck = quickCheck(dbPath);
+        if (installedCheck !== 'ok') {
+            throw Object.assign(
+                new Error(`Geri yükleme sonrası quick_check başarısız: ${installedCheck}`),
+                { code: 'RESTORE_DB_CORRUPT' }
+            );
+        }
         return { ok: true, dbPath, quarantined, quickCheck: check };
+    } catch (err) {
+        // Y-09: yarıda kalan geri yükleme mevcut veriyi kaybetmez.
+        if (installed) {
+            try { fs.rmSync(dbPath, { force: true }); } catch (_) { /* yut */ }
+        }
+        if (quarantined) {
+            try { fs.renameSync(quarantined, dbPath); } catch (rollbackErr) {
+                logRestoreRollbackError(dbPath, rollbackErr);
+            }
+        }
+        throw err;
     } finally {
         try { fs.rmSync(tmp, { force: true }); } catch (_) { /* yut */ }
     }

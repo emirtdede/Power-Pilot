@@ -23,6 +23,7 @@ const { OFFLINE_THRESHOLD_MS, InventoryService } = require('../main/services/Inv
 const { POWER_ACTIONS } = require('../main/services/PowerService');
 const { MAX_ORDERS } = require('../main/services/OrderQueue');
 const { safeCompare } = require('../main/security/safeCompare');
+const log = require('../main/logger');
 const TlsConfig = require('../main/security/TlsConfig');
 const Acl = require('../main/security/Acl');
 const { ConsoleStore } = require('./ConsoleStore');
@@ -35,6 +36,10 @@ const CONSOLE_HEADERS_TIMEOUT_MS = 10000;
 const CONSOLE_KEEPALIVE_TIMEOUT_MS = 5000;
 const CONSOLE_MAX_HEADERS = 100;
 const CONSOLE_MAX_BODY_BYTES = 1024 * 1024;
+// O-07: tek istekte kabul edilen receipt sayısı ve kimlik başına istek limiti.
+const MAX_RECEIPTS_PER_REQUEST = 100;
+const CONSOLE_RATE_WINDOW_MS = 60_000;
+const CONSOLE_RATE_MAX_REQUESTS = 300;
 
 // WP-01.T6: açık yetki matrisi — varsayılan reddet. Sıralı rol hiyerarşisi yok.
 const PERMISSIONS = {
@@ -62,9 +67,14 @@ class ConsoleServer {
      *   keyDir, secureKey } — Ed25519 özel anahtarı keyDir/console-signing-key.pem
      *   dosyasında ACL+EFS ile tutulur; JSON'da yalnızca publicKey kalır.
      */
-    constructor({ storePath = null, keys = {}, localSubnets = null, keyDir = null, secureKey = null } = {}) {
+    constructor({ storePath = null, keys = {}, localSubnets = null, keyDir = null, secureKey = null, heartbeatSeconds = 60 } = {}) {
         this.storePath = storePath;
         this.keys = keys;
+        // L-05: heartbeat aralığı istemcilere sabit 60 yerine yapılandırmadan bildirilir.
+        const hb = Number(heartbeatSeconds);
+        this.heartbeatSeconds = Number.isFinite(hb) ? Math.max(5, Math.min(3600, Math.round(hb))) : 60;
+        this.rateBuckets = new Map();
+        this.retentionTimer = null;
         this.localSubnetsOverride = localSubnets; // test enjeksiyonu
         this.keyDir = keyDir ? path.resolve(keyDir) : (storePath
             ? path.dirname(path.resolve(storePath))
@@ -87,7 +97,7 @@ class ConsoleServer {
         });
         this.maintenanceMode = this.consoleStore.maintenanceMode;
         this.maintenanceReason = this.consoleStore.maintenanceReason || null;
-        this.store = this.consoleStore.snapshot();
+        this.store = this.consoleStore.snapshot({ includeAudit: false });
         // WP-04.T1: özel anahtar JSON'dan çıkarılır; yoksa üretilir, varsa asla
         // sessizce yeniden üretilmez (imza güven kökü değişmesin).
         if (!this.maintenanceMode) {
@@ -106,7 +116,7 @@ class ConsoleServer {
         if (this.consoleStore.enabled) {
             this.audit = {
                 append: (e) => this.consoleStore.addAudit(e),
-                load: () => this.consoleStore.listAudit(),
+                load: (opts) => this.consoleStore.listAudit(opts),
                 verify: () => this.consoleStore.verifyAudit()
             };
             return;
@@ -122,7 +132,7 @@ class ConsoleServer {
     /** DB modunda bellek görünümünü tazeler; bellek modunda aynı nesnedir. */
     refresh() {
         if (!this.consoleStore.enabled) return this.store;
-        this.store = this.consoleStore.snapshot();
+        this.store = this.consoleStore.snapshot({ includeAudit: false });
         this.maintenanceMode = this.consoleStore.maintenanceMode;
         this.maintenanceReason = this.consoleStore.maintenanceReason || this.maintenanceReason;
         return this.store;
@@ -142,16 +152,13 @@ class ConsoleServer {
         const file = this.signingKeyPath();
         fs.writeFileSync(file, pem, { encoding: 'utf8', mode: 0o600 });
         if (this.secureKey) {
-            const acl = Acl.secureDirectory(this.keyDir);
-            if (!acl.ok) {
-                // eslint-disable-next-line no-console
-                console.warn(`[Console] Anahtar dizini ACL uygulanamadı: ${acl.code}`);
-            }
-            const fileAcl = Acl.secureFile(file);
-            if (!fileAcl.ok) {
-                // eslint-disable-next-line no-console
-                console.warn(`[Console] Anahtar dosyası ACL uygulanamadı: ${fileAcl.code}`);
-            }
+            // L-08: ACL asenkron uygulanır; anahtar yazımı UI'yı bloke etmez.
+            Acl.secureDirectoryAsync(this.keyDir).then((acl) => {
+                if (!acl.ok) log.warn(`[Console] Anahtar dizini ACL uygulanamadı: ${acl.code}`);
+            }).catch((err) => log.warn('[Console] Anahtar dizini ACL hatası:', err && err.message));
+            Acl.secureFileAsync(file).then((fileAcl) => {
+                if (!fileAcl.ok) log.warn(`[Console] Anahtar dosyası ACL uygulanamadı: ${fileAcl.code}`);
+            }).catch((err) => log.warn('[Console] Anahtar dosyası ACL hatası:', err && err.message));
             Acl.encryptFileEfs(file); // EFS desteklenmiyorsa sessiz no-op
         }
     }
@@ -249,6 +256,25 @@ class ConsoleServer {
         }
         for (const rec of this.store.agentKeys || []) out.push(rec);
         return out;
+    }
+
+    /** O-07: kimlik/anahtar başına dakikalık istek limiti (token bucket). */
+    checkRateLimit(identity, now = Date.now()) {
+        if (!identity) return true;
+        const key = identity.keyId || identity.hash;
+        if (!key) return true;
+        let bucket = this.rateBuckets.get(key);
+        if (!bucket || now - bucket.start >= CONSOLE_RATE_WINDOW_MS) {
+            bucket = { start: now, count: 0 };
+            this.rateBuckets.set(key, bucket);
+            if (this.rateBuckets.size > 2000) {
+                for (const [k, b] of this.rateBuckets) {
+                    if (now - b.start >= CONSOLE_RATE_WINDOW_MS) this.rateBuckets.delete(k);
+                }
+            }
+        }
+        bucket.count += 1;
+        return bucket.count <= CONSOLE_RATE_MAX_REQUESTS;
     }
 
     identityOf(req) {
@@ -421,7 +447,22 @@ class ConsoleServer {
         prog.awaiting = next;
         prog.awaitingSince = Date.now();
         this.consoleStore.savePolicy(pol);
-        this.queueOrder(next, 'restart', { requiresMaintenanceWindow: true, policyId: pol.id });
+        // L-14: kuyruk hatası rolling restart'ı kilitlemesin; awaiting geri alınır.
+        try {
+            this.queueOrder(next, 'restart', { requiresMaintenanceWindow: true, policyId: pol.id });
+        } catch (err) {
+            prog.awaiting = null;
+            prog.awaitingSince = null;
+            this.consoleStore.savePolicy(pol);
+            this.audit.append({
+                actor: 'console',
+                action: 'rolling_dispatch_failed',
+                target: pol.id,
+                detail: (err && err.message) || 'kuyruk hatası'
+            });
+            this.refresh();
+            return null;
+        }
         this.audit.append({ actor: 'console', action: 'rolling_dispatched', target: pol.id, detail: next });
         this.refresh();
         return next;
@@ -527,22 +568,30 @@ class ConsoleServer {
 
     sendWolDirect(mac, broadcastIp = '255.255.255.255', port = 9) {
         return new Promise((resolve) => {
+            let sock = null;
+            let settled = false;
+            const done = (result) => {
+                if (settled) return;
+                settled = true;
+                try { if (sock) sock.close(); } catch (_) {}
+                resolve(result);
+            };
             try {
                 const cleanMac = String(mac).replace(/[^a-fA-F0-9]/g, '');
-                if (cleanMac.length !== 12) return resolve({ success: false, error: 'MAC geçersiz.' });
+                if (cleanMac.length !== 12) return done({ success: false, error: 'MAC geçersiz.' });
                 const macBuf = Buffer.from(cleanMac, 'hex');
                 const pkt = Buffer.alloc(102);
                 pkt.fill(0xFF, 0, 6);
                 for (let i = 0; i < 16; i++) macBuf.copy(pkt, 6 + i * 6);
-                const sock = dgram.createSocket('udp4');
+                sock = dgram.createSocket('udp4');
+                // Y-08: error event'i dinlenmezse süreç çöker.
+                sock.once('error', (err) => done({ success: false, error: err.message }));
                 sock.once('listening', () => { try { sock.setBroadcast(true); } catch (_) {} });
                 sock.send(pkt, 0, pkt.length, port, broadcastIp, (err) => {
-                    try { sock.close(); } catch (_) {}
-                    if (err) return resolve({ success: false, error: err.message });
-                    resolve({ success: true });
+                    done(err ? { success: false, error: err.message } : { success: true });
                 });
             } catch (err) {
-                resolve({ success: false, error: (err && err.message) || 'WoL hatası.' });
+                done({ success: false, error: (err && err.message) || 'WoL hatası.' });
             }
         });
     }
@@ -702,10 +751,33 @@ class ConsoleServer {
         this.server.keepAliveTimeout = CONSOLE_KEEPALIVE_TIMEOUT_MS;
         this.server.maxHeadersCount = CONSOLE_MAX_HEADERS;
 
-        this.server.listen(port, host, () => {
-            // eslint-disable-next-line no-console
-            console.log(`[Console] ${this.transport}://${host}:${port} (ajanlar outbound bağlanır)`);
+        // Y-08: EADDRINUSE/EACCES gibi hatalar yakalanmazsa süreç düşer.
+        this.server.on('error', (err) => {
+            log.error('[Console] Sunucu hatası:', err && err.message);
+            this.server = null;
+            this.transport = 'disabled';
         });
+
+        this.server.listen(port, host, () => {
+            log.info(`[Console] ${this.transport}://${host}:${port} (ajanlar outbound bağlanır)`);
+        });
+
+        // O-08: günlük retention (ack kuyrukları, eski makbuzlar, arşivli audit).
+        if (this.consoleStore.enabled && !this.retentionTimer) {
+            const runRetention = () => {
+                try {
+                    const out = this.consoleStore.retention();
+                    if (out && (out.removedQueues || out.removedReceipts || out.archivedAudit)) {
+                        log.info('[Console] Retention:', out);
+                    }
+                } catch (err) {
+                    log.warn('[Console] Retention hatası:', err && err.message);
+                }
+            };
+            runRetention();
+            this.retentionTimer = setInterval(runRetention, 24 * 60 * 60 * 1000);
+            this.retentionTimer.unref?.();
+        }
         return this.server;
     }
 
@@ -713,33 +785,46 @@ class ConsoleServer {
      * WP-02.T6: async durdurma — idle bağlantılar hemen, aktifler 5 sn sonra.
      */
     async stop() {
+        if (this.retentionTimer) {
+            try { clearInterval(this.retentionTimer); } catch (_) { /* yut */ }
+            this.retentionTimer = null;
+        }
         const server = this.server;
         if (!server) {
             this.transport = 'disabled';
             return { ok: true };
         }
-        this.server = null;
-        this.transport = 'disabled';
+        // L-10: this.server close callback'inde null'lanır; hata olursa korunur.
         await new Promise((resolve) => {
             let settled = false;
-            const done = () => { if (!settled) { settled = true; resolve(); } };
+            const done = (ok = true) => {
+                if (settled) return;
+                settled = true;
+                if (ok) {
+                    this.server = null;
+                    this.transport = 'disabled';
+                }
+                resolve();
+            };
             try {
                 if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections();
-                server.close(done);
+                server.close((err) => done(!err));
                 setTimeout(() => {
                     try {
                         if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
                     } catch (_) { /* yut */ }
-                    done();
+                    done(false);
                 }, 5000).unref?.();
             } catch (_) {
-                done();
+                done(false);
             }
         });
         return { ok: true };
     }
 
     sendJson(res, code, data) {
+        // Y-08: 413 sonrası ikinci yanıt denemesi ERR_HTTP_HEADERS_SENT üretmesin.
+        if (!res || res.headersSent || res.writableEnded) return;
         res.writeHead(code, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(data));
     }
@@ -758,11 +843,22 @@ class ConsoleServer {
     }
 
     handleRequest(req, res) {
+        // Y-08: istemci bağlantısı aniden kapanırsa unhandled error olmasın.
+        req.on('error', () => { try { res.destroy(); } catch (_) {} });
+        let parsed;
+        try {
+            parsed = new URL(req.url, 'http://x');
+        } catch (_) {
+            return this.sendJson(res, 400, { error: 'Geçersiz URL.', code: 'BAD_URL' });
+        }
         const identity = this.identityOf(req);
         const role = identity ? identity.role : null;
-        const parsed = new URL(req.url, 'http://x');
+        if (!this.checkRateLimit(identity)) {
+            try { res.setHeader('Retry-After', '60'); } catch (_) { /* yut */ }
+            return this.sendJson(res, 429, { error: 'İstek limiti aşıldı.', code: 'RATE_LIMITED' });
+        }
         const p = parsed.pathname;
-        const method = req.method.toUpperCase();
+        const method = String(req.method || 'GET').toUpperCase();
 
         let raw = '';
         let tooLarge = false;
@@ -781,8 +877,17 @@ class ConsoleServer {
             if (raw) {
                 try { body = JSON.parse(raw); } catch (_) { return this.sendJson(res, 400, { error: 'JSON geçersiz.' }); }
             }
+            // L-05: iç hata ayrıntısı istemciye sızmaz; requestId ile logda eşlenir.
+            const requestId = crypto.randomBytes(8).toString('hex');
             Promise.resolve(this.route(method, p, body, res, role, parsed, identity)).catch((err) => {
-                try { this.sendJson(res, 400, { error: (err && err.message) || 'İstek hatası.', code: (err && err.code) || 'BAD_REQUEST' }); } catch (_) {}
+                log.error(`[Console] istek hatası (${requestId}):`, err && err.message);
+                try {
+                    this.sendJson(res, 400, {
+                        error: 'İstek işlenemedi.',
+                        code: 'BAD_REQUEST',
+                        requestId
+                    });
+                } catch (_) { /* yut */ }
             });
         });
     }
@@ -800,19 +905,33 @@ class ConsoleServer {
         }
         if (method === 'POST' && p === '/api/v1/heartbeat') {
             if (!this.needPermission(res, role, 'heartbeat')) return;
-            if (identity && identity.agentId && body.agentId !== identity.agentId) {
+            // K-02: ajan anahtarı mutlaka bir agentId'ye bağlı olmalı; gövde
+            // kimliği asla kimlik kaynağı değildir.
+            if (!identity || !identity.agentId) {
+                return this.sendJson(res, 403, { error: 'Ajan anahtarı bir agentId ile bağlı değil.', code: 'AGENT_KEY_UNBOUND' });
+            }
+            if (body.agentId !== identity.agentId) {
                 return this.sendJson(res, 403, { error: 'Kimlik uyuşmazlığı.', code: 'IDENTITY_MISMATCH' });
             }
-            const out = this.heartbeat(body.agentId, body.inventory, body.receipts);
+            const out = this.heartbeat(identity.agentId, body.inventory, body.receipts);
             return this.sendJson(res, 200, out);
         }
         if (method === 'POST' && p === '/api/v1/receipts') {
             if (!this.needPermission(res, role, 'receipts')) return;
-            const agentId = (identity && identity.agentId) || body.agentId;
-            if (!agentId || (identity && identity.agentId && body.agentId && body.agentId !== identity.agentId)) {
+            const agentId = identity && identity.agentId;
+            if (!agentId) {
+                return this.sendJson(res, 403, { error: 'Ajan anahtarı bir agentId ile bağlı değil.', code: 'AGENT_KEY_UNBOUND' });
+            }
+            if (body.agentId !== undefined && body.agentId !== agentId) {
                 return this.sendJson(res, 403, { error: 'Kimlik uyuşmazlığı.', code: 'IDENTITY_MISMATCH' });
             }
             const receipts = Array.isArray(body.receipts) ? body.receipts : [body];
+            if (receipts.length > MAX_RECEIPTS_PER_REQUEST) {
+                return this.sendJson(res, 413, {
+                    error: `En fazla ${MAX_RECEIPTS_PER_REQUEST} receipt gönderilebilir.`,
+                    code: 'TOO_MANY_RECEIPTS'
+                });
+            }
             let accepted = 0;
             let duplicates = 0;
             for (const r of receipts) {
@@ -897,7 +1016,16 @@ class ConsoleServer {
         }
         if (method === 'GET' && p === '/api/v1/audit') {
             if (!this.needPermission(res, role, 'audit.read')) return;
-            return this.sendJson(res, 200, { audit: this.audit.load(), verify: this.audit.verify() });
+            // O-06: sayfalama + isteğe bağlı zincir doğrulama (varsayılan kapalı).
+            const limit = Math.min(500, Math.max(1, Number(parsed.searchParams.get('limit')) || 100));
+            const beforeSeq = Number(parsed.searchParams.get('beforeSeq')) || null;
+            const out = { audit: this.audit.load({ limit, beforeSeq }), limit };
+            if (parsed.searchParams.get('verify') === '1') out.verify = this.audit.verify();
+            return this.sendJson(res, 200, out);
+        }
+        if (method === 'GET' && p === '/api/v1/audit/verify') {
+            if (!this.needPermission(res, role, 'audit.read')) return;
+            return this.sendJson(res, 200, { verify: this.audit.verify() });
         }
         if (method === 'GET' && p === '/api/v1/console-key') {
             if (!this.needPermission(res, role, 'console-key.read')) return;
@@ -920,7 +1048,7 @@ class ConsoleServer {
         return {
             orderProtocol: ORDER_VERSION,
             tlsRequired: true,
-            heartbeatSeconds: 60,
+            heartbeatSeconds: this.heartbeatSeconds,
             maxOrders: MAX_ORDERS
         };
     }

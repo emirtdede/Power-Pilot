@@ -24,7 +24,11 @@ class OrderQueue {
 
     persist(list) {
         if (this.storage && typeof this.storage.saveOrders === 'function') {
-            this.storage.saveOrders(list);
+            // Y-06: kalıcılaştırma sessizce yutulmaz; çağıran emrin kuyruğa
+            // alındığını sanmamalı.
+            if (this.storage.saveOrders(list) === false) {
+                throw Object.assign(new Error('Emir kuyruğu kalıcılaştırılamadı.'), { code: 'QUEUE_PERSIST_FAILED' });
+            }
         } else {
             this.memory = list;
         }
@@ -33,7 +37,7 @@ class OrderQueue {
     static keyOf(signed) {
         const order = (signed && signed.order) || {};
         if (typeof order.nonce === 'string' && order.nonce) return `nonce:${order.nonce}`;
-        if (typeof signed.idempotencyKey === 'string' && signed.idempotencyKey) {
+        if (signed && typeof signed.idempotencyKey === 'string' && signed.idempotencyKey) {
             return `key:${signed.idempotencyKey}`;
         }
         return null;
@@ -73,7 +77,14 @@ class OrderQueue {
             receiptSent: false // Denetim: konsola makbuzu gönderildi mi
         };
         list.push(record);
-        this.persist(list);
+        try {
+            this.persist(list);
+        } catch (err) {
+            // Bellekte kalan yarım kayıt, başarılı yanıt gibi görünmesin.
+            const idx = list.indexOf(record);
+            if (idx >= 0) list.splice(idx, 1);
+            throw err;
+        }
         return { record, duplicate: false };
     }
 
@@ -105,13 +116,19 @@ class OrderQueue {
         const list = this.load();
         const rec = list.find((o) => o.key === key);
         if (!rec) return null;
+        const previous = { status: rec.status, ackedAt: rec.ackedAt, result: rec.result };
         rec.status = 'acked';
         rec.ackedAt = new Date().toISOString();
         rec.result = {
             code: String(result.code || 'unknown').slice(0, 40),
             message: String(result.message || '').slice(0, 200)
         };
-        this.persist(list);
+        try {
+            this.persist(list);
+        } catch (err) {
+            Object.assign(rec, previous);
+            throw err;
+        }
         return rec;
     }
 
@@ -140,33 +157,52 @@ class OrderQueue {
         const keys = new Set((receipts || []).map((r) => r && r.key).filter(Boolean));
         if (keys.size === 0) return 0;
         const list = this.load();
-        let marked = 0;
+        const changed = [];
         for (const o of list) {
             if (keys.has(o.key) && !o.receiptSent) {
+                changed.push({ record: o, previous: { receiptSent: o.receiptSent, receiptSentAt: o.receiptSentAt } });
                 o.receiptSent = true;
                 o.receiptSentAt = new Date().toISOString();
-                marked += 1;
             }
         }
-        if (marked > 0) this.persist(list);
-        return marked;
+        if (changed.length === 0) return 0;
+        try {
+            this.persist(list);
+        } catch (err) {
+            for (const item of changed) Object.assign(item.record, item.previous);
+            throw err;
+        }
+        return changed.length;
     }
 
     markReceiptsFailed(receipts = [], error = '') {
         const keys = new Set((receipts || []).map((r) => r && r.key).filter(Boolean));
         if (keys.size === 0) return 0;
         const list = this.load();
-        let marked = 0;
+        const changed = [];
         for (const o of list) {
             if (keys.has(o.key) && !o.receiptSent) {
+                changed.push({
+                    record: o,
+                    previous: {
+                        receiptAttempts: o.receiptAttempts,
+                        lastReceiptError: o.lastReceiptError,
+                        lastReceiptAttemptAt: o.lastReceiptAttemptAt
+                    }
+                });
                 o.receiptAttempts = (o.receiptAttempts || 0) + 1;
                 o.lastReceiptError = String(error || '').slice(0, 200);
                 o.lastReceiptAttemptAt = new Date().toISOString();
-                marked += 1;
             }
         }
-        if (marked > 0) this.persist(list);
-        return marked;
+        if (changed.length === 0) return 0;
+        try {
+            this.persist(list);
+        } catch (err) {
+            for (const item of changed) Object.assign(item.record, item.previous);
+            throw err;
+        }
+        return changed.length;
     }
 
     /**

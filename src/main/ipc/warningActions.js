@@ -85,4 +85,27 @@ async function snoozeWarningAction({ payload, requireCancelPin, taskManager, war
     return { success: snoozed === true, code: snoozed ? 'SNOOZED' : 'NO_ACTIVE_WARNING' };
 }
 
-module.exports = { cancelWarningAction, snoozeWarningAction, activeTaskId };
+/**
+ * Uyarıyı onaylar (Şimdi Çalıştır). K-02: renderer hangi uyarıyı gördüğünü
+ * gönderir; PIN/başka bir eylem beklerken uyarı değiştiyse eski tıklama yeni
+ * görevi onaylamaz.
+ *
+ * @param {object} deps
+ * @param {string|undefined} deps.taskId Renderer'ın gördüğü uyarının görev kimliği
+ * @param {object} deps.warningManager
+ * @param {(key: string) => string} deps.t
+ */
+function confirmWarningAction({ taskId, warningManager, t }) {
+    const requestedTaskId = typeof taskId === 'string' ? taskId : null;
+    const active = warningManager && typeof warningManager.getActiveState === 'function'
+        ? warningManager.getActiveState()
+        : null;
+    if (!active) return { success: false, code: 'NO_ACTIVE_WARNING' };
+    if (requestedTaskId && active.taskId !== requestedTaskId) {
+        return { success: false, code: 'WARNING_CHANGED', message: t('errorCancelTooLate') };
+    }
+    const closed = warningManager.finishWarning(true, false, requestedTaskId || active.taskId);
+    return closed ? { success: true } : { success: false, code: 'NO_ACTIVE_WARNING' };
+}
+
+module.exports = { cancelWarningAction, snoozeWarningAction, confirmWarningAction, activeTaskId };

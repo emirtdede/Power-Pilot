@@ -183,7 +183,12 @@ class SecretStore {
         }
         const dir = path.dirname(this.filePath);
         this.fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-        if (this.applyAcl) Acl.secureDirectory(dir);
+        // L-08: ACL yalnızca ilk yazımda uygulanır; her sır yazımında özyinelemeli
+        // icacls çalıştırmak ana thread'i gereksiz bloke eder.
+        if (this.applyAcl && !this._dirAclSecured) {
+            Acl.secureDirectory(dir);
+            this._dirAclSecured = true;
+        }
         const json = JSON.stringify(this.data, null, 2);
         const tmp = `${this.filePath}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`;
         let fd = null;
@@ -195,7 +200,10 @@ class SecretStore {
             if (fd !== null) this.fs.closeSync(fd);
         }
         this.fs.renameSync(tmp, this.filePath);
-        if (this.applyAcl) Acl.secureFile(this.filePath);
+        if (this.applyAcl && !this._fileAclSecured) {
+            Acl.secureFile(this.filePath);
+            this._fileAclSecured = true;
+        }
     }
 
     ensureLoaded() {
@@ -261,18 +269,42 @@ class SecretStore {
             if (!hook || typeof hook !== 'object' || !isNonEmptyString(hook.url)) continue;
             for (const field of WEBHOOK_SECRET_FIELDS) keep.add(webhookKey(hook.url, field));
         }
-        for (const name of Object.keys(this.data.entries || {})) {
-            if (name.startsWith('webhook:') && !keep.has(name)) {
-                await this.deleteSecret(name);
-            }
-        }
-        for (const hook of list) {
-            if (!hook || typeof hook !== 'object' || !isNonEmptyString(hook.url)) continue;
-            for (const field of WEBHOOK_SECRET_FIELDS) {
-                if (isNonEmptyString(hook[field])) {
-                    await this.setSecret(webhookKey(hook.url, field), hook[field]);
+        // O-18: önce yeni sırları yaz; ancak tümü başarılıysa eski kayıtları sil.
+        // Hata halinde yazılan/silinen kayıtlar geri alınır (kimlik bilgisi kaybı yok).
+        const written = [];
+        const deleted = [];
+        try {
+            for (const hook of list) {
+                if (!hook || typeof hook !== 'object' || !isNonEmptyString(hook.url)) continue;
+                for (const field of WEBHOOK_SECRET_FIELDS) {
+                    if (!isNonEmptyString(hook[field])) continue;
+                    const name = webhookKey(hook.url, field);
+                    const had = this.has(name);
+                    const previous = had ? await this.getSecret(name) : null;
+                    if (!had || previous !== hook[field]) {
+                        await this.setSecret(name, hook[field]);
+                        written.push({ name, had, previous });
+                    }
                 }
             }
+            for (const name of Object.keys(this.data.entries || {})) {
+                if (name.startsWith('webhook:') && !keep.has(name)) {
+                    const previous = await this.getSecret(name);
+                    await this.deleteSecret(name);
+                    deleted.push({ name, previous });
+                }
+            }
+        } catch (err) {
+            for (const entry of deleted.reverse()) {
+                try { await this.setSecret(entry.name, entry.previous); } catch (_) { /* yut */ }
+            }
+            for (const entry of written.reverse()) {
+                try {
+                    if (entry.had) await this.setSecret(entry.name, entry.previous);
+                    else await this.deleteSecret(entry.name);
+                } catch (_) { /* yut */ }
+            }
+            throw err;
         }
     }
 

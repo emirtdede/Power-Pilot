@@ -25,13 +25,14 @@ function broadcastFromNetmask (address, netmask) {
 }
 
 function defaultBroadcastAddress (interfaces = os.networkInterfaces()) {
-    for (const list of Object.values(interfaces || {})) {
-        for (const info of list || []) {
-            if (info && info.family === 'IPv4' && !info.internal) {
-                const broadcast = broadcastFromNetmask(info.address, info.netmask);
-                if (broadcast && broadcast !== '0.0.0.0') return broadcast;
-            }
-        }
+    // L-15: VPN/Hyper-V/sanal adaptörler atlanır; aksi halde WoL yanlış ağa gider.
+    const candidates = Object.entries(interfaces || {})
+        .filter(([name]) => !/vEthernet|Hyper-V|VPN|Loopback|VirtualBox|VMware|TAP|TUN|WSL/i.test(String(name || '')))
+        .flatMap(([, list]) => list || [])
+        .filter((info) => info && info.family === 'IPv4' && !info.internal);
+    for (const info of candidates) {
+        const broadcast = broadcastFromNetmask(info.address, info.netmask);
+        if (broadcast && broadcast !== '0.0.0.0') return broadcast;
     }
     return '255.255.255.255';
 }

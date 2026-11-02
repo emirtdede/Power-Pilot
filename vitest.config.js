@@ -7,6 +7,10 @@ const { defineConfig } = require('vitest/config');
 
 module.exports = defineConfig({
     test: {
+        // Zaman-duyarlı performans testleri (T-CON-05 p95, T-STO-13 event-loop lag)
+        // CPU çekişmesinde ölçüm hatası üretir; işçi sayısı sabitlenir.
+        maxWorkers: 2,
+        minWorkers: 1,
         projects: [
             {
                 test: {

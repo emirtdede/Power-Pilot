@@ -33,6 +33,29 @@ class WebhookService {
         this.nowFn = options.nowFn || Date.now;
         this.jitterFn = options.jitterFn || Math.random;
         this.maxAttempts = options.maxAttempts || MAX_ATTEMPTS;
+        // O-11: eşzamanlı webhook teslimatı sınırlıdır (bağlantı patlaması yok).
+        this.maxConcurrent = options.maxConcurrent || 5;
+        this._activeDeliveries = 0;
+        this._deliveryQueue = [];
+    }
+
+    _enqueue (task) {
+        this._deliveryQueue.push(task);
+        this._drainQueue();
+    }
+
+    _drainQueue () {
+        while (this._activeDeliveries < this.maxConcurrent && this._deliveryQueue.length > 0) {
+            const task = this._deliveryQueue.shift();
+            this._activeDeliveries += 1;
+            Promise.resolve()
+                .then(task)
+                .catch((err) => log.warn('[WebhookService] teslimat beklenmeyen hata:', err && err.message))
+                .finally(() => {
+                    this._activeDeliveries -= 1;
+                    this._drainQueue();
+                });
+        }
     }
 
     /**
@@ -46,11 +69,7 @@ class WebhookService {
 
         const payload = this.buildPayload(eventType, taskOrData);
         activeWebhooks.forEach((hook) => {
-            setImmediate(() => {
-                Promise.resolve(this.sendPayload(hook, payload)).catch((err) => {
-                    log.warn('[WebhookService] teslimat beklenmeyen hata:', err && err.message);
-                });
-            });
+            this._enqueue(() => this.sendPayload(hook, payload));
         });
     }
 
@@ -116,7 +135,11 @@ class WebhookService {
                 if (retryable && attempt < this.maxAttempts) {
                     const delay = WebhookService.retryDelay(attempt, this.jitterFn());
                     this.setTimeoutFn(() => {
-                        this.sendPayload(hook, payload, attempt + 1).then(resolve);
+                        // O-11: retry reddederse dış Promise sonsuza kadar pending kalmasın.
+                        this.sendPayload(hook, payload, attempt + 1).then(
+                            (result) => resolve(result),
+                            (err) => resolve({ ok: false, code: 'RETRY_FAILED', error: err && err.message })
+                        );
                     }, delay);
                     return;
                 }

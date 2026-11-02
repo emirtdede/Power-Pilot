@@ -19,6 +19,10 @@ class InventoryService {
         this.os = osModule || os;
         this.agentVersion = agentVersion;
         this.upsMonitor = upsMonitor; // FAZ D: UpsMonitor örneği (ayar upsEnabled ise sorgulanır)
+        // O-14: ağır donanım sorguları cache'lenir; heartbeat her 60 sn'de
+        // powercfg/PowerShell spawn etmez.
+        this._cache = null;
+        this._cacheTtlMs = 5 * 60 * 1000;
     }
 
     // --- saf ayrıştırıcılar (test edilebilir) ---
@@ -256,10 +260,21 @@ class InventoryService {
         }
     }
 
-    async collect() {
+    async collect({ force = false } = {}) {
         const settings = this.storage && typeof this.storage.getSettings === 'function'
             ? this.storage.getSettings()
             : {};
+        // Ayar değişikliği cache'i geçersiz kılar (rol, agentId, UPS, watt).
+        const fingerprint = JSON.stringify({
+            agentId: settings.agentId || null,
+            deviceRole: settings.deviceRole || null,
+            upsEnabled: settings.upsEnabled === true,
+            deviceWattage: settings.deviceWattage ?? null
+        });
+        if (!force && this._cache && this._cache.fingerprint === fingerprint &&
+            (Date.now() - this._cache.at) < this._cacheTtlMs) {
+            return this._cache.value;
+        }
         let username = null;
         try {
             username = this.os.userInfo().username || null;
@@ -321,6 +336,7 @@ class InventoryService {
         if (ups && (ups.lowBattery || ups.onBattery)) {
             log.warn(`[InventoryService] UPS uyarısı: ${ups.status || 'bilinmiyor'} (şarj %${ups.charge !== null && ups.charge !== undefined ? ups.charge : '?'})`);
         }
+        this._cache = { at: Date.now(), fingerprint, value: inv };
         return inv;
     }
 }

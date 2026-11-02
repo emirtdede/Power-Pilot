@@ -154,7 +154,8 @@ class AiService {
                 }
             };
         }
-        const base = { name: '', action: parsed.action, source: 'ai_assistant' };
+        // K-03: kaynak sunucu tarafından atanır; istemci önerisi source taşımaz.
+        const base = { name: '', action: parsed.action };
         if (parsed.kind === 'duration') {
             if (!Number.isInteger(parsed.durationMs) || parsed.durationMs <= 0 || parsed.durationMs > 2500000000) {
                 return this.clarify(['durationMs']);

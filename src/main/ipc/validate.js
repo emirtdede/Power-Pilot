@@ -9,6 +9,19 @@ const ipaddr = require('ipaddr.js');
 const { validateUrl } = require('../security/SsrfGuard');
 
 const MAX_DURATION_MS = 2500000000;
+// K-03: istemci yalnızca görev tanımı alanlarını gönderebilir. Kaynak, mod,
+// durum ve politika kimlikleri sunucu tarafından atanır.
+const CLIENT_FORBIDDEN_TASK_FIELDS = [
+    'source', 'mode', 'status', 'enabled', 'policyId', 'consoleOrderId',
+    'requiresMaintenanceWindow', 'createdAt', 'updatedAt', 'lastRunAt',
+    'lastResult', 'errorInfo'
+];
+const TRIGGER_TYPE_VALUES = new Set([
+    'duration', 'scheduled_time', 'recurring', 'process_close', 'cpu_threshold',
+    'network_threshold', 'disk_threshold', 'file_event', 'directory_event',
+    'user_idle', 'battery_event', 'api_call', 'composite'
+]);
+const RECURRENCE_FREQUENCIES = new Set(['none', 'daily', 'weekly', 'weekdays', 'weekends', 'custom']);
 // WP-05.T1 / ADR-08: kimlik yalnızca sunucuda üretilir. İstemciden gelen değer
 // bu desene uymuyorsa reddedilir; desene uysa bile createTask onu yok sayar.
 const TASK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -160,8 +173,15 @@ function validateTaskData(data) {
     if (data.id !== undefined) {
         return fail('Görev kimliği istemci tarafından belirlenemez.', 'INVALID_TASK_ID');
     }
-    if (data.action !== undefined && !Object.values(POWER_ACTIONS).includes(data.action)) {
-        return fail(`Geçersiz eylem: ${String(data.action)}.`, 'INVALID_ACTION');
+    // K-03: ayrıcalıklı alanlar istemciden kabul edilmez.
+    for (const field of CLIENT_FORBIDDEN_TASK_FIELDS) {
+        if (data[field] !== undefined) {
+            return fail(`İstemci '${field}' alanını belirleyemez.`, 'INVALID_FIELD');
+        }
+    }
+    // K-03: eylem zorunlu; eksik payload varsayılan shutdown üretemez.
+    if (typeof data.action !== 'string' || !Object.values(POWER_ACTIONS).includes(data.action)) {
+        return fail(`Geçersiz veya eksik eylem: ${String(data.action)}.`, 'INVALID_ACTION');
     }
     if (data.name !== undefined && (typeof data.name !== 'string' || data.name.length > 120)) {
         return fail('Görev adı en fazla 120 karakter olmalı.', 'INVALID_NAME');
@@ -172,7 +192,10 @@ function validateTaskData(data) {
     }
     const trig = data.trigger;
     if (trig !== undefined) {
-        if (typeof trig !== 'object') return fail('Geçersiz trigger.', 'INVALID_TRIGGER');
+        if (!trig || typeof trig !== 'object' || Array.isArray(trig)) return fail('Geçersiz trigger.', 'INVALID_TRIGGER');
+        if (trig.type !== undefined && !TRIGGER_TYPE_VALUES.has(trig.type)) {
+            return fail('Geçersiz trigger türü.', 'INVALID_TRIGGER');
+        }
         if (trig.durationMs !== undefined) {
             if (!Number.isInteger(trig.durationMs) || trig.durationMs <= 0 || trig.durationMs > MAX_DURATION_MS) {
                 return fail('durationMs aralık dışı.', 'INVALID_DURATION');
@@ -218,9 +241,72 @@ function validateTaskData(data) {
         return fail('Koşullu görev targetTime taşıyamaz; notBefore kullanın.', 'INVALID_TRIGGER');
     }
     const wc = data.warningConfig;
-    if (wc !== undefined && wc.durationSeconds !== undefined) {
-        if (!Number.isInteger(wc.durationSeconds) || wc.durationSeconds < 0 || wc.durationSeconds > 3600) {
-            return fail('warning durationSeconds 0..3600 aralığında olmalı.', 'INVALID_WARNING');
+    if (wc !== undefined) {
+        if (!wc || typeof wc !== 'object' || Array.isArray(wc)) {
+            return fail('Geçersiz warningConfig.', 'INVALID_WARNING');
+        }
+        if (wc.enabled !== undefined && typeof wc.enabled !== 'boolean') {
+            return fail('warningConfig.enabled boolean olmalı.', 'INVALID_WARNING');
+        }
+        if (wc.silentMode !== undefined && typeof wc.silentMode !== 'boolean') {
+            return fail('warningConfig.silentMode boolean olmalı.', 'INVALID_WARNING');
+        }
+        if (wc.durationSeconds !== undefined) {
+            if (!Number.isInteger(wc.durationSeconds) || wc.durationSeconds < 0 || wc.durationSeconds > 3600) {
+                return fail('warning durationSeconds 0..3600 aralığında olmalı.', 'INVALID_WARNING');
+            }
+        }
+    }
+    // K-03/Y-05: kısmi güvenlik politikası tüm kontrolleri atlayamaz;
+    // bilinen alanlar boolean olmalı, eksikler motor tarafından merge edilir.
+    const sp = data.safetyPolicy;
+    if (sp !== undefined) {
+        if (!sp || typeof sp !== 'object' || Array.isArray(sp)) {
+            return fail('Geçersiz safetyPolicy.', 'INVALID_SAFETY_POLICY');
+        }
+        for (const key of ['checkUserActivity', 'checkProtectedApps', 'checkFullscreen', 'checkSystemLoad', 'forceCloseApps', 'remoteApprovalRequired']) {
+            if (sp[key] !== undefined && typeof sp[key] !== 'boolean') {
+                return fail(`safetyPolicy.${key} boolean olmalı.`, 'INVALID_SAFETY_POLICY');
+            }
+        }
+    }
+    const sc = data.snoozeConfig;
+    if (sc !== undefined) {
+        if (!sc || typeof sc !== 'object' || Array.isArray(sc)) {
+            return fail('Geçersiz snoozeConfig.', 'INVALID_SNOOZE');
+        }
+        if (sc.allowed !== undefined && typeof sc.allowed !== 'boolean') {
+            return fail('snoozeConfig.allowed boolean olmalı.', 'INVALID_SNOOZE');
+        }
+        if (sc.maxCount !== undefined && (!Number.isInteger(sc.maxCount) || sc.maxCount < 0 || sc.maxCount > 100)) {
+            return fail('snoozeConfig.maxCount 0..100 olmalı.', 'INVALID_SNOOZE');
+        }
+        if (sc.durationMinutes !== undefined && (!Number.isInteger(sc.durationMinutes) || sc.durationMinutes < 1 || sc.durationMinutes > 1440)) {
+            return fail('snoozeConfig.durationMinutes 1..1440 olmalı.', 'INVALID_SNOOZE');
+        }
+        if (sc.currentCount !== undefined && (!Number.isInteger(sc.currentCount) || sc.currentCount < 0 || sc.currentCount > 1000)) {
+            return fail('snoozeConfig.currentCount geçersiz.', 'INVALID_SNOOZE');
+        }
+    }
+    const rec = data.recurrence;
+    if (rec !== undefined) {
+        if (!rec || typeof rec !== 'object' || Array.isArray(rec)) {
+            return fail('Geçersiz recurrence.', 'INVALID_RECURRENCE');
+        }
+        if (rec.enabled !== undefined && typeof rec.enabled !== 'boolean') {
+            return fail('recurrence.enabled boolean olmalı.', 'INVALID_RECURRENCE');
+        }
+        if (rec.frequency !== undefined && !RECURRENCE_FREQUENCIES.has(rec.frequency)) {
+            return fail('recurrence.frequency geçersiz.', 'INVALID_RECURRENCE');
+        }
+        if (rec.daysOfWeek !== undefined) {
+            if (!Array.isArray(rec.daysOfWeek) || rec.daysOfWeek.length > 7
+                || rec.daysOfWeek.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) {
+                return fail('recurrence.daysOfWeek 0..6 tam sayıları olmalı.', 'INVALID_RECURRENCE');
+            }
+        }
+        if (rec.timeOfDay !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(rec.timeOfDay))) {
+            return fail('recurrence.timeOfDay HH:MM olmalı.', 'INVALID_RECURRENCE');
         }
     }
     // WBS-11.1: Zincir halkaları (en fazla 5, geçerli eylem + 1..43200 dk).
@@ -287,8 +373,9 @@ const SETTINGS_SCHEMA = {
     consoleClientPfxPassphrase: { str: [1, 1024], nullable: true },
     deviceRole: ['workstation', 'server'], // FAZ D: sunucu profilinde uyku/kapatma yasak
     upsEnabled: 'boolean', // FAZ D
-    upsHost: { str: [1, 128] }, // FAZ D: NUT sunucusu
-    upsName: { str: [1, 64] }, // FAZ D: NUT cihaz adı
+    // O-16: NUT protokolüne satır enjeksiyonunu önleyen katı desenler.
+    upsHost: { str: [1, 128], pattern: /^[A-Za-z0-9.:\[\]_-]+$/ },
+    upsName: { str: [1, 64], pattern: /^[A-Za-z0-9._-]+$/ },
     assumedOffHours: { num: [0.5, 24], nullable: true }, // FAZ D: beyanlı kapanış varsayımı
     statsEnabled: 'boolean',
     deviceWattage: { int: [5, 2000], nullable: true }, // WBS-E1: null = bilinmiyor
@@ -299,6 +386,8 @@ const SETTINGS_SCHEMA = {
     priceEffectiveFrom: { month: true, nullable: true },
     currency: ['TL', 'USD', 'EUR'],
     bootGuardSeconds: { int: [0, 1800] },
+    // L-11: tepsi "AI'yi sustur" penceresi şema doğrulamasından geçer.
+    aiSilencedUntil: { int: [0, 9999999999999], nullable: true },
 };
 
 /**
@@ -369,6 +458,9 @@ function validateSettings(patch, currentSettings = {}, schema = SETTINGS_SCHEMA)
         // FAZ B: ajan id'si — kısa görünen ad.
         if (rule && rule.str && (typeof val !== 'string' || val.length < rule.str[0] || val.length > rule.str[1])) {
             return fail(`${key} ${rule.str[0]}..${rule.str[1]} karakter olmalı.`, 'INVALID_SETTING');
+        }
+        if (rule && rule.pattern && typeof val === 'string' && !rule.pattern.test(val)) {
+            return fail(`${key} geçersiz karakter içeriyor.`, 'INVALID_SETTING');
         }
         // FAZ B: konsol URL'si — http(s) şeması zorunlu (ajan outbound bağlanır).
         if (rule && rule.consoleUrl) {

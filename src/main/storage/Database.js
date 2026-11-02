@@ -42,10 +42,17 @@ class Db {
         this.filePath = path.resolve(filePath);
         try {
             this.raw = new Database(this.filePath, { readonly, fileMustExist, timeout: 5000 });
+            applyPragmas(this.raw);
         } catch (err) {
+            // PRAGMA sırasında hata (bozuk dosya vb.) açık tanıtıcıyı sızdırmamalı;
+            // aksi halde Windows'ta dosya kilitli kalır ve temizlik/geri yükleme
+            // EPERM ile başarısız olur.
+            if (this.raw) {
+                try { this.raw.close(); } catch (_) { /* yut */ }
+                this.raw = null;
+            }
             throw new StorageError(`Veritabanı açılamadı: ${err.message}`, 'DB_OPEN_FAILED', err);
         }
-        applyPragmas(this.raw);
         this.closed = false;
     }
 
@@ -106,33 +113,85 @@ class Db {
         try { this.raw.close(); } catch (_) { /* yut */ }
     }
 
-    /** Dosya kilidi: aynı userData dizinine iki süreç bağlanmasın. */
+    /**
+     * Dosya kilidi: aynı userData dizinine iki süreç bağlanmasın.
+     * O-09: `existsSync` + `writeFileSync` yarışı yerine `wx` ile atomik
+     * oluşturma; ölü PID'in kilidi tombstone'a rename edilerek CAS yapılır.
+     */
     static acquireLock(dir, pid = process.pid) {
         const lockPath = path.join(dir, 'storage.lock');
-        try {
-            if (fs.existsSync(lockPath)) {
-                const parsed = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-                if (parsed && Number.isInteger(parsed.pid) && parsed.pid !== pid) {
-                    try {
-                        process.kill(parsed.pid, 0);
-                        throw new StorageError(`Veri dizini başka bir süreç tarafından kullanılıyor (PID ${parsed.pid}).`, 'STORAGE_LOCKED');
-                    } catch (err) {
-                        if (err && err.code === 'STORAGE_LOCKED') throw err;
-                        // Süreç yok: eski kilidi temizle.
-                    }
+        const token = crypto.randomBytes(8).toString('hex');
+        const payload = JSON.stringify({ pid, token, startedAt: new Date().toISOString() });
+        const release = (ownedToken) => () => {
+            try {
+                const current = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+                if (current && current.pid === pid && (!ownedToken || current.token === ownedToken)) {
+                    fs.unlinkSync(lockPath);
+                }
+            } catch (_) { /* kilit zaten yok/başkasına ait */ }
+        };
+
+        const tryCreate = () => {
+            const fd = fs.openSync(lockPath, 'wx', 0o600);
+            try {
+                fs.writeSync(fd, payload, null, 'utf8');
+            } finally {
+                fs.closeSync(fd);
+            }
+        };
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            try {
+                tryCreate();
+                return release(token);
+            } catch (err) {
+                if (err && err.code !== 'EEXIST') {
+                    throw new StorageError(`Kilit alınamadı: ${err.message}`, 'STORAGE_LOCK_FAILED', err);
                 }
             }
-            fs.writeFileSync(lockPath, JSON.stringify({ pid, startedAt: new Date().toISOString() }), { encoding: 'utf8', mode: 0o600 });
-            return () => {
+
+            let existing = null;
+            try {
+                existing = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+            } catch (err) {
+                if (err && err.code === 'ENOENT') continue; // yarış: yeniden dene
+                // Bozuk kilit dosyası da devralınabilir (aşağıdaki rename).
+                existing = null;
+            }
+
+            if (existing && Number.isInteger(existing.pid)) {
+                if (existing.pid === pid) {
+                    // Aynı süreçte ikinci acquire: mevcut kilidi paylaş.
+                    return release(existing.token || null);
+                }
+                let alive = false;
                 try {
-                    const current = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-                    if (current && current.pid === pid) fs.unlinkSync(lockPath);
-                } catch (_) { /* yut */ }
-            };
-        } catch (err) {
-            if (err instanceof StorageError) throw err;
-            throw new StorageError(`Kilit alınamadı: ${err.message}`, 'STORAGE_LOCK_FAILED', err);
+                    process.kill(existing.pid, 0);
+                    alive = true;
+                } catch (err) {
+                    // EPERM: süreç var ama sinyal izni yok → canlı say.
+                    alive = !!(err && err.code === 'EPERM');
+                }
+                if (alive) {
+                    throw new StorageError(
+                        `Veri dizini başka bir süreç tarafından kullanılıyor (PID ${existing.pid}).`,
+                        'STORAGE_LOCKED'
+                    );
+                }
+            }
+
+            // Ölü/bozuk kilit: atomik rename ile devral. İki süreç aynı anda
+            // rename ederse yalnızca biri başarılı olur; diğeri yeniden dener.
+            const tombstone = `${lockPath}.stale-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+            try {
+                fs.renameSync(lockPath, tombstone);
+            } catch (err) {
+                if (err && err.code === 'ENOENT') continue;
+                throw new StorageError(`Kilit devralınamadı: ${err.message}`, 'STORAGE_LOCK_FAILED', err);
+            }
+            try { fs.unlinkSync(tombstone); } catch (_) { /* yut */ }
         }
+        throw new StorageError('Veri dizini kilidi alınamadı (eşzamanlı erişim).', 'STORAGE_LOCKED');
     }
 }
 

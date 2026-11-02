@@ -154,7 +154,7 @@ function materializeToTask(policy, { source = 'console', nowMs = Date.now() } = 
  * targets: [{agentId, mac, broadcastIp, port}] — MAC'siz hedef atlanır (raporlanır).
  */
 function materializeWakeJobs(policy, targets, { baseTimeMs = Date.now() } = {}) {
-    const check = validatePolicy({ ...policy, targets: targets.map((t) => t.agentId) });
+    const check = validatePolicy({ ...policy, targets: targets.filter((t) => t && typeof t === 'object').map((t) => t.agentId) });
     if (!check.ok) throw Object.assign(new Error(check.error), { code: check.code });
     const p = policy.params || {};
     const waveSize = p.waveSize || 20;

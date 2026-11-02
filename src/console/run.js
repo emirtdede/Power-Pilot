@@ -23,9 +23,29 @@ function need(name) {
     return v;
 }
 
-const keys = { admin: hashKey(need('CONSOLE_ADMIN_KEY')), agent: hashKey(need('CONSOLE_AGENT_KEY')) };
+// K-02: ortak ajan anahtarı kaldırıldı. Ajanlar `POST /api/v1/keys` ile
+// agentId'ye bağlı kendi anahtarlarını alır. Geçiş dönemi için eski ortam
+// anahtarı yalnızca CONSOLE_AGENT_ID ile açıkça bağlanırsa kabul edilir.
+const keys = { admin: hashKey(need('CONSOLE_ADMIN_KEY')) };
 if (process.env.CONSOLE_OPERATOR_KEY) keys.operator = hashKey(process.env.CONSOLE_OPERATOR_KEY);
 if (process.env.CONSOLE_VIEWER_KEY) keys.viewer = hashKey(process.env.CONSOLE_VIEWER_KEY);
+if (process.env.CONSOLE_AGENT_KEY) {
+    const agentId = process.env.CONSOLE_AGENT_ID;
+    if (!agentId) {
+        // eslint-disable-next-line no-console
+        console.error('[Console] CONSOLE_AGENT_KEY artık CONSOLE_AGENT_ID olmadan kullanılamaz. Ajan başına anahtar üretin.');
+        process.exit(1);
+    }
+    keys.agent = {
+        hash: hashKey(process.env.CONSOLE_AGENT_KEY),
+        role: 'agent',
+        keyId: 'legacy-env-agent',
+        agentId,
+        notAfter: null
+    };
+    // eslint-disable-next-line no-console
+    console.warn(`[Console] Geçiş modu: CONSOLE_AGENT_KEY yalnızca "${agentId}" ajanına bağlı.`);
+}
 
 const storePath = process.env.CONSOLE_STORE || path.join(__dirname, '..', '..', 'data', 'console.json');
 const srv = new ConsoleServer({ storePath, keys });

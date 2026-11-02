@@ -23,6 +23,7 @@ class DeviceProfiler {
     constructor({ execFn = null, systemInfo = null } = {}) {
         // execFn imzası execFile ile aynıdır: (file, args, options, callback).
         this.execFile = execFn || execFile;
+        this._dischargeCache = null;
         // systemInfo: { chassisTypes:number[], manufacturer, model, cpuBrand, gpus:string[], battery:{hasBattery} }
         // verilmezse donanım okunur (aşağıdaki gatherHardware).
         this.systemInfo = systemInfo || null;
@@ -58,11 +59,20 @@ class DeviceProfiler {
         return { watt: 100, tier: 'unknown' };
     }
 
-    runPowerShell(script) {
+    runPowerShell(script, timeoutMs = 15000) {
         return new Promise((resolve) => {
-            this.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 15000 }, (err, stdout) => {
-                if (err || !stdout) return resolve('');
-                resolve(String(stdout));
+            let settled = false;
+            const done = (value) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve(value);
+            };
+            const timer = setTimeout(() => done(''), timeoutMs);
+            timer.unref?.();
+            this.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: timeoutMs }, (err, stdout) => {
+                if (err || !stdout) return done('');
+                done(String(stdout));
             });
         });
     }
@@ -89,11 +99,16 @@ class DeviceProfiler {
 
     // Deşarj hızı (mW) medyanı; sürücü 0/saçma değerde {ok:false}.
     async measureDischargeMw(samples = 3) {
+        // O-15: örnekler paralel toplanır; toplam bütçe 5 sn ve sonuç cache'lenir.
+        if (this._dischargeCache && (Date.now() - this._dischargeCache.at) < 5 * 60 * 1000) {
+            return this._dischargeCache.value;
+        }
+        const script = '(Get-CimInstance -Namespace root/wmi -ClassName BatteryStatus | Measure-Object -Property DischargeRate -Sum).Sum';
+        const outputs = await Promise.all(
+            Array.from({ length: Math.max(1, samples) }, () => this.runPowerShell(script, 5000))
+        );
         const readings = [];
-        for (let i = 0; i < samples; i++) {
-            const out = await this.runPowerShell(
-                '(Get-CimInstance -Namespace root/wmi -ClassName BatteryStatus | Measure-Object -Property DischargeRate -Sum).Sum'
-            );
+        for (const out of outputs) {
             const val = parseInt(String(out).trim(), 10);
             // 5W altı ve 500W üstü dizüstü için akıl-dışı → elenir.
             if (Number.isFinite(val) && val >= 5000 && val <= 500000) readings.push(val);
@@ -103,7 +118,9 @@ class DeviceProfiler {
         }
         readings.sort((a, b) => a - b);
         const median = readings[Math.floor(readings.length / 2)];
-        return { ok: true, mw: median };
+        const result = { ok: true, mw: median };
+        this._dischargeCache = { at: Date.now(), value: result };
+        return result;
     }
 
     /**

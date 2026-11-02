@@ -10,6 +10,25 @@ const log = require('../logger');
 const { ExemptionService } = require('./ExemptionService');
 const { canonicalProcessName } = require('./processNames');
 
+// Y-05: kısmi `safetyPolicy` varsayılanları EZMEMELİ; eksik alanlar güvenli
+// varsayılana döner. Aksi halde `{ safetyPolicy: {} }` tüm kontrolleri atlar.
+const SAFE_POLICY_DEFAULTS = Object.freeze({
+    checkUserActivity: true,
+    checkProtectedApps: true,
+    checkFullscreen: true,
+    checkSystemLoad: true,
+    forceCloseApps: false,
+    remoteApprovalRequired: false
+});
+
+// P0/BLOCKER-001: `powercfg /requests` yükseltilmiş yetki ister; paketlenmiş
+// uygulama `asInvoker` çalışır. Yetenek sondası bu farkı ölçer ve ölçülemeyen
+// kapıyı sessizce değil, GÖRÜNÜR biçimde atlar (audit + status + UI).
+const CAPABILITY_TTL_OK_MS = 10 * 60 * 1000;
+const CAPABILITY_TTL_FAIL_MS = 60 * 1000;
+const CAPABILITY_PROBE_TIMEOUT_MS = 3000;
+const CAPABILITY_LOG_THROTTLE_MS = 60 * 60 * 1000;
+
 class SafetyPolicyEngine {
     // execFn/uptimeFn: yalnızca test izolasyonu için. Açık DI.
     // options: processProvider/idleProvider/powerMonitor (WP-04/WP-05).
@@ -27,6 +46,9 @@ class SafetyPolicyEngine {
             'zoom.exe', 'teams.exe', 'powerpnt.exe'
         ];
         this.protectedAppSet = new Set(this.protectedApps.map(canonicalProcessName));
+        // P0/BLOCKER-001: yetenek sondası durumu (tek uçuş + TTL).
+        this._capability = { available: null, checkedAt: null, code: null, value: null, inFlight: null };
+        this._capabilityLogAt = 0;
     }
 
     /**
@@ -35,30 +57,47 @@ class SafetyPolicyEngine {
      * @returns {Promise<{ allowed: boolean, reason?: string }>}
      */
     async evaluate(task) {
-        const policy = task.safetyPolicy || {};
-        const deny = (reasonCode, detail) => ({ allowed: false, reasonCode, detail, reason: detail });
+        // Y-05: eksik politika alanları güvenli varsayılanla doldurulur.
+        const policy = { ...SAFE_POLICY_DEFAULTS, ...((task && task.safetyPolicy) || {}) };
+        const deny = (reasonCode, detail, extra = null) => ({ allowed: false, reasonCode, detail, reason: detail, ...(extra || {}) });
 
         // 0. Denetim (kill-switch): konsol ajanı devre-dışı bıraktıysa TÜM güç
         // eylemleri durur (kaynak fark etmez). İptal/izleme etkilenmez.
+        // Y-05: ayarlar okunamazsa yıkıcı eylem fail-closed engellenir.
+        let baseSettings;
         try {
-            const settings = this.storage && typeof this.storage.getSettings === 'function'
+            baseSettings = this.storage && typeof this.storage.getSettings === 'function'
                 ? this.storage.getSettings()
                 : {};
-            if (settings.agentDisabled === true) {
-                log.warn('[SafetyPolicyEngine] Kill-switch devrede; eylem engellendi.');
-                return deny('AGENT_DISABLED', 'Konsol kill-switch devrede; ajan devre-dışı.');
-            }
-        } catch (_) { /* ayar okunamazsa diğer kontrollere devam */ }
+        } catch (err) {
+            log.error('[SafetyPolicyEngine] Güvenlik ayarları okunamadı:', err && err.message);
+            return deny('POLICY_UNAVAILABLE', 'Güvenlik ayarları okunamadı; eylem engellendi.');
+        }
+        if (baseSettings && baseSettings.agentDisabled === true) {
+            log.warn('[SafetyPolicyEngine] Kill-switch devrede; eylem engellendi.');
+            return deny('AGENT_DISABLED', 'Konsol kill-switch devrede; ajan devre-dışı.');
+        }
+
+        // O-12: ağır alt süreç kontrolleri paralel başlatılır; sonuçlar sırayla
+        // değerlendirilir. Böylece toplam gecikme tek tek toplam yerine en yavaşı olur.
+        const processesPromise = policy.checkProtectedApps
+            ? this.getRunningProcessList().then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error }))
+            : null;
+        const requestsPromise = (policy.checkSystemLoad || policy.checkFullscreen)
+            ? this.getPowerRequests()
+            : null;
+        const fullscreenPromise = policy.checkFullscreen
+            ? this.getFullscreenState()
+            : null;
 
         // 1. Protected Applications Check — ölçüm hatası fail-closed.
         if (policy.checkProtectedApps) {
-            let runningProcs;
-            try {
-                runningProcs = await this.getRunningProcessList();
-            } catch (err) {
-                log.error('[SafetyPolicyEngine] Süreç listesi alınamadı:', err && err.message);
+            const procResult = await processesPromise;
+            if (!procResult.ok) {
+                log.error('[SafetyPolicyEngine] Süreç listesi alınamadı:', procResult.error && procResult.error.message);
                 return deny('PROCESS_LIST_UNAVAILABLE', 'Çalışan süreçler doğrulanamadı; güç eylemi engellendi.');
             }
+            const runningProcs = procResult.value;
             const foundProtected = (runningProcs || []).filter(p => this.protectedAppSet.has(canonicalProcessName(p)));
 
             if (foundProtected.length > 0) {
@@ -69,8 +108,7 @@ class SafetyPolicyEngine {
 
         // 2. Remote Command Security Rules
         if (task.source === 'local_api' || task.source === 'n8n' || task.source === 'console') {
-            const settings = this.storage ? this.storage.getSettings() : {};
-            if (settings.blockRemoteShutdownWhenActive) {
+            if (baseSettings.blockRemoteShutdownWhenActive) {
                 // If user idle time is less than 60 seconds, block remote shutdown
                 const idleSec = await this.getUserIdleSeconds();
                 if (idleSec < 60 && (task.action === 'shutdown' || task.action === 'restart')) {
@@ -80,32 +118,49 @@ class SafetyPolicyEngine {
         }
 
         // 3. WBS-11.5: Aktif güç isteği (indirme/sunum/yazdırma sürerken kapatmayı engelle).
-        // WP-09.T2: ölçüm hatası fail-closed.
+        // WP-09.T2: yetenek VAR + ölçüm hatası → fail-closed.
+        // P0/BLOCKER-001: yetenek YOK (yükseltilmemiş kurulum, `powercfg` admin
+        // ister) → kapı sessizce değil, `loadCheck:'unavailable'` ile görünür
+        // biçimde atlanır; diğer tüm güvenlik kapıları aynen çalışır.
+        let loadStatus = 'skipped';
         if (policy.checkSystemLoad) {
-            const requests = await this.getPowerRequests();
+            const requests = await requestsPromise;
             if (!requests.ok) {
-                log.error('[SafetyPolicyEngine] Güç istekleri doğrulanamadı:', requests.code);
-                return deny('POWER_REQUESTS_UNAVAILABLE', 'Aktif güç istekleri doğrulanamadı; güç eylemi engellendi.');
-            }
-            if (requests.hasActiveRequest) {
+                if (requests.unavailable === true) {
+                    loadStatus = 'unavailable';
+                    this._logCapabilitySkip();
+                } else {
+                    log.error('[SafetyPolicyEngine] Güç istekleri doğrulanamadı:', requests.code);
+                    return deny('POWER_REQUESTS_UNAVAILABLE', 'Aktif güç istekleri doğrulanamadı; güç eylemi engellendi.', { loadCheck: 'ok' });
+                }
+            } else if (requests.hasActiveRequest) {
                 log.info(`[SafetyPolicyEngine] Action blocked due to power requests: ${requests.categories.join(', ')}`);
-                return deny('POWER_REQUEST_ACTIVE', `Aktif güç isteği var (${requests.categories.join(', ')}); işlem sürüyor olabilir.`);
+                return deny('POWER_REQUEST_ACTIVE', `Aktif güç isteği var (${requests.categories.join(', ')}); işlem sürüyor olabilir.`, { loadCheck: 'active' });
+            } else {
+                loadStatus = 'ok';
             }
         }
 
         // 4. WBS-11.5: Tam ekran + aktif güç isteği BİRLİKTE ise engelle
         // (örn. sunum/izleme sırasında). Tek başına tam ekran engellemez.
         if (policy.checkFullscreen) {
-            const [fullscreen, requests] = await Promise.all([this.getFullscreenState(), this.getPowerRequests()]);
+            const [fullscreen, requests] = await Promise.all([fullscreenPromise, requestsPromise]);
             if (!fullscreen.ok) {
                 log.error('[SafetyPolicyEngine] Tam ekran durumu doğrulanamadı:', fullscreen.code);
-                return deny('FULLSCREEN_STATE_UNAVAILABLE', 'Tam ekran durumu doğrulanamadı; güç eylemi engellendi.');
+                return deny('FULLSCREEN_STATE_UNAVAILABLE', 'Tam ekran durumu doğrulanamadı; güç eylemi engellendi.', { loadCheck: loadStatus });
             }
-            if (!requests.ok) {
-                return deny('POWER_REQUESTS_UNAVAILABLE', 'Aktif güç istekleri doğrulanamadı; güç eylemi engellendi.');
-            }
-            if (fullscreen.fullscreen && requests.hasActiveRequest) {
-                return deny('FULLSCREEN_POWER_ACTIVE', 'Tam ekran uygulama + aktif güç isteği var; işlem bitene kadar bekleniyor.');
+            if (requests.ok) {
+                if (loadStatus === 'skipped') loadStatus = requests.hasActiveRequest ? 'active' : 'ok';
+                if (fullscreen.fullscreen && requests.hasActiveRequest) {
+                    return deny('FULLSCREEN_POWER_ACTIVE', 'Tam ekran uygulama + aktif güç isteği var; işlem bitene kadar bekleniyor.', { loadCheck: loadStatus });
+                }
+            } else if (requests.unavailable === true) {
+                // Ölçülemeyen kapı kombinasyon kuralını da devre dışı bırakır;
+                // tam ekran tek başına engellemez (dokümante niyet korunur).
+                loadStatus = 'unavailable';
+                this._logCapabilitySkip();
+            } else {
+                return deny('POWER_REQUESTS_UNAVAILABLE', 'Aktif güç istekleri doğrulanamadı; güç eylemi engellendi.', { loadCheck: loadStatus });
             }
         }
 
@@ -124,7 +179,8 @@ class SafetyPolicyEngine {
                     return deny('EXEMPTION_ACTIVE', `Muafiyet devrede (${hit.reason} — onay: ${hit.approvedBy}).`);
                 }
             } catch (err) {
-                log.warn('[SafetyPolicyEngine] muafiyet kontrolü atlandı:', err && err.message);
+                log.error('[SafetyPolicyEngine] muafiyet kontrolü yapılamadı:', err && err.message);
+                return deny('POLICY_UNAVAILABLE', 'Muafiyet durumu doğrulanamadı; eylem engellendi.');
             }
         }
 
@@ -137,7 +193,8 @@ class SafetyPolicyEngine {
                     return deny('OUTSIDE_MAINTENANCE_WINDOW', 'Bakım penceresi dışında; yama penceresi bekleniyor.');
                 }
             } catch (err) {
-                log.warn('[SafetyPolicyEngine] bakım-penceresi kontrolü atlandı:', err && err.message);
+                log.error('[SafetyPolicyEngine] bakım-penceresi kontrolü yapılamadı:', err && err.message);
+                return deny('POLICY_UNAVAILABLE', 'Bakım penceresi doğrulanamadı; eylem engellendi.');
             }
         }
 
@@ -156,11 +213,77 @@ class SafetyPolicyEngine {
                     }
                 }
             } catch (err) {
-                log.warn('[SafetyPolicyEngine] sunucu-profil kontrolü atlandı:', err && err.message);
+                log.error('[SafetyPolicyEngine] sunucu-profil kontrolü yapılamadı:', err && err.message);
+                return deny('POLICY_UNAVAILABLE', 'Sunucu profili doğrulanamadı; eylem engellendi.');
             }
         }
 
-        return { allowed: true };
+        return { allowed: true, loadCheck: loadStatus };
+    }
+
+    /** P0/BLOCKER-001: ölçülemeyen kapı saatte bir kez loglanır (görev başına spam yok). */
+    _logCapabilitySkip() {
+        const now = Date.now();
+        if (now - this._capabilityLogAt < CAPABILITY_LOG_THROTTLE_MS) return;
+        this._capabilityLogAt = now;
+        log.warn('[SafetyPolicyEngine] Güç isteği ölçümü bu kurulumda kullanılamıyor (yükseltme gerekli); checkSystemLoad kapısı atlandı. Diğer güvenlik kapıları etkin.');
+    }
+
+    /**
+     * P0/BLOCKER-001: `powercfg.exe /requests` yeteneğini ölçer.
+     * Yükseltilmiş oturumda çalışır; `asInvoker` pakette hata döner.
+     * @returns {Promise<{available:boolean, code:string|null, checkedAt:number}>}
+     */
+    async probePowerRequestCapability({ force = false } = {}) {
+        const cap = this._capability;
+        const now = Date.now();
+        const ttl = cap.available === true ? CAPABILITY_TTL_OK_MS : CAPABILITY_TTL_FAIL_MS;
+        if (!force && cap.available !== null && Number.isFinite(cap.checkedAt) && now - cap.checkedAt < ttl) {
+            return { available: cap.available, code: cap.code, checkedAt: cap.checkedAt };
+        }
+        if (cap.inFlight) return cap.inFlight;
+
+        const probe = new Promise((resolve) => {
+            let settled = false;
+            const finish = (available, code, value) => {
+                if (settled) return;
+                settled = true;
+                cap.available = available;
+                cap.code = code;
+                cap.value = value || null;
+                cap.checkedAt = Date.now();
+                if (value) this._powerCache = { at: cap.checkedAt, value };
+                resolve({ available, code, checkedAt: cap.checkedAt });
+            };
+            try {
+                this.execFile('powercfg.exe', ['/requests'], { windowsHide: true, timeout: CAPABILITY_PROBE_TIMEOUT_MS }, (err, stdout) => {
+                    if (err || !stdout || !String(stdout).trim()) {
+                        return finish(false, 'POWER_REQUESTS_UNAVAILABLE', null);
+                    }
+                    const text = String(stdout);
+                    const recognized = /^(DISPLAY|SYSTEM|AWAYMODE|PERFBOOST|ACTIVELOCKSCREEN):\s*$/im.test(text);
+                    const parsed = SafetyPolicyEngine.parsePowerRequests(text);
+                    if (!recognized && !parsed.hasActiveRequest) {
+                        // Komut yetkili ama çıktı çözülemedi → ölçüm hatası (fail-closed).
+                        return finish(true, null, { ok: false, code: 'POWER_REQUESTS_UNAVAILABLE', hasActiveRequest: false, categories: [] });
+                    }
+                    return finish(true, null, { ok: true, hasActiveRequest: parsed.hasActiveRequest, categories: parsed.categories });
+                });
+            } catch (_) {
+                finish(false, 'POWER_REQUESTS_UNAVAILABLE', null);
+            }
+        });
+        cap.inFlight = probe;
+        // Exec geri çağrısı senkron olabildiği için temizlik ATAMA SONRASI yapılır.
+        const clear = () => { if (cap.inFlight === probe) cap.inFlight = null; };
+        probe.then(clear, clear);
+        return probe;
+    }
+
+    /** Senkron okuma (sonda tetiklemez): UI/status için yetenek durumu. */
+    getPowerRequestCapability() {
+        const cap = this._capability;
+        return { available: cap.available, checkedAt: cap.checkedAt, code: cap.code };
     }
 
     // WBS-11.5: Açılış koruması — uptime eşik altındaysa idle-tetikleme atlanır.
@@ -206,10 +329,20 @@ class SafetyPolicyEngine {
         return { hasActiveRequest: categories.length > 0, categories };
     }
 
-    /** WP-09.T2: 3 sn timeout, 5 sn cache; hata/boş/çözülemeyen çıktı fail-closed. */
-    getPowerRequests() {
+    /**
+     * WP-09.T2: 3 sn timeout, 5 sn cache; yetenek VAR + hata/boş/çözülemeyen
+     * çıktı → fail-closed. P0/BLOCKER-001: yetenek YOK ise exec çalıştırılmaz,
+     * `unavailable:true` döner ve çağıran kapıyı görünür biçimde atlar.
+     */
+    async getPowerRequests() {
+        if (this._capability.available === null) {
+            await this.probePowerRequestCapability();
+        }
         const now = Date.now();
-        if (this._powerCache && now - this._powerCache.at < 5000) return Promise.resolve(this._powerCache.value);
+        if (this._capability.available !== true) {
+            return { ok: false, unavailable: true, code: 'POWER_REQUESTS_UNAVAILABLE', hasActiveRequest: false, categories: [] };
+        }
+        if (this._powerCache && now - this._powerCache.at < 5000) return this._powerCache.value;
         return new Promise((resolve) => {
             this.execFile('powercfg.exe', ['/requests'], { windowsHide: true, timeout: 3000 }, (err, stdout) => {
                 if (err || !stdout || !String(stdout).trim()) {

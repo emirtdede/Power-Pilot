@@ -8,6 +8,17 @@ let translations = {};
 (function () {
     'use strict';
 
+    // O-19: locale dosyası bozuk/eksikse sayaç çizimi çökmesin.
+    const FALLBACK_DICTIONARY = {
+        timeFormatDays: 'gün',
+        timeFormatHours: 'sa',
+        timeFormatMinutes: 'dk',
+        timeFormatSeconds: 'sn',
+        activeTimerText: 'Bilgisayar {time} sonra {action}.',
+        activeTimerCancelledText: 'Zamanlayıcı iptal edildi.',
+        unknownError: 'Bilinmeyen hata'
+    };
+
     const SUPPORTED = [
         'tr', 'en', 'de', 'sv', 'no', 'da', 'fr', 'pl', 'it', 'nl',
         'cs', 'es', 'pt', 'ja', 'zh', 'ko', 'ar'
@@ -45,8 +56,8 @@ let translations = {};
 
     const ready = load(currentLanguage).catch((err) => {
         console.error('[i18n] locale yüklenemedi:', err && err.message);
-        translations = {};
-        return null;
+        translations = { [currentLanguage]: FALLBACK_DICTIONARY };
+        return FALLBACK_DICTIONARY;
     });
 
     window.PPLocale = {

@@ -17,6 +17,9 @@ class SmartFinishEngine {
         // WP-07: dosya/klasör sabitliği örnek tabanlıdır (iki örnek aynı imza).
         this.fileSamples = new Map(); // taskId -> { signature, since }
         this.directorySamples = new Map(); // taskId -> { signature, since }
+        // Y-11: aynı klasör 1 sn'lik tick'te tekrar tekrar taranmaz.
+        this.directoryScanCache = new Map(); // taskId -> { at, scan }
+        this.directoryScanIntervalMs = 5000;
     }
 
     /**
@@ -36,7 +39,11 @@ class SmartFinishEngine {
         if (metrics.stale === true) {
             return { satisfied: false, progressMessage: 'Metrikler ısınıyor (ilk örnekler atlanıyor)' };
         }
-        const results = group.conditions.map(cond => this.evaluateSingleCondition(cond, metrics, task.id));
+        // O-09: örnek anahtarı koşul başına benzersiz; aynı görevdeki iki
+        // file_stable/directory_idle koşulu birbirinin örneğini ezmez.
+        const results = group.conditions.map((cond, index) =>
+            this.evaluateSingleCondition(cond, metrics, `${task.id}:${index}`)
+        );
 
         let groupSatisfied = false;
         if (group.operator === LOGIC_OPERATOR.OR) {
@@ -74,6 +81,23 @@ class SmartFinishEngine {
         }
     }
 
+    /**
+     * O-09: silinen görevlerin örnek/tracker kayıtlarını temizler.
+     * @param {Set<string>} taskIds yaşayan görev kimlikleri
+     */
+    prune(taskIds) {
+        const alive = taskIds instanceof Set ? taskIds : new Set(taskIds || []);
+        const belongsToAliveTask = (key) => alive.has(String(key).split(':')[0]);
+        for (const key of this.stabilityTrackers.keys()) {
+            if (!alive.has(key)) this.stabilityTrackers.delete(key);
+        }
+        for (const map of [this.fileSamples, this.directorySamples, this.directoryScanCache]) {
+            for (const key of map.keys()) {
+                if (!belongsToAliveTask(key)) map.delete(key);
+            }
+        }
+    }
+
     evaluateSingleCondition(cond, metrics, taskId = null) {
         switch (cond.type) {
             case CONDITION_TYPE.PROCESS_RUNNING: {
@@ -102,7 +126,7 @@ class SmartFinishEngine {
             }
 
             case CONDITION_TYPE.CPU_USAGE: {
-                const threshold = cond.thresholdPercent || 10;
+                const threshold = Number.isFinite(cond.thresholdPercent) ? cond.thresholdPercent : 10;
                 const satisfied = metrics.cpuUsagePercent <= threshold;
                 return {
                     satisfied,
@@ -111,7 +135,7 @@ class SmartFinishEngine {
             }
 
             case CONDITION_TYPE.USER_IDLE: {
-                const requiredIdleSec = cond.idleSeconds || 300;
+                const requiredIdleSec = Number.isFinite(cond.idleSeconds) ? cond.idleSeconds : 300;
                 const satisfied = metrics.userIdleSeconds >= requiredIdleSec;
                 return {
                     satisfied,
@@ -166,10 +190,18 @@ class SmartFinishEngine {
             case CONDITION_TYPE.DIRECTORY_IDLE: {
                 // WP-07.T2 (K-05): klasör içeriği sabit mi?
                 const dirPath = cond.dirPath || cond.filePath;
-                const scan = scanDirectory(dirPath, {
-                    maxDepth: Number.isInteger(cond.maxDepth) ? cond.maxDepth : 2,
-                    maxEntries: Number.isInteger(cond.maxEntries) ? cond.maxEntries : 5000
-                });
+                const scanNow = Date.now();
+                const cachedScan = this.directoryScanCache.get(taskId);
+                let scan;
+                if (cachedScan && scanNow - cachedScan.at < this.directoryScanIntervalMs) {
+                    scan = cachedScan.scan;
+                } else {
+                    scan = scanDirectory(dirPath, {
+                        maxDepth: Number.isInteger(cond.maxDepth) ? cond.maxDepth : 2,
+                        maxEntries: Number.isInteger(cond.maxEntries) ? cond.maxEntries : 5000
+                    });
+                    this.directoryScanCache.set(taskId, { at: scanNow, scan });
+                }
                 if (!scan.ok) {
                     this.directorySamples.delete(taskId);
                     return { satisfied: false, message: `Klasör taranamadı (${scan.code})` };

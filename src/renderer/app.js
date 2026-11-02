@@ -207,6 +207,8 @@
             // WP-08.T4/T5: tek iptal akışı; tray + buton aynı anda ikinci IPC üretmez.
             let cancelInFlight = false;
             let cancelPinPending = false;
+            // K-01: PIN kurulu mu? PIN değiştirme/silme mevcut PIN ister.
+            let cancelPinConfigured = false;
 
             // Action Selection
             const actionBtns = document.querySelectorAll('.action-btn');
@@ -397,29 +399,57 @@
                 if (!el || !window.electronAPI || !window.electronAPI.getCancelPinState) return;
                 try {
                     const st = await window.electronAPI.getCancelPinState();
-                    el.innerText = st && st.set ? t('pinStateSet') : t('pinStateNotSet');
+                    cancelPinConfigured = !!(st && st.set);
+                    el.innerText = cancelPinConfigured ? t('pinStateSet') : t('pinStateNotSet');
                 } catch (_) { el.innerText = t('pinStateUnknown'); }
             }
             const btnPinSet = document.getElementById('btn-pin-set');
             if (btnPinSet) btnPinSet.addEventListener('click', async () => {
                 const pin = document.getElementById('pin-input').value;
                 if (!window.electronAPI || !window.electronAPI.setCancelPin) return;
+                const finish = (res) => {
+                    if (res && res.success === false) {
+                        showToast(res.message || t('pinSetFailed'), 'error');
+                    } else {
+                        document.getElementById('pin-input').value = '';
+                        showToast(t('pinSetSuccess'), 'success');
+                    }
+                    refreshPinState();
+                };
                 const res = await window.electronAPI.setCancelPin(pin);
-                if (res && res.success === false) {
-                    showToast(res.message || t('pinSetFailed'), 'error');
-                } else {
-                    document.getElementById('pin-input').value = '';
-                    showToast(t('pinSetSuccess'), 'success');
+                if (isPinChallenge(res)) {
+                    // K-01: mevcut PIN doğrulanmadan yenisi yazılmaz.
+                    requestPin(t('pinPromptCurrent'), {
+                        run: (currentPin) => window.electronAPI.setCancelPin(pin, currentPin),
+                        done: finish
+                    });
+                    paintPinError(res);
+                    return;
                 }
-                refreshPinState();
+                finish(res);
             });
             const btnPinClear = document.getElementById('btn-pin-clear');
             if (btnPinClear) btnPinClear.addEventListener('click', async () => {
-                if (window.electronAPI && window.electronAPI.clearCancelPin) {
-                    await window.electronAPI.clearCancelPin();
-                    showToast(t('pinCleared'), 'info');
+                if (!window.electronAPI || !window.electronAPI.clearCancelPin) return;
+                const finish = (res) => {
+                    if (res && res.success === false) {
+                        showToast(res.message || t('errorSaveFailed'), 'error');
+                    } else {
+                        showToast(t('pinCleared'), 'info');
+                    }
+                    refreshPinState();
+                };
+                const res = await window.electronAPI.clearCancelPin();
+                if (isPinChallenge(res)) {
+                    // K-01: mevcut PIN doğrulanmadan PIN kaldırılmaz.
+                    requestPin(t('pinPromptCurrent'), {
+                        run: (currentPin) => window.electronAPI.clearCancelPin(currentPin),
+                        done: finish
+                    });
+                    paintPinError(res);
+                    return;
                 }
-                refreshPinState();
+                finish(res);
             });
 
             function finishCancelUi() {
@@ -542,23 +572,6 @@
                 timerTick();
             }
 
-            async function restoreActiveTimer() {
-                if (!window.electronAPI || !window.electronAPI.getActiveState) return;
-                if (timerTargetTime && Date.now() < timerTargetTime) return;
-                try {
-                    const state = await window.electronAPI.getActiveState();
-                    const now = Date.now();
-                    const next = (state && state.tasks ? state.tasks : [])
-                        .filter(task => task && task.trigger && task.trigger.targetTime && task.trigger.targetTime > now)
-                        .sort((a, b) => a.trigger.targetTime - b.trigger.targetTime)[0];
-                    if (!next) return;
-                    const created = next.createdAt ? Date.parse(next.createdAt) : now;
-                    const total = Math.max(1, Math.ceil((next.trigger.targetTime - (Number.isFinite(created) ? created : now)) / 1000));
-                    timerExecutionTaskId = next.id;
-                    startTimerTo(next.trigger.targetTime, total);
-                } catch (_) { /* salt-okunur; sayaç yoksa başlatma */ }
-            }
-
             // Kademeli uyarı (WBS-11.3): 5dk/1dk toast + 1dk/30sn/10sn bip. Gece sessizliği.
             let stagedMarksFired = {};
             function uiBeep() {
@@ -642,12 +655,14 @@
 
                 const currentLang = getCurrentLanguage();
                 const dict = translations[currentLang] || {};
+                // O-19: eksik sözlükte substring çökmesin.
+                const daySuffix = String(dict.timeFormatDays || 'g').substring(0, 1);
 
                 const timeLeft = document.getElementById('display-time-left');
                 if (d > 0) {
                     const days = document.createElement('span');
                     days.className = 'text-xl text-primary leading-none tracking-normal';
-                    days.textContent = `${d}${dict.timeFormatDays.substring(0, 1)}`;
+                    days.textContent = `${d}${daySuffix}`;
                     const clock = document.createElement('span');
                     clock.className = 'text-[32px] leading-none';
                     clock.textContent = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -708,7 +723,7 @@
                 // Sync with miniWindow widget via IPC
                 if (secondsRemaining > 0) {
                     let formattedCountdown = "";
-                    if (d > 0) formattedCountdown += `${d}${dict.timeFormatDays.substring(0,1)} `;
+                    if (d > 0) formattedCountdown += `${d}${daySuffix} `;
                     if (h > 0 || d > 0) formattedCountdown += `${h.toString().padStart(2, '0')}:`;
                     formattedCountdown += `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 
@@ -743,6 +758,14 @@
                 if (!showNotifs) return;
 
                 const container = document.getElementById('toast-container');
+                // L-02: container yoksa çökme yok; en fazla 4 toast tutulur.
+                if (!container) return;
+                const MAX_TOASTS = 4;
+                while (container.children.length >= MAX_TOASTS) {
+                    const oldest = container.firstElementChild;
+                    if (!oldest) break;
+                    oldest.remove();
+                }
                 const toast = document.createElement('div');
 
                 // Base styling for toast
@@ -796,14 +819,31 @@
             const elNotifications = document.getElementById('setting-notifications');
             const elLanguage = document.getElementById('setting-language');
 
-            function loadSettings() {
+            async function loadSettings() {
                 const autostart = localStorage.getItem('autostart') === 'true';
                 const voice = localStorage.getItem('voice') === 'true';
                 const theme = localStorage.getItem('theme') || 'dark';
                 const notifications = localStorage.getItem('notifications') !== 'false';
-                const autonomyMode = localStorage.getItem('autonomyMode') === 'full' ? 'full' : 'classic';
-                
+
+                // L-01: dil ve otonomi için tek doğruluk kaynağı sunucu ayarları.
+                // Tema/voice/notifications cihaza özel tercihlerdir; localStorage'da kalır.
                 let language = localStorage.getItem('language');
+                let autonomyMode = localStorage.getItem('autonomyMode') === 'full' ? 'full' : 'classic';
+                let serverSettings = null;
+                try {
+                    if (window.electronAPI && typeof window.electronAPI.getPublicSettings === 'function') {
+                        serverSettings = await window.electronAPI.getPublicSettings();
+                    }
+                } catch (err) {
+                    console.warn('[Settings] sunucu ayarları okunamadı:', err && err.message);
+                }
+                if (serverSettings && typeof serverSettings === 'object') {
+                    if (typeof serverSettings.language === 'string' && serverSettings.language) {
+                        language = serverSettings.language;
+                    }
+                    autonomyMode = serverSettings.autonomyMode === 'full' ? 'full' : 'classic';
+                }
+
                 if (!language) {
                     const sysLang = navigator.language.split('-')[0];
                     language = (window.PPLocale && window.PPLocale.supported.includes(sysLang)) ? sysLang : 'tr';
@@ -813,6 +853,10 @@
                         window.electronAPI.saveSettings({ language }).catch(() => {});
                     }
                 }
+                try {
+                    localStorage.setItem('language', language);
+                    localStorage.setItem('autonomyMode', autonomyMode);
+                } catch (_) { /* depolama kapalı olabilir */ }
 
                 if (elAutostart) elAutostart.checked = autostart;
                 if (elVoice) elVoice.checked = voice;
@@ -1016,7 +1060,7 @@
                         if (!targetTime) { showToast(t('errorInvalidTime'), 'error'); return; }
                         taskData = {
                             name: `Scheduled (${action} @ ${timeVal})`,
-                            action, source: 'user_interface',
+                            action,
                             trigger: { type: 'scheduled_time', targetTime },
                             ...(chain ? { chain } : {})
                         };
@@ -1030,7 +1074,7 @@
                         const stability = parseInt(document.getElementById('sf-stability').value, 10);
                         taskData = {
                             name: `Smart Finish (${conditions.map(describeCondition).join(' + ')})`,
-                            action, source: 'user_interface',
+                            action,
                             conditionGroup: {
                                 operator: document.getElementById('sf-operator').value === 'OR' ? 'OR' : 'AND',
                                 stabilitySeconds: (Number.isInteger(stability) && stability >= 0 && stability <= 3600) ? stability : 15,
@@ -1114,6 +1158,8 @@
             const TASK_ACTIVE_STATUSES = new Set(['draft', 'scheduled', 'monitoring', 'waiting', 'warning', 'snoozed', 'executing']);
             let taskFilter = 'active';
             let tasksRefreshTimer = null;
+            // D-07: 5 sn'lik polling üst üste binmez.
+            let tasksLoading = false;
             // WP-13.T7: küme değişmediyse yalnızca süre hücreleri güncellenir.
             let lastTaskRenderSignature = '';
 
@@ -1226,11 +1272,13 @@
             }
 
             async function loadTasks() {
+                if (tasksLoading) return;
                 if (!window.electronAPI || !window.electronAPI.getTasks) return;
                 const tbody = document.getElementById('tasks-table-body');
                 const empty = document.getElementById('tasks-empty');
                 const error = document.getElementById('tasks-error');
                 if (!tbody) return;
+                tasksLoading = true;
                 try {
                     const all = await window.electronAPI.getTasks();
                     renderMonitoringTasks(all);
@@ -1312,6 +1360,8 @@
                         error.classList.remove('hidden');
                         error.innerText = t('tasksLoadError');
                     }
+                } finally {
+                    tasksLoading = false;
                 }
             }
 
@@ -1797,6 +1847,16 @@
                         document.getElementById('display-api-key').innerText = s.localApiKeyMasked;
                     }
                     paintApiBadge(s.localApiEnabled === true, s.localApiPort || 18456);
+                    // P0/BLOCKER-001: güç isteği ölçümü yükseltme gerektiriyorsa
+                    // uyarı satırı görünür olur (kapı atlandığı gizlenmez).
+                    try {
+                        const sec = await window.electronAPI.getSecurityStatus();
+                        const hint = document.getElementById('api-safety-hint');
+                        if (hint) {
+                            const unavailable = !!(sec && sec.powerRequestCheck && sec.powerRequestCheck.available === false);
+                            hint.classList.toggle('hidden', !unavailable);
+                        }
+                    } catch (_) { /* tanı bilgisi opsiyonel */ }
                     // Plan kapanışı: 90 günü dolduran anahtar için oturumda bir kez hatırlatma.
                     if (!window.__apiKeyAgeWarned && typeof s.localApiKeyCreatedAt === 'number' &&
                         Date.now() - s.localApiKeyCreatedAt > 90 * 86400000) {
@@ -2056,10 +2116,8 @@
                 bCreate.textContent = t('install');
                 bCreate.addEventListener('click', async () => {
                     if (window.electronAPI && window.electronAPI.createTask) {
-                        // WBS-9.4: Damga kuruluşta vurulur (varsayılan classic).
-                        let mode = 'classic';
-                        try { if (localStorage.getItem('autonomyMode') === 'full') mode = 'full'; } catch (_) {}
-                        const res = await window.electronAPI.createTask({ ...aiProposal.task, mode });
+                        // K-04/K-03: mod ve kaynak sunucu tarafından atanır; istemci göndermez.
+                        const res = await window.electronAPI.createTask(aiProposal.task);
                         if (res && res.success === false) {
                             showToast(res.message || t('aiTaskFailed'), 'error');
                         } else {
@@ -2314,10 +2372,9 @@
             let wzPoll = null;
             let wzClock = null;
             // AI indirme canlı-ilerleme durumu (yalnızca arayüz katmanı).
-            let wzDlActive = false;
-            let wzDlFailed = false;
-            let wzSample = null; // { t, bytes } — hız/ETA hesabı için
-            let wzSpeed = 0; // bayt/sn (yumuşatılmış)
+            // L-12: sihirbaz ve ayarlar aynı durum makinesini paylaşır.
+            const wzDlState = { active: false, failed: false, sample: null, speed: 0 };
+            const setDlState = { active: false, failed: false, sample: null, speed: 0 };
 
             // Anket hızı: indirme sürerken 500ms (canlı animasyon), yoksa 2sn.
             function wzSetPoll(ms) {
@@ -2336,7 +2393,7 @@
             }
 
             function wzFmtEta(received, total, speed) {
-                const s = speed === undefined ? wzSpeed : speed;
+                const s = speed === undefined ? wzDlState.speed : speed;
                 if (!(total > 0) || !(s > 0) || received >= total) return '';
                 const sec = Math.round((total - received) / s);
                 if (sec < 60) return t('timeLeftSecondsShort', { seconds: sec });
@@ -2394,6 +2451,107 @@
                 }
             }
 
+            /**
+             * L-12: Sihirbaz ve ayarlar kartı aynı durum makinesini kullanır.
+             * Yalnızca DOM elemanları ve metin anahtarları görünüme özgüdür.
+             */
+            function renderAiStatus(st, view) {
+                const { els, state, downloadingText, poll, setDownloadBtn, setLoadBtn, loadBusy } = view;
+                const dl = st.download || { state: 'idle' };
+                const bothPresent = !!(st.model && st.model.present && st.stt && st.stt.present);
+
+                if (dl.state === 'running') {
+                    if (!state.active) {
+                        state.active = true;
+                        state.failed = false;
+                        state.sample = null;
+                        state.speed = 0;
+                        setDownloadBtn('downloading', els.btnDl);
+                    }
+                    poll(500);
+                    els.wrap.classList.remove('hidden');
+                    els.bar.classList.add('pp-stripes');
+                    const now = Date.now();
+                    const got = dl.received || 0;
+                    if (state.sample && got > state.sample.bytes) {
+                        const dt = (now - state.sample.t) / 1000;
+                        if (dt > 0) {
+                            const inst = (got - state.sample.bytes) / dt;
+                            state.speed = state.speed > 0 ? state.speed * 0.6 + inst * 0.4 : inst;
+                        }
+                    }
+                    state.sample = { t: now, bytes: got };
+                    const stepLabel = dl.step === 2 ? t('wizardStepVoice') : t('wizardStepLanguage');
+                    if (dl.total > 0) {
+                        const pct = Math.min(99, Math.round((got / dl.total) * 100));
+                        els.bar.style.width = pct + '%';
+                        els.txt.innerText = `${stepLabel}: %${pct} (${wzFmtMb(got)}/${wzFmtMb(dl.total)}${wzFmtSpeed(state.speed)}${wzFmtEta(got, dl.total, state.speed)})`;
+                    } else {
+                        els.txt.innerText = `${stepLabel}: ${t('wizardDownloadedAmount', { amount: wzFmtMb(got) })}${wzFmtSpeed(state.speed)}…`;
+                    }
+                    els.line.innerText = downloadingText;
+                    return;
+                }
+
+                if (state.active) {
+                    state.active = false;
+                    els.bar.classList.remove('pp-stripes');
+                    if (dl.state === 'failed') {
+                        state.failed = true;
+                        setDownloadBtn('idle', els.btnDl);
+                        poll(2000);
+                        els.line.innerText = t('wizardDownloadFailed', { error: dl.error || t('unknownError') });
+                        if (window.showToast) showToast(dl.error || t('errorAiDownloadFailed'), 'error');
+                        return;
+                    }
+                }
+
+                if (st.loaded) {
+                    els.line.innerText = t('wizardAiReadyRam', { model: st.modelId || 'model', ram: st.ramGb != null ? st.ramGb + 'GB' : '?' });
+                    els.line.classList.remove('text-slate-500');
+                    els.line.classList.add('text-green-500');
+                    setDownloadBtn('ready', els.btnDl);
+                    if (!loadBusy) setLoadBtn(true, els.btnLoad);
+                } else {
+                    els.line.classList.remove('text-green-500');
+                    els.line.classList.add('text-slate-500');
+                    if (!loadBusy) setLoadBtn(false, els.btnLoad);
+                    if (bothPresent) {
+                        els.line.innerText = t('wizardBothModels');
+                        setDownloadBtn('ready', els.btnDl);
+                    } else if (st.model && st.model.present) {
+                        els.line.innerText = t('wizardLangReady');
+                        setDownloadBtn('resume', els.btnDl, t('downloadRemainingStt'));
+                    } else if (st.stt && st.stt.present) {
+                        els.line.innerText = t('wizardSttReady');
+                        setDownloadBtn('resume', els.btnDl, t('downloadRemainingLlm'));
+                    } else {
+                        const done = st.model && st.model.partialBytes > 0 ? t('wizardPartial', { mb: Math.round(st.model.partialBytes / 1048576) }) : '';
+                        const sttDone = st.stt && st.stt.present ? t('wizardVoiceDone') : '';
+                        els.line.innerText = t('wizardModelMissing', { extra: done, stt: sttDone });
+                        if (!state.failed) setDownloadBtn('idle', els.btnDl);
+                    }
+                }
+
+                if (bothPresent) {
+                    els.wrap.classList.add('hidden');
+                    view.stopPoll();
+                } else if (st.model && (st.model.present || st.model.partialBytes > 0)) {
+                    els.wrap.classList.remove('hidden');
+                    // L-04: model boyutu aiStatus'tan gelir; sabit varsayım yok.
+                    const total = Number(st.model.expectedBytes) || 0;
+                    const got = (st.model.present ? st.model.bytes : 0) + (st.model.partialBytes || 0);
+                    const pct = total > 0 ? Math.min(100, Math.round((got / total) * 100)) : null;
+                    els.bar.style.width = (pct === null ? 0 : pct) + '%';
+                    const pctLabel = pct === null ? '?' : pct;
+                    els.txt.innerText = (view.voiceMissingProgress && st.model.present && !st.stt.present)
+                        ? t('wizardProgressVoiceMissing', { pct: pctLabel, mb: Math.round(got / 1048576) })
+                        : t('wizardProgressGeneric', { pct: pctLabel, mb: Math.round(got / 1048576) });
+                } else if (!state.active) {
+                    els.wrap.classList.add('hidden');
+                }
+            }
+
             function paintWizardDots() {
                 document.querySelectorAll('#wz-dots [data-dot]').forEach(d => {
                     const active = parseInt(d.getAttribute('data-dot'), 10) <= wzStep;
@@ -2429,102 +2587,24 @@
                 try {
                     const st = await window.electronAPI.aiStatus();
                     document.getElementById('wz-ram-warn').classList.toggle('hidden', !(st.ramOk === false));
-                    const dl = st.download || { state: 'idle' };
-                    const bar = document.getElementById('wz-progress-bar');
-                    const txt = document.getElementById('wz-progress-text');
-                    const wrap = document.getElementById('wz-progress-wrap');
-                    const bothPresent = !!(st.model && st.model.present && st.stt && st.stt.present);
-
-                    // Canlı indirme: ai-status.download içinden dosya-adım ilerleme.
-                    if (dl.state === 'running') {
-                        if (!wzDlActive) {
-                            wzDlActive = true;
-                            wzDlFailed = false;
-                            wzSample = null;
-                            wzSpeed = 0;
-                            wzSetDownloadBtn('downloading');
-                        }
-                        wzSetPoll(500);
-                        wrap.classList.remove('hidden');
-                        bar.classList.add('pp-stripes');
-                        const now = Date.now();
-                        const got = dl.received || 0;
-                        if (wzSample && got > wzSample.bytes) {
-                            const dt = (now - wzSample.t) / 1000;
-                            if (dt > 0) {
-                                const inst = (got - wzSample.bytes) / dt;
-                                wzSpeed = wzSpeed > 0 ? wzSpeed * 0.6 + inst * 0.4 : inst;
-                            }
-                        }
-                        wzSample = { t: now, bytes: got };
-                        const stepLabel = dl.step === 2 ? t('wizardStepVoice') : t('wizardStepLanguage');
-                        if (dl.total > 0) {
-                            const pct = Math.min(99, Math.round((got / dl.total) * 100));
-                            bar.style.width = pct + '%';
-                            txt.innerText = `${stepLabel}: %${pct} (${wzFmtMb(got)}/${wzFmtMb(dl.total)}${wzFmtSpeed(wzSpeed)}${wzFmtEta(got, dl.total)})`;
-                        } else {
-                            txt.innerText = `${stepLabel}: ${t('wizardDownloadedAmount', { amount: wzFmtMb(got) })}${wzFmtSpeed(wzSpeed)}…`;
-                        }
-                        line.innerText = t('wizardAiDownloading');
-                        return;
-                    }
-
-                    // İndirme bitimi / hatası: buton durumunu toparla.
-                    if (wzDlActive) {
-                        wzDlActive = false;
-                        bar.classList.remove('pp-stripes');
-                        if (dl.state === 'failed') {
-                            wzDlFailed = true;
-                            wzSetDownloadBtn('idle');
-                            wzSetPoll(2000);
-                            line.innerText = t('wizardDownloadFailed', { error: dl.error || t('unknownError') });
-                            if (window.showToast) showToast(dl.error || t('errorAiDownloadFailed'), 'error');
-                            return;
-                        }
-                    }
-
-                    if (st.loaded) {
-                        line.innerText = t('wizardAiReadyRam', { model: st.modelId || 'model', ram: st.ramGb != null ? st.ramGb + 'GB' : '?' });
-                        line.classList.remove('text-slate-500');
-                        line.classList.add('text-green-500');
-                        wzSetDownloadBtn('ready');
-                        if (!wzLoadBusy) wzSetLoadBtn(true);
-                    } else {
-                        line.classList.remove('text-green-500');
-                        line.classList.add('text-slate-500');
-                        if (!wzLoadBusy) wzSetLoadBtn(false);
-                        if (bothPresent) {
-                            line.innerText = t('wizardBothModels');
-                            wzSetDownloadBtn('ready');
-                        } else if (st.model && st.model.present) {
-                        line.innerText = t('wizardLangReady');
-                        wzSetDownloadBtn('resume', undefined, t('downloadRemainingStt'));
-                    } else if (st.stt && st.stt.present) {
-                        line.innerText = t('wizardSttReady');
-                        wzSetDownloadBtn('resume', undefined, t('downloadRemainingLlm'));
-                    } else {
-                        const done = st.model && st.model.partialBytes > 0 ? t('wizardPartial', { mb: Math.round(st.model.partialBytes / 1048576) }) : '';
-                        const sttDone = st.stt && st.stt.present ? t('wizardVoiceDone') : '';
-                        line.innerText = t('wizardModelMissing', { extra: done, stt: sttDone });
-                        if (!wzDlFailed) wzSetDownloadBtn('idle');
-                    }
-                    } // else (yüklü değil) sonu
-                    // Yarım kalan önceki indirme (diskten okunur) — bilgi amaçlı bar.
-                    if (bothPresent) {
-                        wrap.classList.add('hidden');
-                        if (wzPoll) { clearInterval(wzPoll); wzPoll = null; }
-                    } else if (st.model && (st.model.present || st.model.partialBytes > 0)) {
-                        wrap.classList.remove('hidden');
-                        const total = 1374389534; // ~1.28GB hedef (bilgi amaçlı)
-                        const got = (st.model.present ? st.model.bytes : 0) + (st.model.partialBytes || 0);
-                        const pct = Math.min(100, Math.round((got / total) * 100));
-                        bar.style.width = pct + '%';
-                        txt.innerText = st.model.present && !st.stt.present
-                            ? t('wizardProgressVoiceMissing', { pct, mb: Math.round(got / 1048576) })
-                            : t('wizardProgressGeneric', { pct, mb: Math.round(got / 1048576) });
-                    } else if (!wzDlActive) {
-                        wrap.classList.add('hidden');
-                    }
+                    renderAiStatus(st, {
+                        els: {
+                            line,
+                            bar: document.getElementById('wz-progress-bar'),
+                            txt: document.getElementById('wz-progress-text'),
+                            wrap: document.getElementById('wz-progress-wrap'),
+                            btnDl: document.getElementById('btn-wz-download'),
+                            btnLoad: document.getElementById('btn-wz-load')
+                        },
+                        state: wzDlState,
+                        downloadingText: t('wizardAiDownloading'),
+                        poll: (ms) => wzSetPoll(ms),
+                        stopPoll: () => { if (wzPoll) { clearInterval(wzPoll); wzPoll = null; } },
+                        setDownloadBtn: (mode, btn, label) => wzSetDownloadBtn(mode, btn, label),
+                        setLoadBtn: (loaded, btn) => wzSetLoadBtn(loaded, btn),
+                        loadBusy: wzLoadBusy,
+                        voiceMissingProgress: true
+                    });
                 } catch (_) { line.innerText = t('aiStatusUnknown'); }
             }
 
@@ -2647,20 +2727,20 @@
             const btnWzDl = document.getElementById('btn-wz-download');
             if (btnWzDl) {
                 btnWzDl.addEventListener('click', async () => {
-                    if (wzDlActive || btnWzDl.disabled) return; // çift-tık koruması
+                    if (wzDlState.active || btnWzDl.disabled) return; // çift-tık koruması
                     if (window.electronAPI && window.electronAPI.aiModelDownload) {
                         // Anında geri bildirim: buton + animasyonlu bar, sonra hızlı anket.
-                        wzDlActive = true;
-                        wzDlFailed = false;
-                        wzSample = null;
-                        wzSpeed = 0;
+                        wzDlState.active = true;
+                        wzDlState.failed = false;
+                        wzDlState.sample = null;
+                        wzDlState.speed = 0;
                         wzSetDownloadBtn('downloading');
                         document.getElementById('wz-progress-wrap').classList.remove('hidden');
                         document.getElementById('wz-progress-bar').classList.add('pp-stripes');
                         document.getElementById('wz-progress-text').innerText = t('connecting');
                         const res = await window.electronAPI.aiModelDownload();
                         if (res && res.started === false) {
-                            wzDlActive = false;
+                            wzDlState.active = false;
                             wzSetDownloadBtn('idle');
                             showToast(res.message || t('errorDownloadBusy'), 'info');
                             return;
@@ -2705,11 +2785,8 @@
             }
 
             // Ayarlar → AI Paketi kartı (sihirbazı kaçıranlar için ikinci yol).
-            // Sihirbazla aynı IPC + aynı ilerleme gösterimi; bağımsız anketli.
+            // Sihirbazla aynı IPC + aynı durum makinesi; bağımsız anketli.
             let setPoll = null;
-            let setDlActive = false;
-            let setSample = null;
-            let setSpeed = 0;
 
             function setAiEls() {
                 return {
@@ -2740,109 +2817,36 @@
                 }
                 try {
                     const st = await window.electronAPI.aiStatus();
-                    const dl = st.download || { state: 'idle' };
-                    const bothPresent = !!(st.model && st.model.present && st.stt && st.stt.present);
-
-                    if (dl.state === 'running') {
-                        if (!setDlActive) {
-                            setDlActive = true;
-                            setSample = null;
-                            setSpeed = 0;
-                            wzSetDownloadBtn('downloading', els.btnDl);
-                        }
-                        startSettingsPoll(500);
-                        els.wrap.classList.remove('hidden');
-                        els.bar.classList.add('pp-stripes');
-                        const now = Date.now();
-                        const got = dl.received || 0;
-                        if (setSample && got > setSample.bytes) {
-                            const dt = (now - setSample.t) / 1000;
-                            if (dt > 0) {
-                                const inst = (got - setSample.bytes) / dt;
-                                setSpeed = setSpeed > 0 ? setSpeed * 0.6 + inst * 0.4 : inst;
-                            }
-                        }
-                        setSample = { t: now, bytes: got };
-                        const stepLabel = dl.step === 2 ? t('wizardStepVoice') : t('wizardStepLanguage');
-                        if (dl.total > 0) {
-                            const pct = Math.min(99, Math.round((got / dl.total) * 100));
-                            els.bar.style.width = pct + '%';
-                            els.txt.innerText = `${stepLabel}: %${pct} (${wzFmtMb(got)}/${wzFmtMb(dl.total)}${wzFmtSpeed(setSpeed)}${wzFmtEta(got, dl.total, setSpeed)})`;
-                        } else {
-                            els.txt.innerText = `${stepLabel}: ${t('wizardDownloadedAmount', { amount: wzFmtMb(got) })}${wzFmtSpeed(setSpeed)}…`;
-                        }
-                        els.line.innerText = t('wizardDownloadingBackground');
-                        return;
-                    }
-
-                    if (setDlActive) {
-                        setDlActive = false;
-                        els.bar.classList.remove('pp-stripes');
-                        if (dl.state === 'failed') {
-                            wzSetDownloadBtn('idle', els.btnDl);
-                            startSettingsPoll(2000);
-                            els.line.innerText = t('wizardDownloadFailed', { error: dl.error || t('unknownError') });
-                            if (window.showToast) showToast(dl.error || t('errorAiDownloadFailed'), 'error');
-                            return;
-                        }
-                    }
-
-                    if (st.loaded) {
-                        els.line.innerText = t('wizardAiReadyRam', { model: st.modelId || 'model', ram: st.ramGb != null ? st.ramGb + 'GB' : '?' });
-                        els.line.classList.remove('text-slate-500');
-                        els.line.classList.add('text-green-500');
-                        wzSetDownloadBtn('ready', els.btnDl);
-                        if (!setLoadBusy) wzSetLoadBtn(true, els.btnLoad);
-                    } else {
-                        els.line.classList.remove('text-green-500');
-                        els.line.classList.add('text-slate-500');
-                        if (!setLoadBusy) wzSetLoadBtn(false, els.btnLoad);
-                        if (bothPresent) {
-                        els.line.innerText = t('wizardBothModels');
-                        wzSetDownloadBtn('ready', els.btnDl);
-                    } else if (st.model && st.model.present) {
-                        els.line.innerText = t('wizardLangReady');
-                        wzSetDownloadBtn('resume', els.btnDl, t('downloadRemainingStt'));
-                    } else if (st.stt && st.stt.present) {
-                        els.line.innerText = t('wizardSttReady');
-                        wzSetDownloadBtn('resume', els.btnDl, t('downloadRemainingLlm'));
-                    } else {
-                        const done = st.model && st.model.partialBytes > 0 ? t('wizardPartial', { mb: Math.round(st.model.partialBytes / 1048576) }) : '';
-                        const sttDone = st.stt && st.stt.present ? t('wizardVoiceDone') : '';
-                        els.line.innerText = t('wizardModelMissing', { extra: done, stt: sttDone });
-                        wzSetDownloadBtn('idle', els.btnDl);
-                    }
-                    } // else (yüklü değil) sonu
-                    if (bothPresent) {
-                        els.wrap.classList.add('hidden');
-                    } else if (st.model && (st.model.present || st.model.partialBytes > 0)) {
-                        els.wrap.classList.remove('hidden');
-                        const total = 1374389534;
-                        const got = (st.model.present ? st.model.bytes : 0) + (st.model.partialBytes || 0);
-                        const pct = Math.min(100, Math.round((got / total) * 100));
-                        els.bar.style.width = pct + '%';
-                        els.txt.innerText = t('wizardProgressGeneric', { pct, mb: Math.round(got / 1048576) });
-                    } else if (!setDlActive) {
-                        els.wrap.classList.add('hidden');
-                    }
+                    renderAiStatus(st, {
+                        els,
+                        state: setDlState,
+                        downloadingText: t('wizardDownloadingBackground'),
+                        poll: (ms) => startSettingsPoll(ms),
+                        stopPoll: stopSettingsPoll,
+                        setDownloadBtn: (mode, btn, label) => wzSetDownloadBtn(mode, btn, label),
+                        setLoadBtn: (loaded, btn) => wzSetLoadBtn(loaded, btn),
+                        loadBusy: setLoadBusy,
+                        voiceMissingProgress: false
+                    });
                 } catch (_) { els.line.innerText = t('aiStatusUnknown'); }
             }
 
             const btnSetDl = document.getElementById('btn-set-ai-download');
             if (btnSetDl) {
                 btnSetDl.addEventListener('click', async () => {
-                    if (setDlActive || btnSetDl.disabled) return;
+                    if (setDlState.active || btnSetDl.disabled) return;
                     if (window.electronAPI && window.electronAPI.aiModelDownload) {
-                        setDlActive = true;
-                        setSample = null;
-                        setSpeed = 0;
+                        setDlState.active = true;
+                        setDlState.failed = false;
+                        setDlState.sample = null;
+                        setDlState.speed = 0;
                         wzSetDownloadBtn('downloading', btnSetDl);
                         setAiEls().wrap.classList.remove('hidden');
                         setAiEls().bar.classList.add('pp-stripes');
                         setAiEls().txt.innerText = t('connecting');
                         const res = await window.electronAPI.aiModelDownload();
                         if (res && res.started === false) {
-                            setDlActive = false;
+                            setDlState.active = false;
                             wzSetDownloadBtn('idle', btnSetDl);
                             showToast(res.message || t('errorDownloadBusy'), 'info');
                             return;
@@ -2898,6 +2902,7 @@
                     if (st.activeWarning) {
                         const b = document.getElementById('warning-banner');
                         if (b) {
+                            activeWarningTaskId = st.activeWarning.taskId || null;
                             document.getElementById('warning-banner-text').textContent =
                                 `${localizedTaskName(st.activeWarning.taskName, st.activeWarning.action)} - ${getActionString(st.activeWarning.action)}`;
                             document.getElementById('warning-banner-count').textContent =
@@ -2917,17 +2922,28 @@
                         if (monitoring || st.activeWarning) switchView('nav-active');
                         return;
                     }
+                    // Y-01: tek geri yükleme yolu; doğru fonksiyon startTimerTo.
                     const remaining = Math.max(1, Math.round((timer.trigger.targetTime - Date.now()) / 1000));
+                    const created = timer.createdAt ? Date.parse(timer.createdAt) : Date.now();
+                    const total = Math.max(remaining, Math.ceil((timer.trigger.targetTime - (Number.isFinite(created) ? created : Date.now())) / 1000));
                     selectedAction = timer.action;
                     currentActionString = getActionString(timer.action);
-                    startTimer(remaining);
+                    timerExecutionTaskId = timer.id;
+                    startTimerTo(timer.trigger.targetTime, total);
                     switchView('nav-active');
-                } catch (_) { /* geri yükleme başarısızsa boş durum gösterilir */ }
+                } catch (err) {
+                    console.warn('[UI] Aktif durum geri yüklenemedi:', err && err.message);
+                    showToast(t('unknownError'), 'error');
+                }
             }
             restoreActiveState();
 
             // Warning banner wiring (WBS-9.4)
+            // K-02: onay isteği hangi uyarıya ait olduğunu taşır; geç tıklama
+            // başka görevin uyarısını onaylayamaz.
+            let activeWarningTaskId = null;
             function hideWarningBanner() {
+                activeWarningTaskId = null;
                 document.getElementById('warning-banner').classList.add('hidden');
             }
             // C-01/C-02: banner yalnızca ana süreç başarı bildirdiğinde gizlenir;
@@ -2944,9 +2960,12 @@
                 window.electronAPI.onWarningStarted((data) => {
                     const b = document.getElementById('warning-banner');
                     if (!b || !data) return;
+                    activeWarningTaskId = data.taskId || null;
                     document.getElementById('warning-banner-text').textContent = `${localizedTaskName(data.taskName, data.action)} — ${getActionString(data.action)}`;
                     document.getElementById('warning-banner-count').textContent = (data.secondsLeft != null ? t('secondsShort', { seconds: data.secondsLeft }) : '');
                     b.classList.remove('hidden');
+                    // D-05: sessiz modda ses çıkmaz; banner yine görünür.
+                    if (!data.silentMode) uiBeep();
                 });
             }
             if (window.electronAPI && window.electronAPI.onWarningTick) {
@@ -2998,8 +3017,11 @@
             });
             const btnWarnNow = document.getElementById('btn-warn-now');
             if (btnWarnNow) btnWarnNow.addEventListener('click', async () => {
-                if (window.electronAPI.warningConfirm) await window.electronAPI.warningConfirm();
-                hideWarningBanner();
+                if (!window.electronAPI.warningConfirm) return;
+                // K-02: banner gizlenirken sonuç kontrol edilir; eski tıklama
+                // yeni uyarıyı onaylamaz.
+                const res = await window.electronAPI.warningConfirm(activeWarningTaskId);
+                applyWarningResult(res, t('errorCancelTooLate'));
             });
 
             // AI hızlı eylemler: teşhis / enerji / öneri (F9.2-9.3).
@@ -3183,7 +3205,9 @@
             if (btnWoL) {
                 btnWoL.addEventListener('click', async () => {
                     const mac = document.getElementById('wol-mac').value;
-                    const ip = document.getElementById('wol-ip').value || '255.255.255.255';
+                    // L-15: boş alan 255.255.255.255'e sabitlenmez; ana süreç
+                    // sanal adaptörleri atlayan yönlendirilmiş broadcast'i seçer.
+                    const ip = document.getElementById('wol-ip').value.trim() || undefined;
                     if (!mac) {
                         showToast(t('errorMac'), 'error');
                         return;
@@ -3233,12 +3257,13 @@
                     if (getCurrentLanguage() !== previous.language) await applyLanguage(previous.language);
                 };
 
-                if (!window.electronAPI || !window.electronAPI.saveSettings) return;
+                if (!window.electronAPI || !window.electronAPI.saveSettingsAtomic) return;
                 const energy = readEnergyPatch();
                 if (energy.error) {
                     showToast(energy.error, 'error');
                     return;
                 }
+                const patch = { language, ...energy.patch, autonomyMode };
                 const commit = async () => {
                     localStorage.setItem('autostart', autostart);
                     localStorage.setItem('voice', elVoice ? elVoice.checked : false);
@@ -3252,25 +3277,34 @@
                     showToast(t('toastSettingsSaved'), 'success');
                 };
 
-                // T-REN-05: sunucu reddederse localStorage ve form eski değerde kalır.
-                const res = await window.electronAPI.saveSettings({ language, ...energy.patch });
+                // O-20: PIN doğrulanmadan hiçbir sunucu ayarı yazılmaz; tüm patch
+                // tek atomik IPC'de uygulanır. İptalde sunucu değişmez.
+                const run = (pin) => window.electronAPI.saveSettingsAtomic({ settings: patch, pin });
+                const res = await run();
+                if (isPinChallenge(res)) {
+                    requestPin(t('pinPromptCancel'), {
+                        run,
+                        done: async (final) => {
+                            if (final && final.success !== false) {
+                                await commit();
+                                if (typeof loadEnergyCard === 'function') loadEnergyCard();
+                            } else {
+                                await restoreForm();
+                                showToast((final && final.message) || t('errorModeSave'), 'error');
+                            }
+                        },
+                        cancel: () => { restoreForm(); }
+                    });
+                    paintPinError(res);
+                    return;
+                }
                 if (res && res.success === false) {
                     await restoreForm();
                     showToast(res.message || t('errorModeSave'), 'error');
                     return;
                 }
+                await commit();
                 if (typeof loadEnergyCard === 'function') loadEnergyCard();
-                // WP-10.T4: otonomi modu güvenlik bayrağıdır; PIN'li yoldan yazılır.
-                const sec = await saveSecuritySettings({ autonomyMode }, commit, {
-                    quiet: true,
-                    onCancel: restoreForm
-                });
-                if (sec && sec.success === false && !sec.pendingPin) {
-                    await restoreForm();
-                    showToast(sec.message || t('errorModeSave'), 'error');
-                    return;
-                }
-                if (sec && sec.pendingPin) return;
             });
 
             document.getElementById('btn-settings-default').addEventListener('click', () => {
@@ -3406,8 +3440,54 @@
             window.addEventListener('focus', resyncTimer);
             window.addEventListener('pageshow', resyncTimer);
 
-            // Initial Load
+            // L-11: tepsi AI sessizleştirme isteği doğrulanmış ayar yolundan geçer.
+            if (window.electronAPI && window.electronAPI.onRequestAiSilence) {
+                window.electronAPI.onRequestAiSilence(async (until) => {
+                    try {
+                        const res = await window.electronAPI.saveSettings({ aiSilencedUntil: until });
+                        if (res && res.success !== false) {
+                            showToast(t('toastSettingsSaved'), 'success');
+                        } else {
+                            showToast((res && res.message) || t('errorSaveFailed'), 'error');
+                        }
+                    } catch (err) {
+                        showToast(t('errorSaveFailed'), 'error');
+                    }
+                });
+            }
+
+            // Y-05: tepsi otonomi değişikliği PIN'li güvenlik akışından geçer.
+            if (window.electronAPI && window.electronAPI.onRequestAutonomyChange) {
+                window.electronAPI.onRequestAutonomyChange(async (mode) => {
+                    const target = mode === 'full' ? 'full' : 'classic';
+                    await saveSecuritySettings({ autonomyMode: target }, () => {
+                        try { localStorage.setItem('autonomyMode', target); } catch (_) {}
+                        const radio = document.querySelector(`input[name="autonomyMode"][value="${target}"]`);
+                        if (radio) radio.checked = true;
+                        showToast(t('toastSettingsSaved'), 'success');
+                    });
+                });
+            }
+
+            // Y-02: tepsi duraklat/çıkış PIN'li akışı ana pencerede tamamlanır.
+            if (window.electronAPI && window.electronAPI.onRequestTrayPinAction) {
+                window.electronAPI.onRequestTrayPinAction(async (reason) => {
+                    const action = reason === 'quit' ? 'quit-app' : 'toggle-pause-all';
+                    const run = (pin) => window.electronAPI[reason === 'quit' ? 'quitApp' : 'togglePauseAll'](pin);
+                    requestPin(t('pinPromptCancel'), {
+                        run,
+                        done: (final) => {
+                            if (final && final.success === false) {
+                                showToast(final.message || t('errorSaveFailed'), 'error');
+                            } else if (action === 'toggle-pause-all') {
+                                showToast(t('toastSettingsSaved'), 'success');
+                            }
+                        }
+                    });
+                });
+            }
+
+            // Initial Load — aktif durum tek yoldan (restoreActiveState) yukarıda yüklendi.
             loadSettings();
-            restoreActiveTimer();
         });
     

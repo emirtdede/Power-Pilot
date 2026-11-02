@@ -16,7 +16,17 @@ const { redactText } = require('../security/Redact');
 const MAX_RECORDS = 5000;
 
 function hashOf(rec) {
-    const slim = { seq: rec.seq, ts: rec.ts, actor: rec.actor, action: rec.action, target: rec.target, detail: rec.detail, prevHash: rec.prevHash };
+    // L-07: rotasyon meta verisi de hash kapsamına girer.
+    const slim = {
+        seq: rec.seq,
+        ts: rec.ts,
+        actor: rec.actor,
+        action: rec.action,
+        target: rec.target,
+        detail: rec.detail,
+        prevHash: rec.prevHash,
+        rotatedFrom: rec.rotatedFrom || null
+    };
     return crypto.createHash('sha256').update(JSON.stringify(slim), 'utf8').digest('hex');
 }
 
@@ -48,12 +58,15 @@ class AuditLog {
         );
     }
 
-    load() {
+    load({ limit = null, beforeSeq = null } = {}) {
         if (this.storage && typeof this.storage.getAuditLog === 'function') {
-            const list = this.storage.getAuditLog();
+            const list = this.storage.getAuditLog({ limit, beforeSeq });
             return Array.isArray(list) ? list : [];
         }
-        return this.memory;
+        let list = this.memory;
+        if (Number.isFinite(beforeSeq)) list = list.filter((r) => r.seq < beforeSeq);
+        if (Number.isFinite(limit) && limit > 0) list = list.slice(-limit);
+        return list;
     }
 
     persist(list) {
@@ -87,7 +100,14 @@ class AuditLog {
             const dropped = list.shift();
             rotatedFrom = dropped.hash;
         }
-        if (rotatedFrom) list[0].rotatedFrom = rotatedFrom;
+        if (rotatedFrom) {
+            list[0].rotatedFrom = rotatedFrom;
+            // L-07: rotatedFrom hash'e dahil; zincir bağlarını tutarlı tut.
+            for (let i = 0; i < list.length; i++) {
+                if (i > 0) list[i].prevHash = list[i - 1].hash;
+                list[i].hash = hashOf(list[i]);
+            }
+        }
         this.persist(list);
         return rec;
     }

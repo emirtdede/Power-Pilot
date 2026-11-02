@@ -22,8 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cancelTask: (taskId, pin) => ipcRenderer.invoke('cancel-task', pin === undefined ? taskId : { taskId, pin }),
     snoozeTask: (args) => ipcRenderer.invoke('snooze-task', args),
     // Cancel PIN API (WBS-11.2)
-    setCancelPin: (pin) => ipcRenderer.invoke('set-cancel-pin', { pin }),
-    clearCancelPin: () => ipcRenderer.invoke('clear-cancel-pin'),
+    setCancelPin: (pin, currentPin) => ipcRenderer.invoke('set-cancel-pin', { pin, currentPin }),
+    clearCancelPin: (pin) => ipcRenderer.invoke('clear-cancel-pin', pin === undefined ? undefined : { pin }),
     getCancelPinState: () => ipcRenderer.invoke('get-cancel-pin-state'),
 
     // History & Stats API
@@ -45,7 +45,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     aiDismissSuggestion: (topic) => ipcRenderer.invoke('ai-dismiss-suggestion', topic),
     warningCancel: (pin) => ipcRenderer.invoke('warning-cancel', pin === undefined ? undefined : { pin }),
     warningSnooze: (minutes, pin) => ipcRenderer.invoke('warning-snooze', typeof minutes === 'object' ? minutes : { minutes, pin }),
-    warningConfirm: () => ipcRenderer.invoke('warning-confirm'),
+    warningConfirm: (taskId) => ipcRenderer.invoke('warning-confirm', taskId ? { taskId } : undefined),
     // AI Model API (WBS-7.5)
     aiModelDownload: () => ipcRenderer.invoke('ai-model-download'),
     aiModelLoad: () => ipcRenderer.invoke('ai-model-load'),
@@ -57,10 +57,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deviceEstimate: () => ipcRenderer.invoke('device-estimate'),
 
     // Settings & Integrations API
+    // K-01: get-settings artık redakte edilmiş DTO döner (sırlar/PIN özeti yok).
     getSettings: () => ipcRenderer.invoke('get-settings'),
+    getPublicSettings: () => ipcRenderer.invoke('get-settings'),
     getLocale: (lang) => ipcRenderer.invoke('get-locale', lang),
     reportCspViolation: (data) => ipcRenderer.send('csp-violation', data),
     saveSettings: (newSettings) => ipcRenderer.invoke('save-settings', newSettings),
+    saveSettingsAtomic: (args) => ipcRenderer.invoke('save-settings-atomic', args),
     // WP-10.T4: güvenlik bayrakları ve API anahtarı PIN gerektirir.
     securitySettingsUpdate: (args) => ipcRenderer.invoke('security-settings-update', args),
     generateApiKey: (args) => ipcRenderer.invoke('generate-api-key', args),
@@ -80,18 +83,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onTimerCancelled: (callback) => ipcRenderer.on('timer-cancelled-from-tray', callback),
     onWindowStateChanged: (callback) => ipcRenderer.on('window-state-changed', (event, state) => callback(state)),
     onTimerTick: (callback) => ipcRenderer.on('timer-tick', (event, data) => callback(data)),
+    getMiniLabels: () => ipcRenderer.invoke('get-mini-labels'),
     // WP-08.T3/T2: gerçek yürütme sonucu ve uykudan dönüş.
     onTaskExecuted: (callback) => ipcRenderer.on('task-executed', (event, data) => callback(data)),
     onTaskFailed: (callback) => ipcRenderer.on('task-failed', (event, data) => callback(data)),
     onSystemResumed: (callback) => ipcRenderer.on('system-resumed', () => callback()),
+    onRequestAutonomyChange: (callback) => ipcRenderer.on('request-autonomy-change', (event, mode) => callback(mode)),
+    onRequestTrayPinAction: (callback) => ipcRenderer.on('request-tray-pin-action', (event, reason) => callback(reason)),
+    togglePauseAll: (pin) => ipcRenderer.invoke('toggle-pause-all', pin === undefined ? undefined : { pin }),
+    quitApp: (pin) => ipcRenderer.invoke('quit-app', pin === undefined ? undefined : { pin }),
+    onRequestAiSilence: (callback) => ipcRenderer.on('request-ai-silence', (event, until) => callback(until)),
     onWarningStarted: (callback) => ipcRenderer.on('warning-started', (event, data) => callback(data)),
     onWarningTick: (callback) => ipcRenderer.on('warning-tick', (event, data) => callback(data)),
     // WBS-9.4: Banner kapatma — üç terminal olaydan biri.
+    // D-04: abonelikten çıkma fonksiyonu döner; HMR/yeniden yüklemede listener birikmez.
     onWarningEnded: (callback) => {
         const h = (event, data) => callback(data);
-        ipcRenderer.on('warning-cancelled', h);
-        ipcRenderer.on('warning-snoozed', h);
-        ipcRenderer.on('warning-finished', h);
+        const channels = ['warning-cancelled', 'warning-snoozed', 'warning-finished'];
+        channels.forEach((c) => ipcRenderer.on(c, h));
+        return () => channels.forEach((c) => ipcRenderer.removeListener(c, h));
     },
 
     // External link

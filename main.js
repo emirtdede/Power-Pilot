@@ -13,7 +13,8 @@ const {
     validateCancelPin, validateSecuritySettings, SECURITY_SETTING_KEYS
 } = require('./src/main/ipc/validate');
 const { PinGuard } = require('./src/main/ipc/pinGuard');
-const { cancelWarningAction, snoozeWarningAction } = require('./src/main/ipc/warningActions');
+const { cancelWarningAction, snoozeWarningAction, confirmWarningAction } = require('./src/main/ipc/warningActions');
+const { setCancelPinAction, clearCancelPinAction } = require('./src/main/ipc/cancelPinActions');
 const Pin = require('./src/main/security/Pin');
 const { SecretStore, SECRET_SETTING_FIELDS } = require('./src/main/security/SecretStore');
 const { runBackup } = require('./src/main/storage/DbWorker');
@@ -190,12 +191,13 @@ function scheduleTrayUpdate () {
     if (typeof trayUpdateTimer.unref === 'function') trayUpdateTimer.unref();
 }
 let isQuitting = false;
+let shutdownStarted = false;
 let isMiniWindowDismissed = false;
 
 // Instantiate Services
 let storageService, historyService, warningManager, safetyPolicyEngine, metricCollector, smartFinishEngine, taskManager, webhookService, localApiService, templateService, energyService, deviceService, aiBackend, modelManager, aiService, sttService, agentOrchestrator, deviceProfiler, sttModelManager;
 // FAZ B: kurumsal servis örnekleri
-let inventoryService, exemptionService, orderQueue, auditLog, consoleClient, orderExecutor;
+let inventoryService, exemptionService, orderQueue, auditLog, consoleClient, orderExecutor, upsMonitor;
 let consoleSyncTimer = null;
 let headlessHandle = null;
 
@@ -360,6 +362,27 @@ function startBackupSchedule() {
     backupTimer.unref?.();
 }
 
+// K-01: renderer'a asla ham sır/PIN özeti gönderilmez. Yalnızca whitelist
+// DTO + hangi sırların dolu olduğunu belirten boolean haritası döner.
+const RENDERER_SECRET_FIELDS = new Set([
+    'consoleAgentKey', 'localApiKeyPem', 'localApiPfxPassphrase',
+    'consoleClientKeyPem', 'consoleClientPfxPassphrase',
+    'cancelPinHash', 'cancelPinSalt'
+]);
+
+function toRendererSettings(settings) {
+    const out = {};
+    for (const [key, value] of Object.entries(settings || {})) {
+        if (RENDERER_SECRET_FIELDS.has(key)) continue;
+        out[key] = value;
+    }
+    out.secretPresence = {};
+    for (const key of RENDERER_SECRET_FIELDS) {
+        out.secretPresence[key] = typeof settings[key] === 'string' && settings[key].length > 0;
+    }
+    return out;
+}
+
 /**
  * WP-04: gelen ayar yamasından sır alanlarını ayırır. Kalan alanlar normal
  * ayar akışına gider; sırlar yalnızca SecretStore'a yazılır.
@@ -419,7 +442,7 @@ async function initServices() {
     let appVersion = '1.1.0';
     try { appVersion = require('./package.json').version || appVersion; } catch (_) {}
     // FAZ D: UPS izleyici (ayar kapalıysa sorgulanmaz).
-    let upsMonitor = null;
+    upsMonitor = null;
     try {
         const s0 = storageService.getSettings();
         upsMonitor = new UpsMonitor({ host: s0.upsHost || '127.0.0.1', ups: s0.upsName || 'ups' });
@@ -476,7 +499,32 @@ async function initServices() {
     }, 6 * 60 * 60 * 1000);
     maintenanceTimer.unref?.();
 
-    localApiService.start();
+    const apiStarted = await localApiService.start();
+    if (!apiStarted || apiStarted.ok === false) {
+        log.error('[IPC] Local API başlatılamadı:', apiStarted && apiStarted.code);
+    }
+
+    // P0/BLOCKER-001: `powercfg /requests` yükseltilmiş yetki ister; paket
+    // `asInvoker` çalışır. Yetenek yoksa kapı atlanır — bu GÖRÜNÜR olmalı:
+    // açılışta tek denetim kaydı + get-security-status + Ayarlar uyarısı.
+    try {
+        const cap = await safetyPolicyEngine.probePowerRequestCapability();
+        if (cap && cap.available === false) {
+            log.warn('[Safety] Aktif güç isteği ölçümü kullanılamıyor (yükseltme gerekli); checkSystemLoad kapısı atlanacak.');
+            try {
+                auditLog.append({
+                    actor: 'system',
+                    action: 'power_request_check_unavailable',
+                    target: 'safety-policy',
+                    detail: 'powercfg /requests yükseltilmiş yetki gerektiriyor; checkSystemLoad kapısı atlanıyor, diğer kapılar etkin.'
+                });
+            } catch (auditErr) {
+                log.warn('[Safety] Yetenek kaydı denetim günlüğüne yazılamadı:', auditErr && auditErr.message);
+            }
+        }
+    } catch (probeErr) {
+        log.warn('[Safety] Yetenek sondası başarısız:', probeErr && probeErr.message);
+    }
 
     // Wire up WarningManager events to UI
     const forwardWarning = (channel) => (data) => {
@@ -503,10 +551,10 @@ function startConsoleSync() {
     const tick = async () => {
         try {
             if (!consoleClient || !consoleClient.isConfigured()) return;
-            if (taskManager && taskManager.pausedAll) return;
             const res = await consoleClient.sync();
             if (res && res.disabled) return; // kill-switch: yalnızca heartbeat sürer
-            if (res && res.ok && orderQueue) {
+            // Y-03: duraklatma yalnızca icrayı engeller; heartbeat/sync sürer.
+            if (res && res.ok && !(taskManager && taskManager.pausedAll) && orderQueue) {
                 await orderExecutor.drain(orderQueue);
             } else if (res && !res.ok && res.code !== 'CONSOLE_UNREACHABLE') {
                 log.warn(`[ConsoleSync] ${res.code}: ${res.error || ''}`);
@@ -673,6 +721,18 @@ function createMiniWindow() {
     });
 }
 
+function showMainWindowForPin(reason) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+        mainWindow.webContents.send('request-tray-pin-action', reason);
+    }
+    if (tray) {
+        tray.displayBalloon({ title: 'Power Pilot', content: t('trayPinProtected') });
+    }
+}
+
 function createTray() {
     tray = new Tray(path.join(__dirname, 'powerpilot_icon.ico'));
 
@@ -703,22 +763,37 @@ function createTray() {
             { label: statusLabel, enabled: false },
             { label: modeLabel, enabled: false },
             { type: 'separator' },
-            { label: t('trayTogglePause'), click: () => { if (taskManager) taskManager.togglePauseAll(); scheduleTrayUpdate(); } },
+            { label: t('trayTogglePause'), click: () => {
+                // Y-02: PIN kuruluysa tray'den PIN'siz duraklatma yok.
+                if (settings.cancelPinHash) return showMainWindowForPin('pause');
+                try { if (taskManager) taskManager.togglePauseAll(); } catch (err) {
+                    log.error('[Tray] duraklatma kalıcılaştırılamadı:', err && err.message);
+                }
+                scheduleTrayUpdate();
+            } },
             {
                 label: mode === 'full' ? t('traySwitchClassic') : t('traySwitchFull'),
                 click: () => {
-                    if (storageService) {
-                        storageService.updateSettings({ autonomyMode: mode === 'full' ? 'classic' : 'full' });
-                        scheduleTrayUpdate();
-                    }
+                    // Y-05: otonomi modu güvenlik ayarıdır; tray doğrudan yazmaz,
+                    // PIN'li renderer akışını başlatır.
+                    if (!mainWindow || mainWindow.isDestroyed()) return;
+                    mainWindow.show();
+                    if (mainWindow.isMinimized()) mainWindow.restore();
+                    mainWindow.focus();
+                    mainWindow.webContents.send('request-autonomy-change',
+                        mode === 'full' ? 'classic' : 'full');
                 }
             },
             {
                 label: t('traySilenceAi'), click: () => {
-                    if (storageService) {
-                        storageService.updateSettings({ aiSilencedUntil: Date.now() + 86400000 });
-                        scheduleTrayUpdate();
+                    // L-11: sessizleştirme doğrulanmış ayar yolundan geçer; şema dışı yazım yok.
+                    const until = Date.now() + 86400000;
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('request-ai-silence', until);
+                    } else {
+                        setAiSilencedUntil(until).then(scheduleTrayUpdate).catch(() => {});
                     }
+                    scheduleTrayUpdate();
                 }
             },
             { label: t('trayCancelNearest'), click: () => {
@@ -745,7 +820,13 @@ function createTray() {
                 scheduleTrayUpdate();
             } },
             { type: 'separator' },
-            { label: t('trayQuit'), click: () => { isQuitting = true; app.quit(); } }
+            { label: t('trayQuit'), click: () => {
+                // Y-02: PIN kuruluysa çıkış PIN'li renderer akışına yönlendirilir;
+                // tray, PIN korumalı iptalin arka kapısı olamaz.
+                if (settings.cancelPinHash) return showMainWindowForPin('quit');
+                isQuitting = true;
+                app.quit();
+            } }
         ]);
         tray.setToolTip(t('trayTooltip'));
         tray.setContextMenu(contextMenu);
@@ -879,9 +960,12 @@ app.on('window-all-closed', function () {
 
 // WP-12: Temiz kapanış — interval/sunucu sızıntısı bırakma. Görev durumu
 // değiştirilmez; yarıda kalan işler açılışta recoverTasksOnStartup ile işaretlenir.
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+    // L-10: ilk kapanışta API/headless stop await edilir (timeout'lu).
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    event.preventDefault();
     isQuitting = true;
-    try { if (headlessHandle) headlessHandle.stop(); } catch (_) {}
     try { if (consoleSyncTimer) clearInterval(consoleSyncTimer); } catch (_) {}
     try { if (trayUpdateTimer) clearTimeout(trayUpdateTimer); } catch (_) {}
     trayUpdater = null;
@@ -891,14 +975,34 @@ app.on('before-quit', () => {
     try { if (taskManager && taskManager.loopInterval) clearInterval(taskManager.loopInterval); } catch (_) {}
     try { if (metricCollector && typeof metricCollector.stopSampling === 'function') metricCollector.stopSampling(); } catch (_) {}
     try { if (aiBackend && typeof aiBackend.close === 'function') aiBackend.close().catch(() => {}); } catch (_) {}
-    try { if (localApiService && typeof localApiService.stop === 'function') localApiService.stop().catch(() => {}); } catch (_) {}
+
+    const stops = [];
     try {
-        if (storageService && storageService.auditCheckpoint) {
-            storageService.auditCheckpoint.write(storageService.getAuditLog());
+        if (headlessHandle && typeof headlessHandle.stop === 'function') {
+            stops.push(Promise.resolve(headlessHandle.stop()).catch(() => {}));
         }
-    } catch (_) { /* checkpoint best-effort; quit'i engellemez */ }
-    try { if (storageService && typeof storageService.close === 'function') storageService.close(); } catch (_) {}
-    try { timers.clearAll(); } catch (_) {}
+    } catch (_) { /* yut */ }
+    try {
+        if (localApiService && typeof localApiService.stop === 'function') {
+            stops.push(Promise.resolve(localApiService.stop()).catch(() => {}));
+        }
+    } catch (_) { /* yut */ }
+
+    const finish = () => {
+        try {
+            if (storageService && storageService.auditCheckpoint) {
+                storageService.auditCheckpoint.write(storageService.getAuditLog(), { eventLog: false });
+            }
+        } catch (_) { /* checkpoint best-effort; quit'i engellemez */ }
+        try { if (storageService && typeof storageService.close === 'function') storageService.close(); } catch (_) {}
+        try { timers.clearAll(); } catch (_) {}
+        app.quit();
+    };
+    const timeout = new Promise((resolve) => {
+        const t = setTimeout(resolve, 5000);
+        if (t && typeof t.unref === 'function') t.unref();
+    });
+    Promise.race([Promise.allSettled(stops), timeout]).then(finish, finish);
 });
 
 // IPC Handlers
@@ -1000,6 +1104,13 @@ ipcOn('update-mini-timer', (event, data) => {
     }
 });
 
+// D-03: mini pencere tooltip'leri renderer'a hardcoded gitmez.
+ipcHandle('get-mini-labels', () => ({
+    miniHide: t('miniHide'),
+    miniRestore: t('miniRestore'),
+    miniCancel: t('miniCancel')
+}));
+
 ipcOn('hide-mini-widget', () => {
     isMiniWindowDismissed = true;
     if (miniWindow && !miniWindow.isDestroyed()) {
@@ -1065,20 +1176,59 @@ ipcHandle('snooze-task', async (event, payload) => {
     return { success: true, code: result.code, minutes: result.minutes };
 });
 // WBS-11.2: PIN yönetimi.
+// K-01: PIN zaten kuruluysa değiştirme/silme mevcut PIN doğrulaması ister.
+// Aksi halde yerel erişimi olan biri PIN'i sıfırlayıp korumalı işlemleri açabilir.
 ipcHandle('set-cancel-pin', async (event, args) => {
     const pin = args && args.pin;
+    const currentPin = args && args.currentPin;
     const check = validateCancelPin(pin);
     if (!check.ok) return { success: false, code: check.code, message: t('errorInvalidRequest') };
-    const hash = await Pin.hashPin(pin);
-    storageService.updateSettings({ cancelPinSalt: null, cancelPinHash: hash });
-    return { success: true };
+    return await setCancelPinAction({
+        pin,
+        currentPin,
+        requireCancelPin,
+        storageService,
+        auditLog,
+        t,
+        hashPin: Pin.hashPin
+    });
 });
-ipcHandle('clear-cancel-pin', () => {
-    storageService.updateSettings({ cancelPinSalt: null, cancelPinHash: null });
-    return { success: true };
+ipcHandle('clear-cancel-pin', async (event, args) => {
+    return await clearCancelPinAction({
+        currentPin: args && args.pin,
+        requireCancelPin,
+        storageService,
+        auditLog,
+        t
+    });
 });
 ipcHandle('get-cancel-pin-state', () => {
     return { set: !!storageService.getSettings().cancelPinHash };
+});
+// Y-02: tray duraklat/çıkış PIN'li renderer akışından gelir. PIN kuruluysa
+// bu IPC'ler de doğrulama ister (renderer güven sınırı değildir).
+ipcHandle('toggle-pause-all', async (event, args) => {
+    if (storageService.getSettings().cancelPinHash) {
+        const pinCheck = await requireCancelPin(args && args.pin);
+        if (pinCheck) return pinCheck;
+    }
+    try {
+        const paused = taskManager.togglePauseAll();
+        scheduleTrayUpdate();
+        return { success: true, paused };
+    } catch (err) {
+        log.error('[IPC] duraklatma kalıcılaştırılamadı:', err && err.message);
+        return { success: false, code: (err && err.code) || 'PAUSE_PERSIST_FAILED', message: t('errorSaveFailed') };
+    }
+});
+ipcHandle('quit-app', async (event, args) => {
+    if (storageService.getSettings().cancelPinHash) {
+        const pinCheck = await requireCancelPin(args && args.pin);
+        if (pinCheck) return pinCheck;
+    }
+    isQuitting = true;
+    setImmediate(() => app.quit());
+    return { success: true };
 });
 
 ipcHandle('get-history', (event, filter) => historyService.getHistory(filter));
@@ -1203,9 +1353,14 @@ ipcHandle('warning-snooze', async (event, payload) => {
         t
     });
 });
-ipcHandle('warning-confirm', () => {
-    warningManager.finishWarning(true, false);
-    return { success: true };
+ipcHandle('warning-confirm', (event, args) => {
+    // K-02: renderer hangi uyarıyı gördüğünü bildirir; PIN beklerken uyarı
+    // değiştiyse eski tıklama yeni görevi onaylamaz (TOCTOU).
+    return confirmWarningAction({
+        taskId: args && args.taskId,
+        warningManager,
+        t
+    });
 });
 // WBS-8.3: STT IPC — örnekler 16kHz mono olmalı (istemci yeniden örnekler).
 ipcHandle('stt-status', () => sttService.getStatus());
@@ -1256,7 +1411,7 @@ ipcHandle('ai-model-unload', async () => {
     return { success: true, ...aiBackend.getStatus() };
 });
 
-ipcHandle('get-settings', () => storageService.getSettings());
+ipcHandle('get-settings', () => toRendererSettings(storageService.getSettings()));
 
 // WP-14.T2: renderer yalnızca aktif dil sözlüğünü alır.
 ipcHandle('get-locale', (_event, language) => {
@@ -1268,6 +1423,41 @@ ipcHandle('get-locale', (_event, language) => {
         return { ok: false, code: 'LOCALE_LOAD_FAILED' };
     }
 });
+
+/** L-11: AI sessizleştirme aralığı doğrulanır ve denetimli ayar yolundan yazılır. */
+async function setAiSilencedUntil(until) {
+    const now = Date.now();
+    const MAX_SILENCE_MS = 7 * 86400000;
+    if (!Number.isFinite(until) || until < now || until > now + MAX_SILENCE_MS) {
+        return { success: false, code: 'INVALID_SILENCE_WINDOW', message: t('errorInvalidRequest') };
+    }
+    const current = storageService.getSettings();
+    const check = validateSettings({ aiSilencedUntil: until }, current);
+    if (!check.ok) {
+        return { success: false, code: check.code, message: t('errorInvalidRequest') };
+    }
+    return applySettingsPatch({ aiSilencedUntil: until }, current, 'ai_silenced');
+}
+
+/** O-16: UPS ayarları değişince izleyici yeniden oluşturulur. */
+function recreateUpsMonitor(settings) {
+    try {
+        if (upsMonitor) {
+            try { upsMonitor.close(); } catch (_) { /* yut */ }
+        }
+        upsMonitor = new UpsMonitor({
+            host: (settings && settings.upsHost) || '127.0.0.1',
+            ups: (settings && settings.upsName) || 'ups'
+        });
+    } catch (err) {
+        upsMonitor = null;
+        log.warn('[UPS] izleyici oluşturulamadı:', err && err.message);
+    }
+    if (inventoryService) {
+        inventoryService.upsMonitor = upsMonitor;
+        inventoryService._cache = null;
+    }
+}
 
 /** Ortak uygulama yolu: ayarları + sırları atomik-ish uygular, hatada geri alır. */
 async function applySettingsPatch(newSettings, current, auditAction) {
@@ -1281,7 +1471,12 @@ async function applySettingsPatch(newSettings, current, auditAction) {
     const previousSecrets = {};
     for (const field of secretFields) previousSecrets[field] = current[field] || null;
     try {
-        if (Object.keys(rest).length > 0) storageService.updateSettings(rest);
+        if (Object.keys(rest).length > 0) {
+            const persisted = storageService.updateSettings(rest);
+            if (persisted === false) {
+                throw Object.assign(new Error('Ayarlar diske yazılamadı.'), { code: 'SETTINGS_PERSIST_FAILED' });
+            }
+        }
         if (secretFields.length > 0) {
             if (!secretStore) {
                 throw Object.assign(new Error('Sır deposu kullanılamıyor.'), { code: 'SECRET_BACKEND_UNAVAILABLE' });
@@ -1318,6 +1513,9 @@ async function applySettingsPatch(newSettings, current, auditAction) {
                 throw Object.assign(new Error(`API yeniden başlatılamadı: ${started.code}`), { code: started.code });
             }
         }
+        if (rest.upsHost !== undefined || rest.upsName !== undefined || rest.upsEnabled !== undefined) {
+            recreateUpsMonitor(storageService.getSettings());
+        }
         if (auditAction) {
             try {
                 auditLog.append({
@@ -1327,11 +1525,16 @@ async function applySettingsPatch(newSettings, current, auditAction) {
                     detail: `fields=${Object.keys(rest).length}`
                 });
             } catch (auditErr) {
-                log.warn('[IPC] ayar denetim kaydı yazılamadı:', auditErr && auditErr.message);
+                // O-13: güvenlik ayarı denetlenemeden yürürlüğe girmez.
+                log.warn('[IPC] güvenlik ayarı denetim kaydı yazılamadı:', auditErr && auditErr.message);
+                throw Object.assign(
+                    new Error('Güvenlik ayarı denetim kaydı yazılamadı.'),
+                    { code: 'AUDIT_WRITE_FAILED', cause: auditErr }
+                );
             }
         }
         scheduleTrayUpdate();
-        return { success: true, settings: storageService.getSettings() };
+        return { success: true, settings: toRendererSettings(storageService.getSettings()) };
     } catch (err) {
         // WP-10: yarım kalmış yapılandırma bırakma; önceki ayarlara dön.
         log.error('[IPC] save-settings uygulanamadı, geri alınıyor:', err && err.message);
@@ -1348,6 +1551,9 @@ async function applySettingsPatch(newSettings, current, auditAction) {
             if (needsRestart) {
                 await localApiService.restart();
             }
+            if (rest.upsHost !== undefined || rest.upsName !== undefined || rest.upsEnabled !== undefined) {
+                recreateUpsMonitor(storageService.getSettings());
+            }
         } catch (_) { /* rollback best-effort */ }
         return { success: false, code: err && err.code ? err.code : 'SETTINGS_APPLY_FAILED', message: t('errorSettingsApplyReverted') };
     }
@@ -1362,6 +1568,40 @@ ipcHandle('save-settings', async (event, newSettings) => {
         return { success: false, code: check.code, message: t('errorInvalidRequest') };
     }
     return applySettingsPatch(newSettings, current, null);
+});
+
+// O-20: dil/enerji + otonomi tek atomik yazımda. PIN doğrulanmadan hiçbir
+// sunucu ayarı değişmez; PIN iptalinde kısmi kayıt oluşmaz.
+ipcHandle('save-settings-atomic', async (event, payload) => {
+    const patch = payload && typeof payload === 'object' ? payload.settings : null;
+    const pin = payload && typeof payload === 'object' ? payload.pin : null;
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+        return { success: false, code: 'INVALID_REQUEST', message: t('errorInvalidRequest') };
+    }
+    const current = storageService.getSettings();
+    const securityPatch = {};
+    const regularPatch = {};
+    for (const key of Object.keys(patch)) {
+        if (SECURITY_SETTING_KEYS.includes(key)) securityPatch[key] = patch[key];
+        else regularPatch[key] = patch[key];
+    }
+    if (Object.keys(regularPatch).length > 0) {
+        const check = validateSettings(regularPatch, current);
+        if (!check.ok) {
+            log.warn(`[IPC] save-settings-atomic reddedildi: ${check.error}`);
+            return { success: false, code: check.code, message: t('errorInvalidRequest') };
+        }
+    }
+    if (Object.keys(securityPatch).length > 0) {
+        const check = validateSecuritySettings(securityPatch, current);
+        if (!check.ok) {
+            log.warn(`[IPC] save-settings-atomic reddedildi: ${check.error}`);
+            return { success: false, code: check.code, message: t('errorInvalidRequest') };
+        }
+        const pinError = await requireSecurityPin(pin);
+        if (pinError) return pinError;
+    }
+    return applySettingsPatch(patch, current, Object.keys(securityPatch).length > 0 ? 'settings_security_updated' : null);
 });
 
 // WP-10.T4: güvenlik ayarları yalnızca PIN doğrulandıktan sonra yazılır.
@@ -1390,32 +1630,82 @@ ipcHandle('security-settings-update', async (event, payload) => {
 ipcHandle('generate-api-key', async (event, args) => {
     const pinError = await requireSecurityPin(args && args.pin);
     if (pinError) return pinError;
-    const role = args && typeof args.role === 'string' ? args.role : 'admin';
-    const safeRole = ['viewer', 'operator', 'admin'].includes(role) ? role : 'admin';
-    const rawKey = localApiService.generateApiKey(safeRole);
-    auditLog.append({ actor: 'local_user', action: 'api_key_generated', target: 'local-api', detail: safeRole });
+    const role = args && typeof args.role === 'string' ? args.role : 'viewer';
+    const safeRole = ['viewer', 'operator', 'admin'].includes(role) ? role : 'viewer';
+    const current = storageService.getSettings();
+    const previousKey = {
+        localApiKeyHash: current.localApiKeyHash,
+        localApiKeyMasked: current.localApiKeyMasked,
+        localApiKeyCreatedAt: current.localApiKeyCreatedAt,
+        localApiKeyRole: current.localApiKeyRole
+    };
+    let rawKey;
+    try {
+        rawKey = localApiService.generateApiKey(safeRole);
+    } catch (err) {
+        log.error('[IPC] API anahtarı kalıcılaştırılamadı:', err && err.message);
+        return { success: false, code: (err && err.code) || 'SETTINGS_PERSIST_FAILED', message: t('errorSaveFailed') };
+    }
+    try {
+        // O-13: anahtar üretimi denetlenemeden geçerli olmaz; hata halinde
+        // önceki anahtar alanları geri yüklenir.
+        auditLog.append({ actor: 'local_user', action: 'api_key_generated', target: 'local-api', detail: safeRole });
+    } catch (auditErr) {
+        try { storageService.updateSettings(previousKey); } catch (_) { /* geri alma best-effort */ }
+        log.warn('[IPC] API anahtarı denetim kaydı yazılamadı:', auditErr && auditErr.message);
+        return { success: false, code: 'AUDIT_WRITE_FAILED', message: t('errorSettingsApplyReverted') };
+    }
     return rawKey;
 });
 // FAZ B: kurumsal IPC — envanter, konsol senkronu, denetim (tümü salt-okunur + tetikleme;
 // muafiyet YAZMA yalnızca LocalAPI admin anahtarıyla, IPC'den değil).
 ipcHandle('get-inventory', async () => {
     try {
-        return { ok: true, inventory: await inventoryService.collect() };
+        // Kullanıcı tetiklemeli envanter yenileme cache'i atlar.
+        return { ok: true, inventory: await inventoryService.collect({ force: true }) };
     } catch (err) {
         return { ok: false, code: 'INVENTORY_FAILED', message: (err && err.message) || t('errorInventoryFailed') };
     }
 });
 ipcHandle('get-exemptions', () => ({ exemptions: exemptionService.list(), windows: exemptionService.windows() }));
-ipcHandle('get-security-status', () => localApiService.getSecurityStatus());
-ipcHandle('get-audit', () => ({ audit: auditLog.load(), verify: auditLog.verify() }));
+ipcHandle('get-security-status', () => {
+    const status = localApiService.getSecurityStatus();
+    // P0/BLOCKER-001: yetenek durumu UI'da görünür olmalı (kapı atlandıysa).
+    const cap = safetyPolicyEngine && typeof safetyPolicyEngine.getPowerRequestCapability === 'function'
+        ? safetyPolicyEngine.getPowerRequestCapability()
+        : { available: null, checkedAt: null, code: null };
+    return {
+        ...status,
+        powerRequestCheck: { available: cap.available, code: cap.code, checkedAt: cap.checkedAt }
+    };
+});
+ipcHandle('get-audit', (event, args = {}) => {
+    // O-06: UI yalnızca görünen sayfayı ister; doğrulama ayrı çağrıyla yapılır.
+    const limit = Math.min(500, Math.max(1, Number(args && args.limit) || 100));
+    const beforeSeq = Number(args && args.beforeSeq) || null;
+    const out = { audit: auditLog.load({ limit, beforeSeq }), limit };
+    if (args && args.verify === true) out.verify = auditLog.verify();
+    return out;
+});
 ipcHandle('console-sync', async () => {
     if (!consoleClient.isConfigured()) {
         return { ok: false, code: 'NOT_CONFIGURED', message: t('errorConsoleNotConfigured') };
     }
     const res = await consoleClient.sync();
-    if (res.ok) {
+    // Y-04: kill-switch manuel yolda da geçerli; disabled yanıtında kuyruk boşaltılmaz.
+    if (res && res.ok && !res.disabled) {
         const drained = await orderExecutor.drain(orderQueue);
         return { ...res, drained };
+    }
+    if (res && res.disabled) {
+        try {
+            auditLog.append({
+                actor: 'user_interface',
+                action: 'agent_disabled_sync_skipped',
+                target: 'console',
+                detail: 'Konsol ajanı devre dışı; manuel senkron icra etmedi.'
+            });
+        } catch (_) { /* denetim best-effort */ }
     }
     return res;
 });

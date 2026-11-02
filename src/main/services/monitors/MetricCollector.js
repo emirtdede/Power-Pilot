@@ -33,6 +33,8 @@ class MetricCollector {
         this.processProvider = typeof options.processProvider === 'function' ? options.processProvider : null;
         this.idleProvider = typeof options.idleProvider === 'function' ? options.idleProvider : null;
         this.powerMonitor = options.powerMonitor || null;
+        // Test/DI: systeminformation okumaları enjekte edilebilir (üretimde gerçek modül).
+        this.si = options.si || si;
         this.now = typeof options.now === 'function' ? options.now : Date.now;
         this.processListMaxAgeMs = options.processListMaxAgeMs || 15000;
         // WP-16: fastlist/ps-list yalnızca gerektiğinde ve daha seyrek çağrılır.
@@ -120,12 +122,19 @@ class MetricCollector {
                 // Tüketici yokken eski liste "taze" görünmemeli: fail-closed.
                 this.currentMetrics.processListStale = true;
             }
+            // O-10: alt işler ayrı tutulur; timeout sonrası yeni tick başlamadan
+            // önce hepsinin bitmesi beklenir (üst üste WMI/PowerShell çağrısı yok).
+            const idleTask = this.sampleIdle();
+            const networkTask = this.sampleNetwork();
+            const disksTask = this.sampleDisks();
+            const batteryTask = this.sampleBattery();
+            const underlying = Promise.allSettled([processTask, idleTask, networkTask, disksTask, batteryTask]);
             const results = await Promise.allSettled([
                 this.withTimeout(processTask),
-                this.withTimeout(this.sampleIdle()),
-                this.withTimeout(this.sampleNetwork()),
-                this.withTimeout(this.sampleDisks()),
-                this.withTimeout(this.sampleBattery())
+                this.withTimeout(idleTask),
+                this.withTimeout(networkTask),
+                this.withTimeout(disksTask),
+                this.withTimeout(batteryTask)
             ]);
             failed = results.some((r) => r.status === 'rejected');
             this.sampleCount += 1;
@@ -133,6 +142,7 @@ class MetricCollector {
             // İlk 2 örnek + başarısız/geciken örnek stale sayılır (fail-closed).
             this.currentMetrics.stale = this.sampleCount < 3 || failed || elapsed >= this.sampleTimeoutMs;
             this.currentMetrics.sampledAt = new Date().toISOString();
+            await underlying.catch(() => {});
             return true;
         } finally {
             this._sampling = false;
@@ -242,7 +252,7 @@ class MetricCollector {
     async sampleNetwork() {
         // Network: tüm fiziksel + sanal arayüzlerin toplamı (VPN dahil).
         try {
-            const netStats = await si.networkStats('*');
+            const netStats = await this.si.networkStats('*');
             const list = Array.isArray(netStats) ? netStats : [netStats];
             let rxBytesSec = 0, txBytesSec = 0;
             for (const iface of list) {
@@ -259,7 +269,7 @@ class MetricCollector {
 
     async sampleDisks() {
         try {
-            const disks = await si.disksIO();
+            const disks = await this.si.disksIO();
             const rSec = typeof disks.rIO_sec === 'number' && disks.rIO_sec > 0 ? disks.rIO_sec : 0;
             const wSec = typeof disks.wIO_sec === 'number' && disks.wIO_sec > 0 ? disks.wIO_sec : 0;
             // WP-13.T3: `disksIO` saniyedeki IOPS döndürür; KB/sn değildir.
@@ -273,7 +283,7 @@ class MetricCollector {
         if (this._lastBatteryAt && (now - this._lastBatteryAt) < this.batteryIntervalMs) return;
         this._lastBatteryAt = now;
         try {
-            const battery = await si.battery();
+            const battery = await this.si.battery();
             if (battery && battery.hasBattery === true) {
                 this.currentMetrics.batterySupported = true;
                 this.currentMetrics.batteryLevelPercent = typeof battery.percent === 'number' ? battery.percent : null;

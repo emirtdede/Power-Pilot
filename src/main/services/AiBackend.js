@@ -128,17 +128,24 @@ class AiBackend {
             return { loaded: false, code: 'MODEL_MISSING', path: modelPath };
         }
         this.loading = true;
+        // O-17: yerel değişkenlerle yükle; hata halinde native model/context dispose edilir.
+        let model = null;
+        let context = null;
         try {
             await this.unload();
             const llama = await this.ensureLlama();
-            this.model = await llama.loadModel({ modelPath });
-            this.context = await this.model.createContext(ASSISTANT_CONTEXT_OPTIONS);
+            model = await llama.loadModel({ modelPath });
+            context = await model.createContext(ASSISTANT_CONTEXT_OPTIONS);
+            this.model = model;
+            this.context = context;
             this.modelId = modelFile;
             log.info(`[AiBackend] model yüklendi: ${modelFile}`);
             this.touch();
             return { loaded: true, code: 'READY', modelId: this.modelId };
         } catch (err) {
             log.error('[AiBackend] yükleme hatası:', err && err.message);
+            try { if (context && typeof context.dispose === 'function') await context.dispose(); } catch (_) { /* yut */ }
+            try { if (model && typeof model.dispose === 'function') await model.dispose(); } catch (_) { /* yut */ }
             this.model = null;
             this.context = null;
             this.modelId = null;

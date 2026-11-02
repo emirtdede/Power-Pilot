@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS queues (
 );
 CREATE INDEX IF NOT EXISTS idx_queues_agent_state ON queues(agent_id, state);
 CREATE INDEX IF NOT EXISTS idx_queues_expires ON queues(expires_at);
+CREATE INDEX IF NOT EXISTS idx_queues_state_created ON queues(state, created_at);
 
 -- WP-03.T4: (nonce, agent_id) tekil → aynı makbuz idempotent.
 CREATE TABLE IF NOT EXISTS receipts (
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS receipts (
     received_at TEXT NOT NULL,
     PRIMARY KEY (nonce, agent_id)
 );
+CREATE INDEX IF NOT EXISTS idx_receipts_received ON receipts(received_at);
 
 CREATE TABLE IF NOT EXISTS audit (
     seq       INTEGER PRIMARY KEY,
@@ -55,6 +57,7 @@ CREATE TABLE IF NOT EXISTS audit (
     prev_hash TEXT NOT NULL,
     hash      TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit(ts);
 
 CREATE TABLE IF NOT EXISTS keys (
     hash       TEXT PRIMARY KEY,

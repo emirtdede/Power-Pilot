@@ -40,6 +40,8 @@ const IDEMPOTENCY_MAX_ENTRIES = 500;
 
 // FAZ A: rol hiyerarşisi + uç başına asgari rol.
 const ROLE_RANK = { viewer: 1, operator: 2, admin: 3 };
+// O-05: kullanıcı aktifken uzaktan engellenen tüm yıkıcı güç eylemleri.
+const REMOTE_BLOCKED_ACTIONS = new Set(['shutdown', 'restart', 'sleep', 'hibernate', 'signout', 'lock']);
 const API_KEY_ROTATION_DAYS = 90;
 // WBS-0.4 / WP-01: rate-limit belleği sınırsız büyümez.
 const RATE_LIMIT_WINDOW_MS = 60000;
@@ -57,7 +59,8 @@ class LocalApiService {
         this.server = null;
         this.transport = 'disabled'; // disabled|http|https (getSecurityStatus için)
         this.boundHost = null;
-        this.requestCounts = new Map(); // Rate limiting: IP -> timestamp list
+        this.requestCounts = new Map(); // Rate limiting: IP:keyHash -> timestamp list
+        this.authFailures = new Map(); // O-02: IP -> başarısız auth zamanları
         this.idempotencyCache = new Map(); // Key -> response
         this.diagnostics = {
             aclAllowed: 0,
@@ -123,10 +126,14 @@ class LocalApiService {
 
     static roleOf(settings) {
         const r = settings && settings.localApiKeyRole;
-        return ROLE_RANK[r] ? r : 'admin';
+        // L-06/Y-06: bilinmeyen/boş rol varsayılana düşmez; fail-closed.
+        return ROLE_RANK[r] ? r : null;
     }
 
     static requiredRole(method, path) {
+        // O-06: denetim kaydı hassas alanlar içerir; yalnızca admin okuyabilir.
+        // Viewer'a özet/doğrulama sonucu bile verilmez (ayrı yetki yok).
+        if (path === '/api/v1/audit' || path === '/api/v1/audit/verify') return 'admin';
         if (method === 'GET') return 'viewer';
         // FAZ B: muafiyet/pencere yönetimi yalnızca admin (operator veremez/silemez).
         if (path === '/api/v1/exemptions' || path === '/api/v1/maintenance-windows') return 'admin';
@@ -152,7 +159,7 @@ class LocalApiService {
      */
     isRemoteShutdownBlocked(settings, action) {
         if (!settings || settings.blockRemoteShutdownWhenActive !== true) return false;
-        if (action !== 'shutdown' && action !== 'restart') return false;
+        if (!REMOTE_BLOCKED_ACTIONS.has(action)) return false;
         try {
             if (typeof this.deps.idleProvider === 'function') {
                 const secs = Number(this.deps.idleProvider());
@@ -195,7 +202,7 @@ class LocalApiService {
         };
     }
 
-    start() {
+    async start() {
         const settings = this.storage.getSettings();
         if (!settings.localApiEnabled) {
             log.info('[LocalApiService] API is disabled in settings.');
@@ -243,29 +250,47 @@ class LocalApiService {
         this.server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS;
         this.server.maxHeadersCount = MAX_HEADERS;
 
-        let fallbackTried = false;
-        const bind = (bindHost) => {
-            this.boundHost = bindHost;
-            this.server.listen({ port, host: bindHost, ipv6Only: false }, () => {
-                log.info(`[LocalApiService] Running (${this.transport}) on ${bindHost}:${port}`);
-            });
-        };
-
-        this.server.on('error', (err) => {
-            log.error('[LocalApiService] Server error:', err.message);
-            const noIpv6 = err && (err.code === 'EAFNOSUPPORT' || err.code === 'EADDRNOTAVAIL');
-            if (!fallbackTried && host === '::' && noIpv6) {
-                fallbackTried = true;
-                try {
-                    this.server.close(() => bind('0.0.0.0'));
-                } catch (_) {
-                    bind('0.0.0.0');
-                }
-            }
+        const bind = (bindHost) => new Promise((resolve, reject) => {
+            const onError = (err) => { cleanup(); reject(err); };
+            const onListening = () => { cleanup(); resolve(); };
+            const cleanup = () => {
+                this.server.off('error', onError);
+                this.server.off('listening', onListening);
+            };
+            this.server.once('error', onError);
+            this.server.once('listening', onListening);
+            this.server.listen({ port, host: bindHost, ipv6Only: false });
         });
 
-        bind(host);
-        return { ok: true, transport: this.transport, host };
+        // O-01: bind sonucu beklenir; EADDRINUSE/EACCES çağırana hata olarak döner.
+        try {
+            try {
+                await bind(host);
+                this.boundHost = host;
+            } catch (err) {
+                const noIpv6 = err && (err.code === 'EAFNOSUPPORT' || err.code === 'EADDRNOTAVAIL');
+                if (host === '::' && noIpv6) {
+                    await bind('0.0.0.0');
+                    this.boundHost = '0.0.0.0';
+                } else {
+                    throw err;
+                }
+            }
+        } catch (err) {
+            log.error('[LocalApiService] Bind hatası:', err && err.message);
+            const failed = this.server;
+            this.server = null;
+            this.transport = 'disabled';
+            this.boundHost = null;
+            try { if (failed) failed.close(() => {}); } catch (_) { /* yut */ }
+            return { ok: false, code: (err && err.code) || 'API_START_FAILED', message: err && err.message };
+        }
+
+        this.server.on('error', (err) => {
+            log.error('[LocalApiService] Server error:', err && err.message);
+        });
+        log.info(`[LocalApiService] Running (${this.transport}) on ${this.boundHost}:${port}`);
+        return { ok: true, transport: this.transport, host: this.boundHost };
     }
 
     /**
@@ -311,17 +336,21 @@ class LocalApiService {
     }
 
     generateApiKey(role = 'admin') {
-        const safeRole = ROLE_RANK[role] ? role : 'admin';
+        // Y-06: geçersiz rol en yüksek yetkiye düşmez.
+        const safeRole = ROLE_RANK[role] ? role : 'viewer';
         const rawKey = `pp_key_${crypto.randomBytes(24).toString('hex')}`;
         const hash = crypto.createHash('sha256').update(rawKey).digest('hex');
         const masked = `${rawKey.substr(0, 10)}...${rawKey.substr(-4)}`;
 
-        this.storage.updateSettings({
+        const saved = this.storage.updateSettings({
             localApiKeyHash: hash,
             localApiKeyMasked: masked,
             localApiKeyCreatedAt: Date.now(), // Plan kapanışı: 90-gün rotasyon hatırlatması için
             localApiKeyRole: safeRole
         });
+        if (saved === false) {
+            throw Object.assign(new Error('API anahtarı kalıcılaştırılamadı.'), { code: 'SETTINGS_PERSIST_FAILED' });
+        }
 
         return rawKey; // Return once to user for display
     }
@@ -340,14 +369,6 @@ class LocalApiService {
         }
         this.diagnostics.aclAllowed += 1;
 
-        // Rate limiting: max 60 requests per minute per IP (WBS-0.4: kod+ doküman eşit).
-        // 60 = CLI 5sn polling + n8n burst toleransı. ACL'den SONRA çalışır;
-        // yetkisiz IP'ler rate-limit map'ini büyütemez.
-        if (this.isRateLimited(remoteIp)) {
-            this.diagnostics.rateLimited += 1;
-            return this.sendJson(res, 429, { error: 'Rate limit exceeded. Try again later.' });
-        }
-
         // FAZ A: mTLS istemci sertifikası (gerekiyorsa API anahtarından ÖNCE bakılır).
         if (!this.isClientCertOk(req, settings)) {
             // WP-02.T11: iptal edilen istemcinin keep-alive bağlantısı da kapanır.
@@ -360,21 +381,37 @@ class LocalApiService {
         // Authentication Check
         const apiKeyHeader = req.headers['x-api-key'] || this.extractBearerToken(req.headers['authorization']);
         if (!apiKeyHeader) {
-            return this.sendJson(res, 401, { error: 'Missing API key header (X-API-Key or Authorization Bearer)' });
+            return this.rejectAuth(res, remoteIp);
         }
 
         const providedHash = crypto.createHash('sha256').update(apiKeyHeader).digest('hex');
         // WP-01.T8 / M-01: sabit zamanlı karşılaştırma (uzunluk sızıntısı yok).
         if (!safeCompare(providedHash, settings.localApiKeyHash || '')) {
-            return this.sendJson(res, 401, { error: 'Invalid API key' });
+            return this.rejectAuth(res, remoteIp);
+        }
+
+        // O-02: başarılı auth sonrası anahtar+IP bazlı limit; meşru istemci
+        // başka bir istemcinin brute-force denemelerinden etkilenmez.
+        this.authFailures.delete(remoteIp);
+        const rateKey = `${remoteIp}:${providedHash.slice(0, 16)}`;
+        if (this.isRateLimited(rateKey)) {
+            this.diagnostics.rateLimited += 1;
+            return this.sendJson(res, 429, { error: 'Rate limit exceeded. Try again later.', code: 'RATE_LIMITED' });
         }
 
         const role = LocalApiService.roleOf(settings);
 
         // Parse URL & Body
-        const parsedUrl = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
+        let parsedUrl;
+        try {
+            // O-05: Host başlığı URL tabanı olarak KULLANILMAZ; sabit loopback
+            // tabanı path/query ayrıştırması için yeterlidir.
+            parsedUrl = new URL(req.url, 'http://127.0.0.1');
+        } catch (_) {
+            return this.sendJson(res, 400, { error: 'Invalid URL', code: 'BAD_URL' });
+        }
         const pathname = parsedUrl.pathname;
-        const method = req.method.toUpperCase();
+        const method = String(req.method || 'GET').toUpperCase();
 
         // WP-02.T7: gövde taşıyan metotlarda JSON içerik tipi zorunlu.
         const contentType = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
@@ -382,18 +419,9 @@ class LocalApiService {
             return this.sendJson(res, 415, { error: 'Content-Type must be application/json', code: 'UNSUPPORTED_MEDIA_TYPE' });
         }
 
-        // WP-02.T8 / L-03: Idempotency-Key aynı yanıtı döndürür.
+        // WP-02.T8 / L-03: Idempotency-Key aynı yanıtı döndürür. O-03: anahtar
+        // metot + yol + gövde + API anahtarı parmak iziyle kapsamlanır.
         const idemKey = typeof req.headers['idempotency-key'] === 'string' ? req.headers['idempotency-key'] : null;
-        if (idemKey) {
-            this.pruneIdempotency();
-            const cached = this.idempotencyCache.get(idemKey);
-            if (cached) return this.sendJson(res, cached.status, cached.body);
-            if (this.idempotencyCache.size >= IDEMPOTENCY_MAX_ENTRIES) {
-                const oldest = this.idempotencyCache.keys().next().value;
-                if (oldest !== undefined) this.idempotencyCache.delete(oldest);
-            }
-            res.__ppIdempotencyKey = idemKey;
-        }
 
         let bodyRaw = '';
         let bodyBytes = 0;
@@ -421,9 +449,28 @@ class LocalApiService {
                 }
             }
 
+            if (idemKey) {
+                const bodyHash = crypto.createHash('sha256').update(bodyRaw).digest('hex');
+                const cacheKey = [
+                    method,
+                    pathname,
+                    bodyHash,
+                    providedHash.slice(0, 16),
+                    idemKey
+                ].join(':');
+                this.pruneIdempotency();
+                const cached = this.idempotencyCache.get(cacheKey);
+                if (cached) return this.sendJson(res, cached.status, cached.body);
+                if (this.idempotencyCache.size >= IDEMPOTENCY_MAX_ENTRIES) {
+                    const oldest = this.idempotencyCache.keys().next().value;
+                    if (oldest !== undefined) this.idempotencyCache.delete(oldest);
+                }
+                res.__ppIdempotencyKey = cacheKey;
+            }
+
             // Denetim: yönlendirici istisnası süreci ÖLDÜRMEZ (500 + log).
             try {
-                const out = this.route(method, pathname, body, res, { role });
+                const out = this.route(method, pathname, body, res, { role, url: parsedUrl });
                 if (out && typeof out.catch === 'function') {
                     out.catch((err) => {
                         log.error('[LocalApiService] asenkron uç hatası:', err && err.message);
@@ -438,8 +485,10 @@ class LocalApiService {
     }
 
     extractBearerToken(authHeader) {
-        if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-        return authHeader.split(' ')[1];
+        // L-06: şema büyük/küçük harf duyarsız; token trim edilir.
+        if (typeof authHeader !== 'string') return null;
+        const m = authHeader.match(/^Bearer\s+(.+)$/i);
+        return m ? m[1].trim() : null;
     }
 
     pruneRateLimit(now = Date.now()) {
@@ -474,6 +523,24 @@ class LocalApiService {
         return false;
     }
 
+    /** O-02: başarısız auth denemeleri için ayrı, daha küçük sayaç (IP başına 10/dk). */
+    rejectAuth(res, remoteIp) {
+        const now = Date.now();
+        const list = (this.authFailures.get(remoteIp) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+        list.push(now);
+        this.authFailures.set(remoteIp, list);
+        while (this.authFailures.size > RATE_LIMIT_MAX_KEYS) {
+            const oldest = this.authFailures.keys().next().value;
+            if (oldest === undefined) break;
+            this.authFailures.delete(oldest);
+        }
+        if (list.length > 10) {
+            try { res.setHeader('Retry-After', '60'); } catch (_) { /* yut */ }
+            return this.sendJson(res, 429, { error: 'Too many authentication failures. Try again later.', code: 'AUTH_RATE_LIMITED' });
+        }
+        return this.sendJson(res, 401, { error: 'Invalid API key', code: 'UNAUTHORIZED' });
+    }
+
     pruneIdempotency(now = Date.now()) {
         for (const [key, entry] of this.idempotencyCache.entries()) {
             if (!entry || !Number.isFinite(entry.expiresAt) || entry.expiresAt <= now) {
@@ -483,7 +550,10 @@ class LocalApiService {
     }
 
     route(method, path, body, res, ctx = {}) {
-        const role = ROLE_RANK[ctx.role] ? ctx.role : 'admin'; // ctx yoksa admin (geriye uyumlu)
+        // Y-06/L-06: rol yoksa veya bilinmiyorsa hiçbir uç yetkili değildir.
+        const role = ROLE_RANK[ctx.role] ? ctx.role : null;
+        // O-06: query parametreleri (limit/offset/beforeSeq/verify) için URL bağlamı.
+        const parsedUrl = ctx.url instanceof URL ? ctx.url : new URL(String(path), 'http://127.0.0.1');
         const settings = this.storage.getSettings();
 
         // FAZ A: rol kapısı — bilinmeyen yola 404 (yetki sızıntısı yok).
@@ -496,12 +566,13 @@ class LocalApiService {
             || path === '/api/v1/exemptions'
             || path === '/api/v1/maintenance-windows'
             || path === '/api/v1/audit'
+            || path === '/api/v1/audit/verify'
             || (typeof path === 'string' && path.match(/^\/api\/v1\/(tasks\/[^\/]+\/cancel|exemptions\/[^\/]+|maintenance-windows\/[^\/]+)$/))
             || (typeof path === 'string' && path.startsWith('/api/v1/power/'));
         if (KNOWN) {
             const need = LocalApiService.requiredRole(method, path);
-            if (ROLE_RANK[role] < ROLE_RANK[need]) {
-                return this.sendJson(res, 403, { error: `Role '${role}' insufficient (requires '${need}')`, code: 'FORBIDDEN' });
+            if (!role || ROLE_RANK[role] < ROLE_RANK[need]) {
+                return this.sendJson(res, 403, { error: `Role '${role || 'none'}' insufficient (requires '${need}')`, code: 'FORBIDDEN' });
             }
         }
 
@@ -520,10 +591,19 @@ class LocalApiService {
             });
         }
 
-        // Tasks API
+        // Tasks API — O-06: varsayılan sayfalama; tüm geçmiş tek yanıtta dönmez.
         if (method === 'GET' && path === '/api/v1/tasks') {
-            const tasks = this.taskManager.tasks.map(t => t.toJSON());
-            return this.sendJson(res, 200, { tasks });
+            const limit = Math.min(500, Math.max(1, Number(parsedUrl.searchParams.get('limit')) || 100));
+            const offset = Math.max(0, Number(parsedUrl.searchParams.get('offset')) || 0);
+            const all = this.taskManager.tasks;
+            const page = all.slice(offset, offset + limit);
+            return this.sendJson(res, 200, {
+                tasks: page.map(t => t.toJSON()),
+                total: all.length,
+                limit,
+                offset,
+                hasMore: offset + page.length < all.length
+            });
         }
 
         if (method === 'POST' && path === '/api/v1/tasks/timer') {
@@ -629,7 +709,7 @@ class LocalApiService {
 
         // FAZ B: kurumsal uçlar (servis yoksa 503, çekirdek etkilenmez).
         try {
-            const enterprise = this.routeEnterprise(method, path, body, res);
+            const enterprise = this.routeEnterprise(method, path, body, res, parsedUrl);
             if (enterprise !== null) return enterprise;
         } catch (err) {
             log.warn('[LocalApiService] kurumsal uç hatası:', err && err.message);
@@ -643,7 +723,8 @@ class LocalApiService {
         return this.sendJson(res, 503, { error: `${what} kullanılamıyor`, code: 'UNAVAILABLE' });
     }
 
-    routeEnterprise(method, path, body, res) {
+    routeEnterprise(method, path, body, res, parsedUrl = null) {
+        const query = parsedUrl && parsedUrl.searchParams ? parsedUrl.searchParams : new URLSearchParams();
         // GET /api/v1/inventory — cihaz envanteri (viewer+).
         if (method === 'GET' && path === '/api/v1/inventory') {
             if (!this.deps.inventory || typeof this.deps.inventory.collect !== 'function') {
@@ -699,10 +780,14 @@ class LocalApiService {
             return this.sendJson(res, 200, { exemptions: svc.list() });
         }
         if (method === 'POST' && path === '/api/v1/exemptions') {
-            const check = validateExemption({ id: `ex_${Date.now()}`, ...body });
+            if (body && body.id !== undefined) {
+                return this.sendJson(res, 400, { error: 'id sunucu tarafından üretilir.', code: 'CLIENT_ID_FORBIDDEN' });
+            }
+            const candidate = { ...body, id: `ex_${crypto.randomUUID()}` };
+            const check = validateExemption(candidate);
             if (!check.ok) return this.sendJson(res, 400, { error: check.error, code: check.code });
             const svc = this.deps.exemptions || new ExemptionService(this.storage);
-            const record = svc.add({ id: `ex_${Date.now()}`, ...body });
+            const record = svc.add(candidate);
             if (this.deps.audit) {
                 this.deps.audit.append({ actor: 'api', action: 'exemption_granted', target: record.id, detail: record.reason });
             }
@@ -724,8 +809,11 @@ class LocalApiService {
             return this.sendJson(res, 200, { windows: svc.windows() });
         }
         if (method === 'POST' && path === '/api/v1/maintenance-windows') {
+            if (body && body.id !== undefined) {
+                return this.sendJson(res, 400, { error: 'id sunucu tarafından üretilir.', code: 'CLIENT_ID_FORBIDDEN' });
+            }
             const svc = this.deps.exemptions || new ExemptionService(this.storage);
-            const candidate = { id: `mw_${Date.now()}`, ...body };
+            const candidate = { ...body, id: `mw_${crypto.randomUUID()}` };
             const check = validateWindow(candidate);
             if (!check.ok) return this.sendJson(res, 400, { error: check.error, code: check.code });
             const record = svc.addWindow(candidate);
@@ -738,10 +826,19 @@ class LocalApiService {
             return this.sendJson(res, 200, { success: true });
         }
 
-        // GET /api/v1/audit — denetim günlüğü + zincir doğrulama (viewer+).
+        // GET /api/v1/audit — O-06: yalnızca admin; sayfalı denetim günlüğü.
+        // Zincir doğrulaması ayrı ve pahalı olduğu için varsayılan yanıta dahil edilmez.
         if (method === 'GET' && path === '/api/v1/audit') {
             const audit = this.deps.audit || new AuditLog(this.storage);
-            return this.sendJson(res, 200, { audit: audit.load(), verify: audit.verify() });
+            const limit = Math.min(500, Math.max(1, Number(query.get('limit')) || 100));
+            const beforeSeq = Number(query.get('beforeSeq')) || null;
+            const out = { audit: audit.load({ limit, beforeSeq }), limit };
+            if (query.get('verify') === '1') out.verify = audit.verify();
+            return this.sendJson(res, 200, out);
+        }
+        if (method === 'GET' && path === '/api/v1/audit/verify') {
+            const audit = this.deps.audit || new AuditLog(this.storage);
+            return this.sendJson(res, 200, { verify: audit.verify() });
         }
 
         return null; // kurumsal uç değil
@@ -757,6 +854,7 @@ class LocalApiService {
                 expiresAt: Date.now() + IDEMPOTENCY_TTL_MS
             });
         }
+        if (!res || res.headersSent || res.writableEnded) return;
         res.writeHead(statusCode, { 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' });
         res.end(JSON.stringify(data));
     }

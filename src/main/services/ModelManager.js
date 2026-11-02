@@ -175,6 +175,21 @@ class ModelManager {
             fs.rmSync(part, { force: true });
             startAt = 0;
         }
+        // L-16: indirme öncesi boş disk alanı kontrolü (yarıda kalma yok).
+        if (this.expectedBytes != null && typeof fs.promises.statfs === 'function') {
+            try {
+                const stat = await fs.promises.statfs(path.dirname(full));
+                const free = Number(stat.bavail) * Number(stat.bsize);
+                if (Number.isFinite(free) && free < this.expectedBytes * 1.1) {
+                    return {
+                        success: false,
+                        code: 'DISK_FULL',
+                        error: `Yeterli disk alanı yok (gerekli ~${Math.ceil(this.expectedBytes * 1.1 / 1048576)} MB, boş ${Math.floor(free / 1048576)} MB).`
+                    };
+                }
+            } catch (_) { /* statfs desteklenmiyorsa indirme engellenmez */ }
+        }
+        const hadPartial = startAt > 0;
         const headers = startAt > 0 ? { Range: `bytes=${startAt}-` } : {};
         let res;
         try {
@@ -188,7 +203,7 @@ class ModelManager {
             const total = this.parseUnsatisfiedTotal(res);
             if (this.expectedBytes != null && startAt === this.expectedBytes && total === this.expectedBytes) {
                 // Aşağıdaki doğrulama akışına devam etmek için gövdesiz finalize.
-                return this.finalizeDownload(part, full, startAt, onProgress);
+                return this.finalizeDownload(part, full, startAt, onProgress, hadPartial);
             }
             if (attempt < 1) {
                 fs.rmSync(part, { force: true });
@@ -226,6 +241,9 @@ class ModelManager {
         }
 
         const out = fs.createWriteStream(part, { flags: startAt > 0 ? 'a' : 'w' });
+        // Akış hatası try/catch ile raporlanır; dinleyici olmadan 'error' olayı
+        // süreci uyarı/çökme ile bozmasın.
+        out.on('error', () => {});
         let received = startAt;
         try {
             for await (const chunk of res.body) {
@@ -247,10 +265,10 @@ class ModelManager {
             return { success: false, error: `İndirme kesildi: ${err.message}`, bytes: received };
         }
 
-        return this.finalizeDownload(part, full, received, onProgress);
+        return this.finalizeDownload(part, full, received, onProgress, hadPartial && res.status === 206);
     }
 
-    async finalizeDownload(part, full, received, onProgress) {
+    async finalizeDownload(part, full, received, onProgress, resumed = false) {
         let actualBytes;
         try {
             actualBytes = fs.statSync(part).size;
@@ -292,7 +310,7 @@ class ModelManager {
         };
         fs.writeFileSync(this.manifestPath(), JSON.stringify(manifest, null, 2), 'utf8');
         log.info(`[ModelManager] indirildi: ${this.file} (${actualBytes} bayt)`);
-        return { success: true, bytes: actualBytes, sha256, resumed: actualBytes !== received ? false : received > 0 };
+        return { success: true, bytes: actualBytes, sha256, resumed: resumed === true };
     }
 
     parseUnsatisfiedTotal(res) {

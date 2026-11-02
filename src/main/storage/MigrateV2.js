@@ -112,6 +112,47 @@ function cleanStaleTemps(dbPath) {
 }
 
 /**
+ * Y-10: Hedef DB zaten varsa içeriği doğrulanmadan geçici kopya silinmez ve
+ * kaynak JSON `.migrated` işaretlenmez. Aksi halde yarım/eski bir DB yüzünden
+ * tek kopya veri sessizce kaybolur.
+ * @returns {{ok:boolean, code?:string, detail?:string}}
+ */
+function validateMigratedTarget(target, { sourceSha, checksum }) {
+    let db = null;
+    try {
+        db = new Db(target);
+        const check = db.quickCheck();
+        if (check !== 'ok') {
+            return { ok: false, code: 'MIGRATION_TARGET_CORRUPT', detail: `Hedef DB bozuk: ${check}` };
+        }
+        const row = (key) => {
+            const r = db.prepare('SELECT value FROM meta WHERE key = ?').get(key);
+            return r ? r.value : null;
+        };
+        if (row('schema_version') !== String(MIGRATION_VERSION)) {
+            return { ok: false, code: 'MIGRATION_TARGET_SCHEMA', detail: 'Hedef DB şema sürümü uyuşmuyor.' };
+        }
+        if (row('source_sha256') !== sourceSha) {
+            return { ok: false, code: 'MIGRATION_TARGET_SOURCE', detail: 'Hedef DB farklı bir kaynaktan üretilmiş.' };
+        }
+        if (row('content_checksum') !== checksum) {
+            return { ok: false, code: 'MIGRATION_TARGET_CHECKSUM', detail: 'Hedef DB içerik checksum doğrulaması başarısız.' };
+        }
+        const migration = db.prepare('SELECT detail FROM migrations WHERE id = ?').get('v2-json-to-v3');
+        if (!migration) {
+            return { ok: false, code: 'MIGRATION_TARGET_INCOMPLETE', detail: 'Hedef DB migrasyon kaydı eksik.' };
+        }
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, code: 'MIGRATION_TARGET_UNREADABLE', detail: (err && err.message) || 'Hedef DB açılamadı.' };
+    } finally {
+        if (db) {
+            try { db.close(); } catch (_) { /* yut */ }
+        }
+    }
+}
+
+/**
  * @param {object} opts
  * @param {string} opts.userDataPath
  * @param {string} [opts.jsonPath]
@@ -214,9 +255,23 @@ function migrateV2({ userDataPath, jsonPath = null, dbPath = null, writeAll, nor
         tmpDb.close();
         tmpDb = null;
 
-        // 4) Hedef yoksa rename. Varsa (yarım kalmış önceki deneme) doğrula ve koru.
+        // 4) Hedef yoksa rename. Varsa (yarım kalmış/önceki deneme) yalnızca
+        // bu kaynağa ait ve sağlam olduğu doğrulandıktan sonra korunur.
         if (fs.existsSync(target)) {
-            // Önceki çalışma DB'yi yazmış olabilir; geçici kopyayı at, JSON'u işaretle.
+            const targetCheck = validateMigratedTarget(target, {
+                sourceSha,
+                checksum: contentChecksum(data)
+            });
+            if (!targetCheck.ok) {
+                try { fs.rmSync(tmpPath, { force: true }); } catch (_) { /* yut */ }
+                return {
+                    status: 'maintenance',
+                    code: targetCheck.code,
+                    error: targetCheck.detail,
+                    backupPath,
+                    sha256: sourceSha
+                };
+            }
             try { fs.rmSync(tmpPath, { force: true }); } catch (_) { /* yut */ }
         } else {
             fs.renameSync(tmpPath, target);

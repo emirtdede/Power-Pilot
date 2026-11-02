@@ -881,6 +881,10 @@
                                 <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiBlockRemote">Kullanıcı aktifken uzaktan kapatmayı engelle</span>
                                 <input id="api-block-remote" type="checkbox" checked class="w-4 h-4 accent-[#4f7cff]" />
                             </label>
+                            <div id="api-safety-hint" class="hidden md:col-span-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-lg p-3">
+                                <p class="text-xs font-bold text-amber-700 dark:text-amber-300" data-i18n="safetyLoadCheckUnavailableTitle">Aktif güç isteği kontrolü devre dışı</p>
+                                <p class="text-[11px] text-amber-700 dark:text-amber-300 mt-1" data-i18n="safetyLoadCheckUnavailableDesc">Bu kurulum yönetici yetkisiyle çalışmadığı için Windows güç istekleri okunamıyor. Zamanlanmış eylemler çalışır; diğer tüm güvenlik kontrolleri etkindir.</p>
+                            </div>
                             <label class="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-3 rounded-lg cursor-pointer">
                                 <span class="text-xs font-bold text-slate-600 dark:text-slate-300" data-i18n="apiTls">TLS kullan</span>
                                 <input id="api-tls" type="checkbox" class="w-4 h-4 accent-[#4f7cff]" />

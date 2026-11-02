@@ -41,6 +41,13 @@ class UpsMonitor {
         cacheTtlMs = CACHE_TTL_MS,
         nowFn = Date.now
     } = {}) {
+        // O-16: NUT komut satırına CR/LF veya boşluk enjeksiyonu reddedilir.
+        if (typeof host !== 'string' || !/^[A-Za-z0-9.:\[\]_-]+$/.test(host)) {
+            throw Object.assign(new Error('Geçersiz UPS host.'), { code: 'INVALID_UPS_HOST' });
+        }
+        if (typeof ups !== 'string' || !/^[A-Za-z0-9._-]+$/.test(ups)) {
+            throw Object.assign(new Error('Geçersiz UPS adı.'), { code: 'INVALID_UPS_NAME' });
+        }
         this.host = host;
         this.port = port;
         this.ups = ups;

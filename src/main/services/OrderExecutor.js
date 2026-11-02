@@ -24,6 +24,13 @@ class OrderExecutor {
         const order = record.order || {};
         const action = order.action;
         const params = order.params || {};
+        // Y-10: crash sonrası aynı nonce yeniden işlenirse mevcut görev döner.
+        if (order.nonce && this.tasks) {
+            const existing = (this.tasks.tasks || []).find((t) => t && t.consoleOrderId === order.nonce);
+            if (existing) {
+                return { ok: true, code: 'duplicate', message: `Sipariş zaten işlendi: ${existing.id}` };
+            }
+        }
         try {
             if (action === 'apply-policy') {
                 if (!this.tasks) throw new Error('TaskManager yok.');

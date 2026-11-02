@@ -217,18 +217,33 @@ class ConsoleClient {
         }
         // Denetim (kill-switch): konsol bayrağı yerelde kalıcılaşır; icra hattı durur,
         // heartbeat sürer (konsol yeniden açabilir).
-        try {
-            const wantDisabled = payload.disabled === true;
-            if (wantDisabled !== !!s.agentDisabled && this.storage && typeof this.storage.updateSettings === 'function') {
-                this.storage.updateSettings({ agentDisabled: wantDisabled });
+        const wantDisabled = payload.disabled === true;
+        let disabled = !!s.agentDisabled;
+        if (wantDisabled !== !!s.agentDisabled) {
+            try {
+                if (!this.storage || typeof this.storage.updateSettings !== 'function') {
+                    throw Object.assign(new Error('Ayar deposu yok.'), { code: 'SETTINGS_UNAVAILABLE' });
+                }
+                if (this.storage.updateSettings({ agentDisabled: wantDisabled }) === false) {
+                    throw Object.assign(new Error('Kill-switch kalıcılaştırılamadı.'), { code: 'SETTINGS_PERSIST_FAILED' });
+                }
+                disabled = wantDisabled;
                 if (this.audit) {
                     this.audit.append({ actor: 'console', action: wantDisabled ? 'agent_disabled' : 'agent_enabled', detail: '' });
                 }
+            } catch (err) {
+                // Y-04: bayrak yazılamıyorsa icra hattı ASLA açılmaz (fail-closed).
+                return {
+                    ok: false,
+                    code: 'KILL_SWITCH_PERSIST_FAILED',
+                    disabled: true,
+                    error: (err && err.message) || 'Kill-switch kalıcılaştırılamadı.'
+                };
             }
-            if (wantDisabled) {
-                return { ok: true, accepted: 0, rejected: 0, details: [], disabled: true, serverTime: payload.serverTime || null };
-            }
-        } catch (_) { /* bayrak yazılamazsa senkron sürer */ }
+        }
+        if (disabled) {
+            return { ok: true, accepted: 0, rejected: 0, details: [], disabled: true, serverTime: payload.serverTime || null };
+        }
         const verifier = new SignedOrderService({
             publicKeyPem: s.consolePublicKeyPem,
             keyId: s.consoleKeyId || 'default',

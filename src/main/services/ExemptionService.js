@@ -144,7 +144,11 @@ class ExemptionService {
         return this.list().find((e) => {
             const subjectOk = (e.deviceId && e.deviceId === deviceId) || (e.user && e.user === user);
             if (!subjectOk) return false;
-            if (e.policyId !== null && e.policyId !== undefined && policyId && e.policyId !== policyId) return false;
+            // O-04: politikaya özel muafiyet yalnızca aynı policyId ile eşleşir;
+            // policyId:null yalnızca genel (policyId'siz) muafiyetleri kapsar.
+            if (e.policyId !== null && e.policyId !== undefined) {
+                if (!policyId || e.policyId !== policyId) return false;
+            }
             const from = new Date(e.from).getTime();
             const to = new Date(e.to).getTime();
             return nowMs >= from && nowMs <= to;

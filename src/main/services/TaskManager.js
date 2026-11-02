@@ -148,9 +148,8 @@ class TaskManager {
         log.info(`[TaskManager] Recovering ${this.tasks.length} tasks on startup...`);
 
         this.tasks.forEach(task => {
-            if (!task.enabled) return;
-
-            // Tasks that were executing when app crashed/closed -> mark interrupted
+            // Terminalizasyon, görev devre dışı bırakılmış olsa bile yapılır.
+            // Aksi halde disabled + EXECUTING/WARNING kaydı açılışta asılı kalır.
             if (task.status === TASK_STATUS.EXECUTING || task.status === TASK_STATUS.WARNING) {
                 task.status = TASK_STATUS.FAILED;
                 task.errorInfo = 'Uygulama beklenmedik şekilde kapandığı için işlem yarıda kaldı.';
@@ -160,17 +159,21 @@ class TaskManager {
                 return;
             }
 
-            // Duration or Scheduled single-run tasks
-            if (task.trigger.type === TRIGGER_TYPE.DURATION || task.trigger.type === TRIGGER_TYPE.SCHEDULED_TIME) {
-                const targetTime = task.trigger.targetTime;
-                if (targetTime && targetTime < now) {
-                    // Time has already passed -> set Expired (Do NOT auto-execute!)
-                    task.status = TASK_STATUS.EXPIRED;
-                    log.info(`[TaskManager] Task "${task.name}" expired during offline time.`);
-                }
-            } else if (task.recurrence && task.recurrence.enabled) {
-                // Calculate next recurrence time
+            if (!task.enabled) return;
+
+            // Y-02: tekrarlayan görevlerde önce sonraki occurrence hesaplanır;
+            // yalnızca tekrarlamayan zamanlı görevler süre dolumundan etkilenir.
+            const targetTime = task.trigger && task.trigger.targetTime;
+            const timed = task.trigger && (task.trigger.type === TRIGGER_TYPE.DURATION ||
+                task.trigger.type === TRIGGER_TYPE.SCHEDULED_TIME);
+
+            if (task.recurrence && task.recurrence.enabled) {
                 this.calculateNextRecurrence(task);
+                if (task.status === TASK_STATUS.EXPIRED) task.status = TASK_STATUS.SCHEDULED;
+            } else if (timed && targetTime && targetTime < now) {
+                // Time has already passed -> set Expired (Do NOT auto-execute!)
+                task.status = TASK_STATUS.EXPIRED;
+                log.info(`[TaskManager] Task "${task.name}" expired during offline time.`);
             }
         });
 
@@ -216,6 +219,9 @@ class TaskManager {
 
         task.trigger.targetTime = nextRun.getTime();
         task.status = TASK_STATUS.SCHEDULED;
+        // Y-04: bayrak yalnızca tek icra içindir; tekrarlayan görevin sonraki
+        // çalışması kullanıcı uyarısını atlamamalı.
+        delete task._schedulerFired;
     }
 
     startLoop() {
@@ -291,6 +297,11 @@ class TaskManager {
                     }
                 }
             });
+
+            // O-09: silinen görevlerin Smart Finish örnekleri bellekte birikmesin.
+            if (this.smartFinishEngine && typeof this.smartFinishEngine.prune === 'function') {
+                try { this.smartFinishEngine.prune(new Set(this.tasks.map((t) => t.id))); } catch (_) { /* yut */ }
+            }
 
             if (readyToExecute.length > 0) {
                 // ÖNEMLİ: await YOK. Bu çağrı senkron claim alır ve promise'i
@@ -449,12 +460,20 @@ class TaskManager {
 
             // Final OS Execution
             claim.phase = 'executing';
-            claim.powerStarted = true;
             task.status = TASK_STATUS.EXECUTING;
             task.lastRunAt = new Date().toISOString();
             this.persistChanges();
 
             if (this.webhook) this.webhook.triggerEvent('power_action_started', task);
+
+            // L-13: iptal penceresi OS çağrısına kadar açık kalır. Bayrak
+            // execute'tan hemen önce set edilir; bu arada gelen iptal kazanır.
+            claim.powerStarted = true;
+            if (claim.cancelRequested) {
+                claim.powerStarted = false;
+                this.persistChanges();
+                return;
+            }
 
             let result;
             try {
@@ -516,17 +535,50 @@ class TaskManager {
     // reddedilirse sessizce atlanır (birincil döngü etkilenmez).
     syncScheduler(task) {
         if (this.schedulerBridge && typeof this.schedulerBridge.syncTask === 'function') {
-            Promise.resolve(this.schedulerBridge.syncTask(task)).catch(() => {});
+            // O-13: fallback yazılamazsa sessizce kaybolmaz; loglanır.
+            // Köprü senkron fırlatırsa da görev hattı durmaz (best-effort).
+            try {
+                Promise.resolve(this.schedulerBridge.syncTask(task))
+                    .then((ok) => {
+                        if (ok === false) log.warn(`[TaskManager] Scheduler fallback yazılamadı: ${task && task.id}`);
+                    })
+                    .catch((err) => log.warn(`[TaskManager] Scheduler hatası: ${err && err.message}`));
+            } catch (err) {
+                log.warn(`[TaskManager] Scheduler hatası: ${err && err.message}`);
+            }
         }
     }
 
     removeScheduler(taskId) {
         if (this.schedulerBridge && typeof this.schedulerBridge.removeTask === 'function' && taskId) {
-            Promise.resolve(this.schedulerBridge.removeTask(taskId)).catch(() => {});
+            try {
+                Promise.resolve(this.schedulerBridge.removeTask(taskId)).catch(() => {});
+            } catch (_) { /* best-effort */ }
+        }
+    }
+
+    /**
+     * K-04: otonomi modu tek kaynaktan (kalıcı ayarlar) okunur. İstemci
+     * payload'ındaki `mode` yok sayılır; ayar okunamazsa güvenli varsayılan
+     * `classic` kullanılır.
+     */
+    resolveAutonomyMode() {
+        try {
+            const settings = this.storage && typeof this.storage.getSettings === 'function'
+                ? this.storage.getSettings()
+                : {};
+            return settings && settings.autonomyMode === 'full' ? 'full' : 'classic';
+        } catch (_) {
+            return 'classic';
         }
     }
 
     createTask(taskData) {
+        // Y-10: aynı konsol siparişi (nonce) iki kez görev üretmez.
+        if (taskData && typeof taskData.consoleOrderId === 'string' && taskData.consoleOrderId) {
+            const existing = this.tasks.find((t) => t && t.consoleOrderId === taskData.consoleOrderId);
+            if (existing) return existing;
+        }
         // WBS-1.2: Desteksiz koşul tipi erken reddedilir. Sessiz "Bilinmeyen koşul" akışı yasaktır.
         const conditions = (taskData && taskData.conditionGroup && taskData.conditionGroup.conditions) || [];
         for (const cond of conditions) {
@@ -558,6 +610,8 @@ class TaskManager {
             : taskData;
         const task = new AutomationTask({
             ...normalizedData,
+            // K-04: mod istemci payload'ından değil, kalıcı güvenlik ayarından gelir.
+            mode: this.resolveAutonomyMode(),
             // ADR-08: gelen `id` ne olursa olsun sunucu yeni kimlik üretir.
             id: AutomationTask.generateId()
         });
@@ -579,7 +633,13 @@ class TaskManager {
             task.status = TASK_STATUS.SCHEDULED;
         }
         this.tasks.push(task);
-        this.persistChanges();
+        try {
+            // Y-06: kalıcılaştırma başarısızsa görev bellekte bırakılmaz.
+            this.persistChanges({ throwOnError: true });
+        } catch (err) {
+            this.tasks.pop();
+            throw Object.assign(new Error('Görev kalıcılaştırılamadı.'), { code: 'TASK_PERSIST_FAILED', cause: err });
+        }
         if (this.webhook) this.webhook.triggerEvent('task_created', task);
         this.syncScheduler(task);
         return task;
@@ -594,6 +654,7 @@ class TaskManager {
         const task = this.tasks.find(t => t.id === taskId);
         if (!task) return { ok: false, code: 'NOT_FOUND' };
         if (task.status === TASK_STATUS.CANCELLED) return { ok: true, code: 'ALREADY_CANCELLED' };
+        const snapshot = task.toJSON();
 
         const claim = this.claims.get(taskId);
         if (claim) {
@@ -622,10 +683,17 @@ class TaskManager {
         task.status = TASK_STATUS.CANCELLED;
         task.errorInfo = null;
         task.lastResult = { code: EXECUTION_RESULT_CODE.CANCELLED_BY_USER, message: 'Kullanıcı tarafından iptal edildi' };
+        // Y-06: disk yazımı başarısızsa bellek durumu geri alınır ve çağırana
+        // açık hata döner; arayüz "iptal edildi" diyemez.
+        try {
+            this.persistChanges({ throwOnError: true });
+        } catch (err) {
+            Object.assign(task, snapshot);
+            return { ok: false, code: 'TASK_PERSIST_FAILED', message: 'Görev iptali kalıcılaştırılamadı.' };
+        }
         if (this.history) this.history.record(task, EXECUTION_RESULT_CODE.CANCELLED_BY_USER, 'Kullanıcı tarafından iptal edildi');
         if (this.webhook) this.webhook.triggerEvent('task_cancelled', task);
         this.removeScheduler(taskId);
-        this.persistChanges();
         return { ok: true, code: 'CANCELLED' };
     }
 
@@ -702,19 +770,31 @@ class TaskManager {
 
         const applied = this.applySnooze(task, safeMinutes);
         if (!applied.ok) return applied;
+        // Y-06: disk yazımı başarısızsa bellek durumu geri alınır; arayüz
+        // "ertelendi" diyemez.
+        const snapshot = task.toJSON();
+        try {
+            this.persistChanges({ throwOnError: true });
+        } catch (err) {
+            Object.assign(task, snapshot);
+            return { ok: false, code: 'TASK_PERSIST_FAILED', message: 'Erteleme kalıcılaştırılamadı.' };
+        }
         if (this.history) this.history.record(task, EXECUTION_RESULT_CODE.SNOOZED_BY_USER, `${applied.minutes} dk ertelendi`);
         if (this.webhook) this.webhook.triggerEvent('task_snoozed', task);
         this.syncScheduler(task);
-        this.persistChanges();
         return { ok: true, code: 'SNOOZED', minutes: applied.minutes };
     }
 
     togglePauseAll() {
-        this.pausedAll = !this.pausedAll;
-        // WBS-2.2: Kalıcı duraklatma — scheduler yedeği açılışta bunu okur.
+        const next = !this.pausedAll;
+        // Y-06: kalıcı duraklatma yazılamazsa bellek durumu değişmez.
         if (this.storage && typeof this.storage.updateSettings === 'function') {
-            try { this.storage.updateSettings({ automationPaused: this.pausedAll }); } catch (_) {}
+            const persisted = this.storage.updateSettings({ automationPaused: next });
+            if (persisted === false) {
+                throw Object.assign(new Error('Duraklatma durumu kalıcılaştırılamadı.'), { code: 'PAUSE_PERSIST_FAILED' });
+            }
         }
+        this.pausedAll = next;
         return this.pausedAll;
     }
 
@@ -732,9 +812,16 @@ class TaskManager {
             return false;
         }
         if (task.status === TASK_STATUS.EXPIRED) {
+            const snapshot = task.toJSON();
             task.status = TASK_STATUS.SCHEDULED;
             task.trigger.targetTime = Date.now();
-            this.persistChanges();
+            try {
+                this.persistChanges({ throwOnError: true });
+            } catch (err) {
+                Object.assign(task, snapshot);
+                log.error(`[TaskManager] runTaskNow kalıcılaştırılamadı: ${taskId}`);
+                return false;
+            }
         }
         // Atomik claim: scheduler aynı anda tetiklese bile yalnızca biri kazanır.
         const claim = this.claimTask(taskId, 'scheduler');
@@ -781,7 +868,23 @@ class TaskManager {
     }
 
     getActiveTasks() {
-        return this.tasks.filter(t => t.enabled && (t.status === TASK_STATUS.SCHEDULED || t.status === TASK_STATUS.MONITORING || t.status === TASK_STATUS.WAITING || t.status === TASK_STATUS.WARNING));
+        // Y-03: EXECUTING de aktiftir; kapanış guard'ı ve mini pencere
+        // güç işlemi sürerken pencereyi kapatmamalı.
+        return this.tasks.filter(t => t.enabled && (
+            t.status === TASK_STATUS.SCHEDULED ||
+            t.status === TASK_STATUS.MONITORING ||
+            t.status === TASK_STATUS.WAITING ||
+            t.status === TASK_STATUS.WARNING ||
+            t.status === TASK_STATUS.EXECUTING
+        ));
+    }
+
+    /** Y-03: kapanış/çıkış öncesi yarıda iş var mı? */
+    hasInFlight() {
+        if (this.claims && this.claims.size > 0) return true;
+        return this.tasks.some(t => t && t.enabled !== false && (
+            t.status === TASK_STATUS.EXECUTING || t.status === TASK_STATUS.WARNING
+        ));
     }
 
     /**
@@ -790,8 +893,18 @@ class TaskManager {
      * fastlist/ps-list çağırır; boşta spawn maliyeti sıfırdır.
      */
     hasProcessConditions() {
+        // O-07: terminal görevler süreç tüketicisi saymaz; aksi halde
+        // tamamlanan görev sonsuza kadar ps-list/fastlist çalıştırır.
+        const active = new Set([
+            TASK_STATUS.SCHEDULED,
+            TASK_STATUS.MONITORING,
+            TASK_STATUS.WAITING,
+            TASK_STATUS.WARNING,
+            TASK_STATUS.EXECUTING
+        ]);
         return this.tasks.some((task) => {
             if (!task || task.enabled === false) return false;
+            if (!active.has(task.status)) return false;
             const conds = (task.conditionGroup && task.conditionGroup.conditions) || [];
             return conds.some((c) => c && c.type === CONDITION_TYPE.PROCESS_RUNNING);
         });
@@ -825,16 +938,19 @@ class TaskManager {
      * WP-11.T5/P-01: değişen görevleri `saveTask`, silinenleri `deleteTask` ile
      * yazar. Tam liste hiçbir zaman diske yazılmaz.
      */
-    persistChanges() {
+    persistChanges({ throwOnError = false } = {}) {
         const next = this._taskSnapshot();
         const saved = new Map(this._savedTaskState);
         let changed = 0;
+        let failed = false;
         for (const [id, json] of next.entries()) {
             if (saved.get(id) === json) continue;
             const result = this.storage.saveTask(JSON.parse(json));
             if (result !== false) {
                 saved.set(id, json);
                 changed += 1;
+            } else {
+                failed = true;
             }
         }
         for (const id of [...saved.keys()]) {
@@ -843,11 +959,16 @@ class TaskManager {
             if (result !== false) {
                 saved.delete(id);
                 changed += 1;
+            } else {
+                failed = true;
             }
         }
         this._savedTaskState = saved;
         if (changed > 0 && this.changeListener) {
             try { this.changeListener(); } catch (_) { /* dinleyici hatası yutulur */ }
+        }
+        if (failed && throwOnError) {
+            throw Object.assign(new Error('Görev kalıcılaştırılamadı.'), { code: 'TASK_PERSIST_FAILED' });
         }
         return changed;
     }

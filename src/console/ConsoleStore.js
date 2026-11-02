@@ -96,6 +96,8 @@ class ConsoleStore {
                     this.enterMaintenance('Konsol veritabanı bozuk (quick_check). Yedekten geri yükleyin.');
                     return;
                 }
+                // O-08: mevcut DB'lere yeni indeksleri uygula (CREATE IF NOT EXISTS).
+                try { this.db.sql(this._schemaSql()); } catch (_) { /* indeks hatası açılışı engellemez */ }
                 return;
             }
             if (this.storePath && fs.existsSync(this.storePath)) {
@@ -629,9 +631,8 @@ class ConsoleStore {
         return rec;
     }
 
-    listAudit() {
-        if (!this.db) return this.memory.audit;
-        return this._prepare('SELECT * FROM audit ORDER BY seq ASC').all().map((r) => ({
+    listAudit({ limit = null, beforeSeq = null } = {}) {
+        const mapRow = (r) => ({
             seq: r.seq,
             ts: r.ts,
             actor: r.actor,
@@ -640,16 +641,33 @@ class ConsoleStore {
             detail: r.detail,
             prevHash: r.prev_hash,
             hash: r.hash
-        }));
+        });
+        if (!this.db) {
+            let list = this.memory.audit;
+            if (Number.isFinite(beforeSeq)) list = list.filter((r) => r.seq < beforeSeq);
+            if (Number.isFinite(limit) && limit > 0) list = list.slice(-limit);
+            return list;
+        }
+        if (Number.isFinite(limit) && limit > 0) {
+            const rows = Number.isFinite(beforeSeq)
+                ? this._prepare('SELECT * FROM audit WHERE seq < ? ORDER BY seq DESC LIMIT ?').all(beforeSeq, limit)
+                : this._prepare('SELECT * FROM audit ORDER BY seq DESC LIMIT ?').all(limit);
+            return rows.reverse().map(mapRow);
+        }
+        return this._prepare('SELECT * FROM audit ORDER BY seq ASC').all().map(mapRow);
     }
 
     verifyAudit() {
         const list = this.listAudit();
+        const archivedThrough = this.getMeta('audit_archived_through');
         for (let i = 0; i < list.length; i++) {
             const rec = list[i];
             if (rec.hash !== hashOf(rec)) return { ok: false, code: 'TAMPERED', at: rec.seq };
             if (i === 0) {
-                if (rec.prevHash !== 'GENESIS') return { ok: false, code: 'BROKEN_CHAIN', at: rec.seq };
+                // O-08: arşivlenmiş eski zincir varsa ilk canlı kayıt ona bağlanır.
+                if (rec.prevHash !== 'GENESIS' && rec.prevHash !== archivedThrough) {
+                    return { ok: false, code: 'BROKEN_CHAIN', at: rec.seq };
+                }
             } else if (rec.prevHash !== list[i - 1].hash) {
                 return { ok: false, code: 'BROKEN_CHAIN', at: rec.seq };
             }
@@ -680,6 +698,39 @@ class ConsoleStore {
         }));
     }
 
+    /**
+     * O-08: ack edilmiş kuyruk ve eski makbuzları temizler; audit'i silmeden
+     * önce JSON arşivine yazar. Canlı zincir ilk kaydı arşiv hash'ine bağlanır.
+     */
+    retention({ queueDays = 30, receiptDays = 90, auditDays = 365, now = Date.now() } = {}) {
+        if (!this.db) return { ok: true, skipped: true };
+        const cutoff = (days) => new Date(now - days * 86400000).toISOString();
+        let removedQueues = 0;
+        let removedReceipts = 0;
+        let archivedAudit = 0;
+        this.db.write(() => {
+            removedQueues = this._prepare("DELETE FROM queues WHERE state = 'acked' AND acked_at IS NOT NULL AND acked_at < ?")
+                .run(cutoff(queueDays)).changes || 0;
+            removedReceipts = this._prepare('DELETE FROM receipts WHERE received_at < ?')
+                .run(cutoff(receiptDays)).changes || 0;
+            if (Number.isFinite(auditDays) && auditDays > 0) {
+                const rows = this._prepare('SELECT * FROM audit WHERE ts < ? ORDER BY seq ASC').all(cutoff(auditDays));
+                if (rows.length > 0) {
+                    const dir = path.dirname(this.dbPath);
+                    fs.mkdirSync(dir, { recursive: true });
+                    const stamp = nowIso().replace(/[:.]/g, '-');
+                    const file = path.join(dir, `console-audit-archive-${stamp}.json`);
+                    fs.writeFileSync(file, JSON.stringify(rows, null, 2), { encoding: 'utf8', mode: 0o600 });
+                    const last = rows[rows.length - 1];
+                    this._prepare('DELETE FROM audit WHERE seq <= ?').run(last.seq);
+                    this.setMeta('audit_archived_through', last.hash);
+                    archivedAudit = rows.length;
+                }
+            }
+        });
+        return { ok: true, removedQueues, removedReceipts, archivedAudit };
+    }
+
     setMeta(key, value) {
         if (!this.db) {
             this.memory.meta = this.memory.meta || {};
@@ -697,7 +748,7 @@ class ConsoleStore {
     }
 
     /** Sunucunun bellek görünümünü (test/uyumluluk) DB'den üretir. */
-    snapshot() {
+    snapshot({ includeAudit = false } = {}) {
         if (!this.db) return this.memory;
         const agents = {};
         for (const agent of this.listAgents()) agents[agent.agentId] = agent;
@@ -718,7 +769,7 @@ class ConsoleStore {
             agents,
             queues,
             policies: this.listPolicies(),
-            audit: this.listAudit(),
+            ...(includeAudit ? { audit: this.listAudit({ limit: 200 }) } : {}),
             keypair: publicKey ? { publicKey } : null,
             disabledAgents: this.listDisabled(),
             agentKeys: this.listKeys()

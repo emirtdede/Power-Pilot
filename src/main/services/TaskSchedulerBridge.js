@@ -73,6 +73,11 @@ class TaskSchedulerBridge {
     // schtasks /sd MM/DD/YYYY + /st HH:mm (yerel saat) biçimine çevirir.
     static formatTriggerDate(targetTime) {
         const d = new Date(targetTime);
+        // O-13: schtasks saniye taşımaz. Erken tetikleme yerine bir sonraki
+        // dakikaya yukarı yuvarla (geç tetikleme güvenli taraftır).
+        if (d.getSeconds() > 0 || d.getMilliseconds() > 0) {
+            d.setMinutes(d.getMinutes() + 1, 0, 0);
+        }
         const pad = (n) => String(n).padStart(2, '0');
         return {
             date: `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`,

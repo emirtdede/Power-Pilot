@@ -299,7 +299,7 @@ class StorageService {
         if (inventoryRow) {
             try { inventory = JSON.parse(inventoryRow.data); } catch (_) { inventory = null; }
         }
-        const auditLog = this.db.prepare('SELECT * FROM audit_log ORDER BY seq ASC').all().map((r) => ({
+        const auditLog = this.db.prepare('SELECT * FROM (SELECT * FROM audit_log ORDER BY seq DESC LIMIT 5000) ORDER BY seq ASC').all().map((r) => ({
             seq: r.seq,
             ts: r.ts,
             actor: r.actor,
@@ -724,7 +724,7 @@ class StorageService {
 
     normalizeSecuritySettings() {
         const s = this.data.settings || {};
-        if (!['viewer', 'operator', 'admin'].includes(s.localApiKeyRole)) s.localApiKeyRole = 'admin';
+        if (!['viewer', 'operator', 'admin'].includes(s.localApiKeyRole)) s.localApiKeyRole = 'viewer';
         if (typeof s.localApiTlsEnabled !== 'boolean') s.localApiTlsEnabled = false;
         if (typeof s.localApiTlsStrict !== 'boolean') s.localApiTlsStrict = false;
         if (typeof s.localApiRequireClientCert !== 'boolean') s.localApiRequireClientCert = false;
@@ -990,7 +990,17 @@ class StorageService {
     // --- Settings API ------------------------------------------------------
 
     getSettings() {
-        return this.data.settings;
+        // Savunmacı kopya: çağıranlar iç ayar nesnesini yanlışlıkla
+        // değiştirerek kalıcı durumu bozamaz.
+        const settings = this.data.settings || {};
+        try {
+            if (typeof structuredClone === 'function') return structuredClone(settings);
+        } catch (_) { /* düş */ }
+        try {
+            return JSON.parse(JSON.stringify(settings));
+        } catch (_) {
+            return { ...settings };
+        }
     }
 
     updateSettings(newSettings) {
@@ -1000,8 +1010,16 @@ class StorageService {
             if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
             safe[key] = value;
         }
-        this.data.settings = Object.assign({}, this.data.settings, safe);
-        return this._persist(() => this._flushSettings(this._settingsForDisk()));
+        // Y-06: kalıcılaştırma başarısızsa bellekteki değişikliği geri al ve
+        // çağırana açık hata ver; sessiz "başarılı" yanıt üretilmez.
+        const previous = this.data.settings;
+        this.data.settings = Object.assign({}, previous, safe);
+        const ok = this._persist(() => this._flushSettings(this._settingsForDisk()));
+        if (!ok) {
+            this.data.settings = previous;
+            throw Object.assign(new Error('Ayarlar kalıcılaştırılamadı.'), { code: 'SETTINGS_PERSIST_FAILED' });
+        }
+        return true;
     }
 
     _settingsForDisk() {
@@ -1089,11 +1107,15 @@ class StorageService {
     }
 
     saveOrders(list) {
+        const previous = this.data.orders;
         this.data.orders = Array.isArray(list) ? list : [];
-        return this._persist(() => {
+        const ok = this._persist(() => {
             const payload = this.secretStore ? this.secretStore.stripForDisk(this.data) : this.data;
             this._flushOrders(payload.orders || []);
         });
+        // Y-06: disk yazımı başarısızsa bellek diskten ileri gitmez.
+        if (!ok) this.data.orders = previous;
+        return ok;
     }
 
     /**
@@ -1206,7 +1228,20 @@ class StorageService {
         this.auditHmacKey = Buffer.isBuffer(key) ? key : Buffer.from(String(key), 'utf8');
         this.auditCheckpoint = new AuditCheckpoint({
             dir: checkpointDir || path.join(this.userDataPath, 'audit-checkpoints'),
-            eventLog
+            eventLog,
+            // O-22: onarım sessiz kalmaz; denetim kaydı üretir.
+            onRepair: ({ day, file }) => {
+                try {
+                    this.appendAudit({
+                        actor: 'system',
+                        action: 'audit_checkpoint_repaired',
+                        target: day,
+                        detail: path.basename(file || '')
+                    });
+                } catch (err) {
+                    log.warn('[StorageService] Checkpoint onarım kaydı yazılamadı:', err && err.message);
+                }
+            }
         });
         const chain = this.getMeta('audit_chain');
         if (chain !== 'hmac-v1') {
@@ -1250,9 +1285,8 @@ class StorageService {
         log.info(`[StorageService] Audit zinciri yeniden hesaplandı (${rows.length} kayıt).`);
     }
 
-    getAuditLog() {
-        if (!this.db) return Array.isArray(this.data.auditLog) ? this.data.auditLog : [];
-        return this.db.prepare('SELECT * FROM audit_log ORDER BY seq ASC').all().map((r) => ({
+    getAuditLog({ limit = null, beforeSeq = null } = {}) {
+        const mapRow = (r) => ({
             seq: r.seq,
             ts: r.ts,
             actor: r.actor,
@@ -1263,7 +1297,21 @@ class StorageService {
             hash: r.record_hmac,
             prevHmac: r.prev_hmac,
             recordHmac: r.record_hmac
-        }));
+        });
+        if (!this.db) {
+            let list = Array.isArray(this.data.auditLog) ? this.data.auditLog : [];
+            if (Number.isFinite(beforeSeq)) list = list.filter((r) => r.seq < beforeSeq);
+            if (Number.isFinite(limit) && limit > 0) list = list.slice(-limit);
+            return list;
+        }
+        // O-06: sayfalama — en yeni N kayıt, istenirse beforeSeq'ten geriye.
+        if (Number.isFinite(limit) && limit > 0) {
+            const rows = Number.isFinite(beforeSeq)
+                ? this.db.prepare('SELECT * FROM audit_log WHERE seq < ? ORDER BY seq DESC LIMIT ?').all(beforeSeq, limit)
+                : this.db.prepare('SELECT * FROM audit_log ORDER BY seq DESC LIMIT ?').all(limit);
+            return rows.reverse().map(mapRow);
+        }
+        return this.db.prepare('SELECT * FROM audit_log ORDER BY seq ASC').all().map(mapRow);
     }
 
     /** AuditLog legacy adaptörü (konsol deposu / anahtarsız gömülü kullanım). */
@@ -1319,7 +1367,10 @@ class StorageService {
             this.db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run('updated_at', nowIso());
             rec = { ...base, hash: mac, prevHash: prev, recordHmac: mac, prevHmac: prev };
         });
-        this.data.auditLog = this.getAuditLog();
+        // Y-09: her yazımda tüm tabloyu yeniden okuma; bellekte son N kaydı tut.
+        if (!Array.isArray(this.data.auditLog)) this.data.auditLog = [];
+        this.data.auditLog.push(rec);
+        if (this.data.auditLog.length > 5000) this.data.auditLog.shift();
         if (this.auditCheckpoint) {
             try { this.auditCheckpoint.ensureToday(this.data.auditLog); } catch (err) {
                 log.warn('[StorageService] Audit checkpoint yazılamadı:', err && err.message);
