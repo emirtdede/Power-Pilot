@@ -13,6 +13,15 @@
   politikaları bağlandı.
 
 ### Düzeltmeler
+- **P0 — Zamanlanmış güç eylemleri yükseltilmemiş kurulumda hiç çalışmıyordu.**
+  Güvenlik motoru, aktif güç isteği kontrolü için `powercfg.exe /requests`
+  çalıştırıyor; bu komut yönetici yetkisi ister ve paketlenmiş uygulama
+  `asInvoker` çalışır. Sonuç: her görev `POWER_REQUESTS_UNAVAILABLE` ile
+  engelleniyordu (fail-closed yanlış yere uygulanıyordu). Motor artık bir
+  **yetenek sondası** yapar: yetenek varsa eski fail-closed davranışı aynen
+  korunur; yetenek yoksa yalnız bu kapı atlanır ve durum **görünür** olur
+  (`loadCheck: "unavailable"`, `audit` kaydı `power_request_check_unavailable`,
+  Ayarlar uyarısı). `node scripts/safety-probe.mjs` ile tanı alınabilir.
 - Uyarı bannerındaki Durdur/Ertele işlemleri PIN kapısını beklemiyordu; eylemler
   async hale getirildi, TOCTOU koruması eklendi ve banner yalnızca başarılı
   sonuçta kapanıyor.
