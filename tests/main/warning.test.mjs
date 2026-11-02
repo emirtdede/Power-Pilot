@@ -34,6 +34,28 @@ describe('WarningManager', () => {
         expect(res).toEqual({ proceed: true, snoozed: false });
     }, 10000);
 
+    it('durationSeconds:0 hemen icra eder (30 sn bekletmez; classic ve full modda proceed:true)', async () => {
+        const wm = new WarningManager(null);
+        let started = null;
+        wm.on('warning-started', (s) => { started = s; });
+        const t0 = Date.now();
+        const resFull = await wm.showWarning(warnTask(0, { mode: 'full' }));
+        expect(resFull).toEqual({ proceed: true, snoozed: false });
+        expect(started.secondsLeft).toBe(0);
+        expect(Date.now() - t0).toBeLessThan(1000);
+
+        const resClassic = await wm.showWarning(warnTask(0, { mode: 'classic' }));
+        expect(resClassic).toEqual({ proceed: true, snoozed: false });
+    }, 5000);
+
+    it('durationSeconds tanımsızsa 30 saniye varsayılır', async () => {
+        const wm = new WarningManager(null);
+        const p = wm.showWarning({ id: 'task_w1', name: 'x', action: 'shutdown', mode: 'classic', warningConfig: {} });
+        expect(wm.getActiveState().secondsLeft).toBe(30);
+        wm.cancelActiveWarning();
+        await expect(p).resolves.toEqual({ proceed: false, snoozed: false });
+    });
+
     it('cancelActiveWarning proceed:false çözer', async () => {
         const wm = new WarningManager(null);
         const p = wm.showWarning(warnTask(30));

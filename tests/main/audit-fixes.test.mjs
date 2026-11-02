@@ -29,7 +29,10 @@ async function call(srv, method, path, body, key) {
     const res = fakeRes();
     const { URL } = await import('node:url');
     const parsed = new URL(path, 'http://x');
-    await srv.route(method, parsed.pathname, body || {}, res, key === ADMIN ? 'admin' : 'agent', parsed);
+    const role = key === ADMIN ? 'admin' : 'agent';
+    // K-02: ajan anahtarı agentId'ye bağlıdır; testte gövdedeki agentId ile eşlenir.
+    const identity = { role, agentId: role === 'agent' ? ((body && body.agentId) || null) : null };
+    await srv.route(method, parsed.pathname, body || {}, res, role, parsed, identity);
     return res;
 }
 

@@ -12,7 +12,7 @@ const TEST_HASH = crypto.createHash('sha256').update(TEST_KEY).digest('hex');
 function makeService(settingsOverrides = {}) {
     const storage = {
         getSettings: () => Object.assign(
-            { localApiKeyHash: TEST_HASH, localApiEnabled: true, localApiPort: 18456, lanModeEnabled: false, lanAllowedIps: ['127.0.0.1'] },
+            { localApiKeyHash: TEST_HASH, localApiKeyRole: 'admin', localApiEnabled: true, localApiPort: 18456, lanModeEnabled: false, lanAllowedIps: ['127.0.0.1'] },
             settingsOverrides
         ),
         updateSettings: vi.fn()
@@ -186,12 +186,12 @@ describe('FAZ A: rol-bazlı anahtar', () => {
         expect(postAuthed(svc, '/api/v1/power/shutdown', {}).statusCode).toBe(200);
     });
 
-    it('kayıtsız rol geriye uyumlu admin sayılır', () => {
+    it('kayıtsız rol fail-closed reddedilir', () => {
         const { svc } = makeService({ localApiKeyRole: undefined });
-        // roleOf undefined → admin; doğrudan route katmanında da ctx'siz admin.
-        const res = fakeRes();
-        svc.route('POST', '/api/v1/power/shutdown', {}, res);
-        expect(res.statusCode).toBe(200);
+        // Y-06: roleOf undefined → null; hiçbir uç yetkili sayılmaz.
+        expect(LocalApiService.roleOf({})).toBe(null);
+        const res = postAuthed(svc, '/api/v1/power/shutdown', {});
+        expect(res.statusCode).toBe(403);
     });
 
     it('generateApiKey rolü saklar', () => {

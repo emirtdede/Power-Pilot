@@ -9,7 +9,14 @@ import SafetyPolicyEngine from '../../src/main/services/SafetyPolicyEngine.js';
 function taskWith(overrides = {}) {
     return Object.assign({
         action: 'shutdown', source: 'user_interface',
-        safetyPolicy: { checkProtectedApps: true }
+        // Y-05: eksik alanlar güvenli varsayılana döner; bu testler yalnızca
+        // korunan-app dalını ölçer, diğer ağır kontroller açıkça kapatılır.
+        safetyPolicy: {
+            checkProtectedApps: true,
+            checkUserActivity: false,
+            checkFullscreen: false,
+            checkSystemLoad: false
+        }
     }, overrides);
 }
 
@@ -50,7 +57,14 @@ describe('SafetyPolicyEngine', () => {
     it('politika kapalıysa ve uzaktan değilse izin verilir (exec çağrılmaz)', async () => {
         const execFn = fakeExec();
         const eng = engineWith(execFn, {});
-        const r = await eng.evaluate(taskWith({ safetyPolicy: {} }));
+        const r = await eng.evaluate(taskWith({
+            safetyPolicy: {
+                checkProtectedApps: false,
+                checkUserActivity: false,
+                checkFullscreen: false,
+                checkSystemLoad: false
+            }
+        }));
         expect(r.allowed).toBe(true);
         expect(execFn).not.toHaveBeenCalled();
     });
@@ -123,18 +137,38 @@ describe('SafetyPolicyEngine güç-istekleri katmanı (WBS-11.5)', () => {
             return cb(null, '');
         };
         const eng = new Engine({ getSettings: () => ({}) }, fake);
-        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: { checkSystemLoad: true } });
+        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: { checkSystemLoad: true, checkProtectedApps: false, checkFullscreen: false } });
         expect(r.allowed).toBe(false);
         expect(r.reason).toMatch(/güç isteği/i);
     });
 
-    it('ölçüm hatasında fail-closed (güç istekleri doğrulanamaz)', async () => {
+    it('yetenek VAR + ölçüm hatası → fail-closed (güç istekleri doğrulanamaz)', async () => {
         const { default: Engine } = await import('../../src/main/services/SafetyPolicyEngine.js');
-        const fake = (file, args, opts, cb) => cb(new Error('yok'), '');
+        // P0/BLOCKER-001: ilk çağrı yetenek sondası (başarılı), sonraki ölçüm hatası.
+        let calls = 0;
+        const fake = (file, args, opts, cb) => {
+            calls += 1;
+            if (calls === 1) return cb(null, POWERCFG_IDLE);
+            return cb(new Error('yok'), '');
+        };
         const eng = new Engine({ getSettings: () => ({}) }, fake);
-        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: { checkSystemLoad: true } });
+        await eng.probePowerRequestCapability();
+        eng._powerCache = null;
+        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: { checkSystemLoad: true, checkProtectedApps: false, checkFullscreen: false } });
         expect(r.allowed).toBe(false);
         expect(r.reasonCode).toBe('POWER_REQUESTS_UNAVAILABLE');
+        expect(r.loadCheck).toBe('ok');
+    });
+
+    it('yetenek YOK (yükseltilmemiş kurulum) → kapı görünür biçimde atlanır', async () => {
+        const { default: Engine } = await import('../../src/main/services/SafetyPolicyEngine.js');
+        const fake = (file, args, opts, cb) => cb(Object.assign(new Error('requires administrator privileges'), { code: 1 }), '', 'requires administrator privileges');
+        const eng = new Engine({ getSettings: () => ({}) }, fake);
+        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: { checkSystemLoad: true, checkProtectedApps: false, checkFullscreen: false } });
+        expect(r.allowed).toBe(true);
+        expect(r.loadCheck).toBe('unavailable');
+        expect(eng.getPowerRequestCapability().available).toBe(false);
+        expect(eng.getPowerRequestCapability().code).toBe('POWER_REQUESTS_UNAVAILABLE');
     });
 
     it('tam ekran ölçüm hatasında fail-closed', async () => {
@@ -144,7 +178,7 @@ describe('SafetyPolicyEngine güç-istekleri katmanı (WBS-11.5)', () => {
             return cb(new Error('powershell yok'), '');
         };
         const eng = new Engine({ getSettings: () => ({}) }, fake);
-        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: { checkFullscreen: true } });
+        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: { checkFullscreen: true, checkProtectedApps: false, checkSystemLoad: false } });
         expect(r.allowed).toBe(false);
         expect(r.reasonCode).toBe('FULLSCREEN_STATE_UNAVAILABLE');
     });
@@ -157,11 +191,11 @@ describe('SafetyPolicyEngine güç-istekleri katmanı (WBS-11.5)', () => {
             return cb(null, '');
         });
         const both = await mk(POWERCFG_BUSY, 'FULLSCREEN').evaluate({
-            action: 'shutdown', source: 'user_interface', safetyPolicy: { checkFullscreen: true }
+            action: 'shutdown', source: 'user_interface', safetyPolicy: { checkFullscreen: true, checkProtectedApps: false, checkSystemLoad: false }
         });
         expect(both.allowed).toBe(false);
         const alone = await mk(POWERCFG_IDLE, 'FULLSCREEN').evaluate({
-            action: 'shutdown', source: 'user_interface', safetyPolicy: { checkFullscreen: true }
+            action: 'shutdown', source: 'user_interface', safetyPolicy: { checkFullscreen: true, checkProtectedApps: false, checkSystemLoad: false }
         });
         expect(alone.allowed).toBe(true);
     });

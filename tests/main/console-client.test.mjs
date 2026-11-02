@@ -90,3 +90,46 @@ describe('ConsoleClient.sync', () => {
         expect(res.code).toBe('CONSOLE_UNREACHABLE');
     });
 });
+
+describe('ConsoleClient kill-switch fail-closed (Y-04)', () => {
+    function killSwitchClient(updateSettings) {
+        const kp = generateKeyPair();
+        const storage = {
+            getSettings: () => ({
+                consoleUrl: 'https://srv',
+                consolePublicKeyPem: kp.publicKey,
+                agentId: 'a1',
+                consoleAgentKey: 'k-agent',
+                agentDisabled: false
+            }),
+            updateSettings
+        };
+        const queue = new OrderQueue(null);
+        const fetchFn = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ disabled: true, orders: [signedOrder(kp)] })
+        }));
+        const client = new ConsoleClient({
+            storage,
+            inventoryService: { collect: async () => ({ agentId: 'a1' }) },
+            orderQueue: queue,
+            auditLog: null,
+            fetchFn
+        });
+        return { client, queue };
+    }
+
+    it('bayrak yazılamazsa KILL_SWITCH_PERSIST_FAILED; emir kuyruğa girmez', async () => {
+        const { client, queue } = killSwitchClient(() => false);
+        const res = await client.sync();
+        expect(res).toMatchObject({ ok: false, code: 'KILL_SWITCH_PERSIST_FAILED', disabled: true });
+        expect(queue.pending()).toHaveLength(0);
+    });
+
+    it('ayar deposu hata fırlatırsa da fail-closed', async () => {
+        const { client, queue } = killSwitchClient(() => { throw new Error('disk'); });
+        const res = await client.sync();
+        expect(res).toMatchObject({ ok: false, code: 'KILL_SWITCH_PERSIST_FAILED', disabled: true });
+        expect(queue.pending()).toHaveLength(0);
+    });
+});

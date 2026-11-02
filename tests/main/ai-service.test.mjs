@@ -47,7 +47,7 @@ describe('AiService eşleme tablosu (TS-7.3)', () => {
         const r = await svc.parseCommand('2 saat sonra kapat');
         expect(r.ok).toBe(true);
         expect(r.proposal.trigger).toEqual({ type: 'duration', durationMs: 7200000 });
-        expect(r.proposal.source).toBe('ai_assistant');
+        expect(r.proposal.source).toBeUndefined();
     });
 
     it('gelecek saat → scheduled_time önerisi', async () => {

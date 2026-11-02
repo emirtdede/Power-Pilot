@@ -435,7 +435,8 @@ describe('WP-08 uzaktan kapatma koruması', () => {
         );
         expect(svc.isRemoteShutdownBlocked({ blockRemoteShutdownWhenActive: true }, 'shutdown')).toBe(true);
         expect(svc.isRemoteShutdownBlocked({ blockRemoteShutdownWhenActive: true }, 'restart')).toBe(true);
-        expect(svc.isRemoteShutdownBlocked({ blockRemoteShutdownWhenActive: true }, 'lock')).toBe(false);
+        // O-05: lock/signout/sleep/hibernate da kullanıcı aktifken engellenir.
+        expect(svc.isRemoteShutdownBlocked({ blockRemoteShutdownWhenActive: true }, 'lock')).toBe(true);
         expect(svc.isRemoteShutdownBlocked({ blockRemoteShutdownWhenActive: false }, 'shutdown')).toBe(false);
 
         const idle = new LocalApiService(

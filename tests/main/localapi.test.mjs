@@ -36,7 +36,7 @@ describe('LocalApiService güç rotaları (TS-0.3)', () => {
     for (const action of ['lock', 'signout', 'restart', 'sleep', 'hibernate']) {
         it(`POST /power/${action} → 200 + görev kurar, anında çalıştırmaz (K3)`, () => {
             const res = fakeRes();
-            ctx.svc.route('POST', `/api/v1/power/${action}`, {}, res);
+            ctx.svc.route('POST', `/api/v1/power/${action}`, {}, res, { role: 'admin' });
             expect(res.statusCode).toBe(200);
             expect(res.body.success).toBe(true);
             expect(res.body.taskId).toBe('task_api_1');
@@ -51,7 +51,7 @@ describe('LocalApiService güç rotaları (TS-0.3)', () => {
 
     it('POST /power/shutdown → görev zamanlar (5sn)', () => {
         const res = fakeRes();
-        ctx.svc.route('POST', '/api/v1/power/shutdown', {}, res);
+        ctx.svc.route('POST', '/api/v1/power/shutdown', {}, res, { role: 'admin' });
         expect(res.statusCode).toBe(200);
         expect(ctx.taskManager.createTask).toHaveBeenCalled();
         const arg = ctx.taskManager.createTask.mock.calls[0][0];
@@ -61,7 +61,7 @@ describe('LocalApiService güç rotaları (TS-0.3)', () => {
 
     it('POST /tasks/timer geçersiz eylemi 400 ile reddeder (fail-fast)', () => {
         const res = fakeRes();
-        ctx.svc.route('POST', '/api/v1/tasks/timer', { action: 'format', durationMs: 60000 }, res);
+        ctx.svc.route('POST', '/api/v1/tasks/timer', { action: 'format', durationMs: 60000 }, res, { role: 'admin' });
         expect(res.statusCode).toBe(400);
         expect(ctx.taskManager.createTask).not.toHaveBeenCalled();
     });
@@ -69,7 +69,7 @@ describe('LocalApiService güç rotaları (TS-0.3)', () => {
     it('POST /tasks/timer bozuk süreyi 400 ile reddeder', () => {
         for (const durationMs of [-5, 0, 2500000001, '15dk', 1.5]) {
             const res = fakeRes();
-            ctx.svc.route('POST', '/api/v1/tasks/timer', { action: 'shutdown', durationMs }, res);
+            ctx.svc.route('POST', '/api/v1/tasks/timer', { action: 'shutdown', durationMs }, res, { role: 'admin' });
             expect(res.statusCode).toBe(400);
         }
         expect(ctx.taskManager.createTask).not.toHaveBeenCalled();
@@ -77,7 +77,7 @@ describe('LocalApiService güç rotaları (TS-0.3)', () => {
 
     it('POST /tasks/timer geçerli gövdeyi kabul eder (201)', () => {
         const res = fakeRes();
-        ctx.svc.route('POST', '/api/v1/tasks/timer', { action: 'sleep', durationMs: 900000 }, res);
+        ctx.svc.route('POST', '/api/v1/tasks/timer', { action: 'sleep', durationMs: 900000 }, res, { role: 'admin' });
         expect(res.statusCode).toBe(201);
         expect(ctx.taskManager.createTask).toHaveBeenCalledTimes(1);
     });
@@ -85,20 +85,20 @@ describe('LocalApiService güç rotaları (TS-0.3)', () => {
     it('POST /tasks/timer HTML/uzun adı 400 ile reddeder (K2)', () => {
         for (const name of ['<img src=x onerror=alert(1)>', 'a'.repeat(121), 12345]) {
             const res = fakeRes();
-            ctx.svc.route('POST', '/api/v1/tasks/timer', { action: 'sleep', durationMs: 900000, name }, res);
+            ctx.svc.route('POST', '/api/v1/tasks/timer', { action: 'sleep', durationMs: 900000, name }, res, { role: 'admin' });
             expect(res.statusCode).toBe(400);
         }
         expect(ctx.taskManager.createTask).not.toHaveBeenCalled();
     });
     it('bilinmeyen güç eylemi → 404', () => {
         const res = fakeRes();
-        ctx.svc.route('POST', '/api/v1/power/format', {}, res);
+        ctx.svc.route('POST', '/api/v1/power/format', {}, res, { role: 'admin' });
         expect(res.statusCode).toBe(404);
     });
 
     it('GET /status görev sayısını raporlar', () => {
         const res = fakeRes();
-        ctx.svc.route('GET', '/api/v1/status', {}, res);
+        ctx.svc.route('GET', '/api/v1/status', {}, res, { role: 'admin' });
         expect(res.statusCode).toBe(200);
         expect(res.body.app).toBe('Power Pilot');
     });

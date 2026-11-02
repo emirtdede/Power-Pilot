@@ -28,7 +28,14 @@ test('i18n kapsamı, görev görünümü ve sürüm bilgisi', async () => {
         expect((await window.locator('#app-version').innerText()).trim()).toBe('v1.1.0');
 
         const switchTo = async (lang) => {
-            await window.evaluate((l) => localStorage.setItem('language', l), lang);
+            // L-01: dil için tek doğruluk kaynağı sunucu ayarlarıdır; localStorage
+            // yalnızca anlık görünüm içindir. İkisi birlikte güncellenir.
+            await window.evaluate(async (l) => {
+                localStorage.setItem('language', l);
+                if (window.electronAPI && window.electronAPI.saveSettings) {
+                    await window.electronAPI.saveSettings({ language: l });
+                }
+            }, lang);
             await window.reload();
             await window.waitForLoadState('domcontentloaded');
             await window.waitForTimeout(400);
@@ -57,7 +64,6 @@ test('i18n kapsamı, görev görünümü ve sürüm bilgisi', async () => {
         const created = await window.evaluate(() => window.electronAPI.createTask({
             name: 'E2E test görevi',
             action: 'lock',
-            source: 'user_interface',
             trigger: { type: 'duration', durationMs: 3600000 }
         }));
         expect(created && created.success).toBe(true);

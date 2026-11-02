@@ -56,11 +56,18 @@ describe('MetricCollector WP-13', () => {
         expect(mc.currentMetrics).not.toHaveProperty('diskReadWriteKbps');
     });
 
-    it('4 sn timeout sonrası kilit açılır', async () => {
+    it('timeout sonrası alt iş bitmeden yeni tick başlamaz, bitince kilit açılır', async () => {
         const mc = makeCollector({ sampleTimeoutMs: 20 });
-        mc.sampleNetwork = () => new Promise(() => {});
+        let release;
+        mc.sampleNetwork = () => new Promise((resolve) => { release = resolve; });
         const started = Date.now();
-        await mc.sampleOnce();
+        const first = mc.sampleOnce();
+        // Timeout tetiklendi ama alt WMI/ölçüm işi hâlâ sürüyor: kilit kapalı.
+        await new Promise((r) => setTimeout(r, 80));
+        expect(mc._sampling).toBe(true);
+        expect(await mc.sampleOnce()).toBe(false);
+        release();
+        await first;
         expect(Date.now() - started).toBeLessThan(2000);
         expect(mc._sampling).toBe(false);
         expect(mc.currentMetrics.stale).toBe(true);

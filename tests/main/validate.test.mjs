@@ -78,6 +78,23 @@ describe('validateTaskData', () => {
     it('uyarı süresi üst sınırı reddedilir', () => {
         expect(validateTaskData({ warningConfig: { durationSeconds: 9999 } }).ok).toBe(false);
     });
+    it('K-03: action zorunlu; ayrıcalıklı alanlar istemciden kabul edilmez', () => {
+        expect(validateTaskData({}).code).toBe('INVALID_ACTION');
+        for (const field of ['source', 'mode', 'status', 'enabled', 'policyId', 'consoleOrderId', 'requiresMaintenanceWindow']) {
+            expect(validateTaskData({
+                action: 'sleep',
+                [field]: field === 'enabled' ? false : 'istemci'
+            }).code).toBe('INVALID_FIELD');
+        }
+    });
+    it('K-03: warningConfig ve safetyPolicy tipleri doğrulanır', () => {
+        expect(validateTaskData({ action: 'sleep', warningConfig: { enabled: 'false' } }).code).toBe('INVALID_WARNING');
+        expect(validateTaskData({ action: 'sleep', warningConfig: { silentMode: 1 } }).code).toBe('INVALID_WARNING');
+        expect(validateTaskData({ action: 'sleep', warningConfig: { durationSeconds: 0 } }).ok).toBe(true);
+        expect(validateTaskData({ action: 'sleep', safetyPolicy: 'all' }).code).toBe('INVALID_SAFETY_POLICY');
+        expect(validateTaskData({ action: 'sleep', safetyPolicy: { checkUserActivity: 'evet' } }).code).toBe('INVALID_SAFETY_POLICY');
+        expect(validateTaskData({ action: 'sleep', safetyPolicy: {} }).ok).toBe(true);
+    });
 });
 
 describe('validateSnooze', () => {

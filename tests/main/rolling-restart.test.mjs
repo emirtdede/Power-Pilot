@@ -22,7 +22,10 @@ function fakeRes() {
 
 async function call(srv, method, path, body, key) {
     const res = fakeRes();
-    await srv.route(method, path, body || {}, res, key === ADMIN ? 'admin' : 'agent');
+    const role = key === ADMIN ? 'admin' : 'agent';
+    // K-02: ajan anahtarı agentId'ye bağlıdır; testte gövdedeki agentId ile eşlenir.
+    const identity = { role, agentId: role === 'agent' ? ((body && body.agentId) || null) : null };
+    await srv.route(method, path, body || {}, res, role, null, identity);
     return res;
 }
 

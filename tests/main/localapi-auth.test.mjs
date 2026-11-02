@@ -11,7 +11,7 @@ const TEST_HASH = crypto.createHash('sha256').update(TEST_KEY).digest('hex');
 function makeService(settingsOverrides = {}) {
     const storage = {
         getSettings: () => Object.assign(
-            { localApiKeyHash: TEST_HASH, localApiEnabled: true, localApiPort: 18456, lanModeEnabled: false, lanAllowedIps: ['127.0.0.1'] },
+            { localApiKeyHash: TEST_HASH, localApiKeyRole: 'admin', localApiEnabled: true, localApiPort: 18456, lanModeEnabled: false, lanAllowedIps: ['127.0.0.1'] },
             settingsOverrides
         ),
         updateSettings: vi.fn()

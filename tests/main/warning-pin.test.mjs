@@ -16,7 +16,7 @@ import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cancelWarningAction, snoozeWarningAction } from '../../src/main/ipc/warningActions.js';
+import { cancelWarningAction, snoozeWarningAction, confirmWarningAction } from '../../src/main/ipc/warningActions.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const mainSource = fs.readFileSync(path.resolve(here, '../../main.js'), 'utf8');
@@ -43,6 +43,12 @@ function makeManagers({ activeTaskId = 'task_1', cancelResult = { ok: true, code
             return true;
         }),
         snoozeActiveWarning: vi.fn(function (minutes = 10, taskId = null) {
+            if (!this.state) return false;
+            if (taskId && this.state.taskId !== taskId) return false;
+            this.state = null;
+            return true;
+        }),
+        finishWarning: vi.fn(function (confirmed = true, apply = false, taskId = null) {
             if (!this.state) return false;
             if (taskId && this.state.taskId !== taskId) return false;
             this.state = null;
@@ -150,5 +156,37 @@ describe('C-02 warning-snooze: PIN kapısı await edilir', () => {
         expect(taskManager.snoozeTask).not.toHaveBeenCalled();
         expect(warningManager.snoozeActiveWarning).not.toHaveBeenCalled();
         expect(res).toMatchObject({ success: false, code: 'WARNING_CHANGED' });
+    });
+});
+
+describe('K-02 warning-confirm: taskId ile TOCTOU koruması', () => {
+    it('main.js handler ortak onay eylemini kullanıyor', () => {
+        const body = handlerBody('warning-confirm');
+        expect(body).toMatch(/confirmWarningAction\(/);
+        expect(body).toMatch(/args && args\.taskId/);
+    });
+
+    it('görülen uyarı ile aktif uyarı aynıysa onaylanır', () => {
+        const { warningManager } = makeManagers();
+        const res = confirmWarningAction({ taskId: 'task_1', warningManager, t });
+        expect(res).toEqual({ success: true });
+        expect(warningManager.finishWarning).toHaveBeenCalledWith(true, false, 'task_1');
+    });
+
+    it('PIN beklerken uyarı değiştiyse eski tıklama yeni görevi onaylamaz', () => {
+        const { warningManager } = makeManagers({ activeTaskId: 'task_2' });
+        const res = confirmWarningAction({ taskId: 'task_1', warningManager, t });
+        expect(res).toMatchObject({ success: false, code: 'WARNING_CHANGED' });
+        expect(warningManager.finishWarning).not.toHaveBeenCalled();
+    });
+
+    it('aktif uyarı yoksa NO_ACTIVE_WARNING; taskId yoksa aktif görev kullanılır', () => {
+        const empty = makeManagers({ activeTaskId: null });
+        expect(confirmWarningAction({ taskId: 'task_1', warningManager: empty.warningManager, t }))
+            .toEqual({ success: false, code: 'NO_ACTIVE_WARNING' });
+
+        const { warningManager } = makeManagers();
+        expect(confirmWarningAction({ warningManager, t })).toEqual({ success: true });
+        expect(warningManager.finishWarning).toHaveBeenCalledWith(true, false, 'task_1');
     });
 });

@@ -95,12 +95,22 @@ describe('TaskManager zamanlayıcı (TS-0.2)', () => {
         expect(task.trigger.targetTime).toBeGreaterThan(Date.now());
     });
 
-    it('mod damgası kuruluşta vurulur, varsayılan classic (P0-1)', () => {
+    it('mod damgası sunucu ayarından vurulur; istemci mode alanı yok sayılır', () => {
         const { tm } = spawn();
         const a = tm.createTask({ name: 'A', action: 'sleep', trigger: { type: 'duration', durationMs: 60000 } });
         const b = tm.createTask({ name: 'B', action: 'sleep', trigger: { type: 'duration', durationMs: 60000 }, mode: 'full' });
         expect(a.mode).toBe('classic');
-        expect(b.mode).toBe('full');
+        // K-04: istemci gönderdiği mode güvenilir değildir.
+        expect(b.mode).toBe('classic');
+    });
+
+    it('otonomi modu ayarı full ise yeni görevler full damgalanır', () => {
+        const base = makeDeps();
+        const { tm } = spawn({
+            storage: { ...base.storage, getSettings: () => ({ autonomyMode: 'full' }) }
+        });
+        const task = tm.createTask({ name: 'F', action: 'sleep', trigger: { type: 'duration', durationMs: 60000 } });
+        expect(task.mode).toBe('full');
     });
 
     it('güvenlik reddi BLOCKED üretir, OS çalışmaz', async () => {
@@ -119,14 +129,17 @@ describe('TaskManager zamanlayıcı (TS-0.2)', () => {
 });
 
 describe('TaskManager zincir (WBS-11.1)', () => {
-    function spawnWithPower() {
-        const { tm, d } = spawn();
+    function spawnWithPower(settings = {}) {
+        const base = makeDeps();
+        const { tm, d } = spawn({
+            storage: { ...base.storage, getSettings: () => settings }
+        });
         d.power.isValidAction = (a) => ['shutdown', 'restart', 'sleep', 'hibernate', 'lock', 'signout'].includes(a);
         return { tm, d };
     }
 
     it('biten görev sıradaki halkayı süreli görev olarak kurar', async () => {
-        const { tm } = spawnWithPower();
+        const { tm } = spawnWithPower({ autonomyMode: 'full' });
         const task = tm.createTask({
             name: 'Ana', action: 'sleep',
             trigger: { type: 'duration', durationMs: 1000 },

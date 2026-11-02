@@ -76,4 +76,17 @@ describe('DeviceProfileService', () => {
             eth0: [{ family: 'IPv4', internal: false, address: '172.16.5.4', netmask: '255.255.255.0' }]
         })).toBe('172.16.5.255');
     });
+
+    it('L-15: sanal adaptörler atlanır; uygun arayüz yoksa global broadcast', () => {
+        expect(defaultBroadcastAddress({
+            'vEthernet (Default Switch)': [{ family: 'IPv4', internal: false, address: '172.20.0.1', netmask: '255.255.240.0' }],
+            'OpenVPN TAP-Windows6': [{ family: 'IPv4', internal: false, address: '10.8.0.2', netmask: '255.255.255.0' }],
+            eth0: [{ family: 'IPv4', internal: false, address: '192.168.1.10', netmask: '255.255.255.0' }]
+        })).toBe('192.168.1.255');
+
+        expect(defaultBroadcastAddress({
+            'VPN Client': [{ family: 'IPv4', internal: false, address: '172.20.0.1', netmask: '255.255.240.0' }],
+            'Loopback Pseudo-Interface 1': [{ family: 'IPv4', internal: true, address: '127.0.0.1', netmask: '255.0.0.0' }]
+        })).toBe('255.255.255.255');
+    });
 });

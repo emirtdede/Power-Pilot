@@ -34,7 +34,11 @@ function taskWith(conditions, operator = 'AND', stabilitySeconds = 15, id = 'tas
 
 describe('SmartFinishEngine koşullar', () => {
     let engine;
-    beforeEach(() => { engine = new SmartFinishEngine(collectorWith(freshMetrics())); });
+    beforeEach(() => {
+        engine = new SmartFinishEngine(collectorWith(freshMetrics()));
+        // Y-11 testte tarama throttle'ı kapatılır; dosya değişimi hemen görülür.
+        engine.directoryScanIntervalMs = 0;
+    });
 
     it('stale metrikle ASLA tetiklenmez (WBS-1.1)', () => {
         engine.collector = collectorWith(freshMetrics({ stale: true }));
@@ -118,8 +122,30 @@ describe('SmartFinishEngine koşullar', () => {
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    it('FILE_STABLE klasörü, kısmi dosyayı ve symlink\'i reddeder (WP-07.T1)', () => {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-sf-'));
+    it('O-03: aynı görevde iki FILE_STABLE koşulu ayrı örnek anahtarı kullanır', () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-sf-multi-'));
+        const a = path.join(dir, 'a.bin');
+        const b = path.join(dir, 'b.bin');
+        fs.writeFileSync(a, 'a');
+        fs.writeFileSync(b, 'b');
+        const r = engine.evaluateTask({
+            id: 'task_multi',
+            conditionGroup: {
+                operator: 'AND',
+                stabilitySeconds: 0,
+                conditions: [
+                    { type: 'file_stable', filePath: a, stableSeconds: 60 },
+                    { type: 'file_stable', filePath: b, stableSeconds: 60 }
+                ]
+            }
+        });
+        expect(r.satisfied).toBe(false);
+        expect(engine.fileSamples.has('task_multi:0')).toBe(true);
+        expect(engine.fileSamples.has('task_multi:1')).toBe(true);
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('FILE_STABLE klasörü, kısmi dosyayı ve symlink\'i reddeder (WP-07.T1)', () => {        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-sf-'));
         const partial = path.join(dir, 'video.mp4.crdownload');
         fs.writeFileSync(partial, 'x');
         const rDir = engine.evaluateSingleCondition({ type: 'file_stable', filePath: dir, stableSeconds: 60 }, freshMetrics(), 't_dir');

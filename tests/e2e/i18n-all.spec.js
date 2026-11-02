@@ -31,7 +31,13 @@ test('17 dilde ana ekran ve ayarlar eksiksiz', async () => {
         await window.waitForFunction(() => /^v\d+\.\d+\.\d+/.test(document.getElementById('app-version')?.innerText || ''));
 
         for (const lang of languages) {
-            await window.evaluate((value) => localStorage.setItem('language', value), lang);
+            // L-01: dil için tek doğruluk kaynağı sunucu ayarlarıdır.
+            await window.evaluate(async (value) => {
+                localStorage.setItem('language', value);
+                if (window.electronAPI && window.electronAPI.saveSettings) {
+                    await window.electronAPI.saveSettings({ language: value });
+                }
+            }, lang);
             await window.reload();
             await window.waitForLoadState('domcontentloaded');
             await window.waitForFunction(() => /^v\d+\.\d+\.\d+/.test(document.getElementById('app-version')?.innerText || ''));

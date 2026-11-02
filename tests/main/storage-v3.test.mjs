@@ -8,6 +8,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import StorageService from '../../src/main/services/StorageService.js';
+import { migrateV2 } from '../../src/main/storage/MigrateV2.js';
+import { Db } from '../../src/main/storage/Database.js';
 
 const dirs = [];
 const services = [];
@@ -145,5 +147,132 @@ describe('StorageService v3 — WP-11', () => {
         s.appendBoot(old);
         expect(s.getBootHistory()).toHaveLength(1);
         expect(s.db.prepare('SELECT COUNT(*) AS n FROM boot_history').get().n).toBe(1);
+    });
+});
+
+/**
+ * Y-10: hedef DB zaten varsa yalnızca bu kaynağa ait ve sağlam olduğu
+ * doğrulandıktan sonra korunur. Doğrulanamayan hedef yüzünden kaynak JSON
+ * silinmez / `.migrated` işaretlenmez.
+ */
+function writeLegacyData(dir, data) {
+    fs.writeFileSync(path.join(dir, 'powerpilot_data.json'), JSON.stringify(data), 'utf8');
+}
+
+function runMigration(dir) {
+    return migrateV2({
+        userDataPath: dir,
+        writeAll: (db, data) => {
+            for (const task of Array.isArray(data.tasks) ? data.tasks : []) {
+                if (!task || !task.id) continue;
+                db.prepare('INSERT INTO tasks(id, status, action, created_at, updated_at, data) VALUES (?, ?, ?, ?, ?, ?)')
+                    .run(task.id, task.status || null, task.action || null, task.createdAt || null,
+                        new Date().toISOString(), JSON.stringify(task));
+            }
+        }
+    });
+}
+
+function migrationTemps(dir) {
+    return fs.readdirSync(dir).filter((name) => name.includes('.migrating-'));
+}
+
+describe('StorageService v3 — Y-10 hedef DB doğrulaması', () => {
+    it('aynı kaynaktan üretilmiş sağlam hedef korunur, kaynak temizlenir', () => {
+        const dir = freshDir();
+        const data = { version: 2, tasks: [{ id: 't1', name: 'A' }] };
+        writeLegacyData(dir, data);
+        expect(runMigration(dir).status).toBe('migrated');
+
+        // JSON işaretlenemedi senaryosu: aynı kaynak yeniden konur.
+        writeLegacyData(dir, data);
+        const second = runMigration(dir);
+        expect(second.status).toBe('migrated');
+        expect(fs.existsSync(path.join(dir, 'powerpilot_data.json'))).toBe(false);
+        expect(fs.existsSync(path.join(dir, 'powerpilot_data.json.migrated'))).toBe(true);
+        expect(migrationTemps(dir)).toHaveLength(0);
+
+        const db = new Db(path.join(dir, 'powerpilot.db'), { fileMustExist: true });
+        try {
+            expect(db.prepare('SELECT COUNT(*) AS n FROM tasks').get().n).toBe(1);
+        } finally {
+            db.close();
+        }
+    });
+
+    it('hedef farklı kaynaktan üretilmişse maintenance; kaynak ve hedef korunur', () => {
+        const dir = freshDir();
+        writeLegacyData(dir, { version: 2, tasks: [{ id: 't1', name: 'A' }] });
+        expect(runMigration(dir).status).toBe('migrated');
+
+        const secondData = { version: 2, tasks: [{ id: 't2', name: 'B' }] };
+        writeLegacyData(dir, secondData);
+        const res = runMigration(dir);
+        expect(res.status).toBe('maintenance');
+        expect(res.code).toBe('MIGRATION_TARGET_SOURCE');
+        expect(JSON.parse(fs.readFileSync(path.join(dir, 'powerpilot_data.json'), 'utf8'))).toEqual(secondData);
+        expect(fs.existsSync(path.join(dir, 'powerpilot_data.json.migrated'))).toBe(true);
+        expect(migrationTemps(dir)).toHaveLength(0);
+
+        const db = new Db(path.join(dir, 'powerpilot.db'), { fileMustExist: true });
+        try {
+            expect(db.prepare('SELECT id FROM tasks').all().map((r) => r.id)).toEqual(['t1']);
+        } finally {
+            db.close();
+        }
+    });
+
+    it('hedefte migrasyon kaydı eksikse maintenance; kaynak korunur', () => {
+        const dir = freshDir();
+        const data = { version: 2, tasks: [{ id: 't1', name: 'A' }] };
+        writeLegacyData(dir, data);
+        expect(runMigration(dir).status).toBe('migrated');
+
+        const db = new Db(path.join(dir, 'powerpilot.db'), { fileMustExist: true });
+        try {
+            db.prepare('DELETE FROM migrations WHERE id = ?').run('v2-json-to-v3');
+        } finally {
+            db.close();
+        }
+
+        writeLegacyData(dir, data);
+        const res = runMigration(dir);
+        expect(res.status).toBe('maintenance');
+        expect(res.code).toBe('MIGRATION_TARGET_INCOMPLETE');
+        expect(fs.existsSync(path.join(dir, 'powerpilot_data.json'))).toBe(true);
+        expect(migrationTemps(dir)).toHaveLength(0);
+    });
+
+    it('bozuk/okunamayan hedef maintenance döner; kaynak JSON silinmez', () => {
+        const dir = freshDir();
+        writeLegacyData(dir, { version: 2, tasks: [{ id: 't1' }] });
+        const target = path.join(dir, 'powerpilot.db');
+        fs.writeFileSync(target, 'bozuk-sqlite-verisi');
+
+        const res = runMigration(dir);
+        expect(res.status).toBe('maintenance');
+        expect(res.code).toMatch(/^MIGRATION_TARGET_/);
+        expect(fs.existsSync(path.join(dir, 'powerpilot_data.json'))).toBe(true);
+        expect(fs.existsSync(path.join(dir, 'powerpilot_data.json.migrated'))).toBe(false);
+        expect(fs.readFileSync(target, 'utf8')).toBe('bozuk-sqlite-verisi');
+        expect(migrationTemps(dir)).toHaveLength(0);
+    });
+
+    it('hedef şema sürümü uyuşmazsa maintenance', () => {
+        const dir = freshDir();
+        writeLegacyData(dir, { version: 2, tasks: [{ id: 't1' }] });
+        const target = path.join(dir, 'powerpilot.db');
+        const db = new Db(target);
+        try {
+            db.sql(Db.schemaSql());
+            db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run('schema_version', '2');
+        } finally {
+            db.close();
+        }
+
+        const res = runMigration(dir);
+        expect(res.status).toBe('maintenance');
+        expect(res.code).toBe('MIGRATION_TARGET_SCHEMA');
+        expect(fs.existsSync(path.join(dir, 'powerpilot_data.json'))).toBe(true);
     });
 });

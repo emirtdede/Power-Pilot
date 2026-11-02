@@ -56,7 +56,7 @@ describe('WP-11 veri bütünlüğü', () => {
         expect(s.auditTampered).toBe(true);
     });
 
-    it('T-STO-11: checkpoint dosyası silinince verify CHECKPOINT_MISSING', () => {
+    it('O-22: checkpoint dosyası silinince onarılır; HMAC bozulursa tamper', () => {
         const dir = freshDir();
         const s = open(dir);
         s.setAuditKey(auditKey(), { checkpointDir: path.join(dir, 'audit-checkpoints') });
@@ -65,9 +65,24 @@ describe('WP-11 veri bütünlüğü', () => {
         const checkpoint = path.join(dir, 'audit-checkpoints', `${day}.json`);
         expect(fs.existsSync(checkpoint)).toBe(true);
         fs.rmSync(checkpoint, { force: true });
+        // O-22: HMAC'li gün satırları varsa eksik checkpoint onarılabilir.
+        const repaired = s.verifyAuditChain();
+        expect(repaired.ok).toBe(true);
+        expect(s.auditTampered).toBe(false);
+        expect(fs.existsSync(checkpoint)).toBe(true);
+        expect(s.getAuditLog().some((r) => r.action === 'audit_checkpoint_repaired')).toBe(true);
+        const rebuilt = JSON.parse(fs.readFileSync(checkpoint, 'utf8'));
+        expect(rebuilt.lastHmac).toBe(rec.recordHmac);
+        // Onarılan checkpoint sonraki doğrulamada da geçerli olmalı.
+        expect(s.verifyAuditChain().ok).toBe(true);
+
+        // Onarım sonrası checkpoint HMAC'i kurcalanırsa gerçek tamper sayılır.
+        const data = JSON.parse(fs.readFileSync(checkpoint, 'utf8'));
+        data.lastHmac = 'deadbeef';
+        fs.writeFileSync(checkpoint, JSON.stringify(data), 'utf8');
         const res = s.verifyAuditChain();
         expect(res.ok).toBe(false);
-        expect(res.code).toBe('CHECKPOINT_MISSING');
+        expect(res.code).toBe('CHECKPOINT_TAMPERED');
         expect(s.auditTampered).toBe(true);
     });
 
@@ -187,5 +202,44 @@ describe('WP-11 veri bütünlüğü', () => {
         expect(quickCheck(dbPath)).toBe('ok');
         const s2 = open(dir);
         expect(s2.getTasks()[0].name).toBe('GIZLI-GOREV-ADU-123');
+    });
+
+    it('Y-09: yanlış anahtar/bozuk yedek canlı DB’yi değiştirmez', () => {
+        const dir = freshDir();
+        const s = open(dir);
+        s.saveTasks([{ id: 'canli', name: 'CANLI-VERI' }]);
+        s.close();
+        services.splice(services.indexOf(s), 1);
+
+        const dbPath = path.join(dir, 'powerpilot.db');
+        const key = crypto.randomBytes(32);
+        const backupDir = path.join(dir, 'backups');
+        const res = backupDatabase({ dbPath, backupDir, key });
+        const before = fs.readFileSync(dbPath);
+
+        // Yanlış anahtar: çözme aşamasında durur; karantina/rename yapılmaz.
+        expect(() => restoreDatabase({
+            inputPath: res.path,
+            dbPath,
+            key: crypto.randomBytes(32),
+            quarantineDir: path.join(dir, 'q')
+        })).toThrowError(/çözülemedi/);
+        expect(fs.existsSync(path.join(dir, 'q'))).toBe(false);
+        expect(fs.readFileSync(dbPath).equals(before)).toBe(true);
+
+        // Bozuk yedek: aynı şekilde canlı DB'ye dokunulmaz.
+        const corrupt = path.join(dir, 'bozuk.db.enc');
+        fs.writeFileSync(corrupt, 'bozuk');
+        expect(() => restoreDatabase({
+            inputPath: corrupt,
+            dbPath,
+            key,
+            quarantineDir: path.join(dir, 'q')
+        })).toThrowError(/çok kısa/);
+        expect(fs.readFileSync(dbPath).equals(before)).toBe(true);
+        expect(fs.readdirSync(dir).filter((name) => name.includes('.restoring-'))).toHaveLength(0);
+
+        const s2 = open(dir);
+        expect(s2.getTasks()[0].name).toBe('CANLI-VERI');
     });
 });

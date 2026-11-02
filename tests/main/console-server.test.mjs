@@ -37,9 +37,14 @@ function fakeRes() {
 
 async function call(srv, method, path, body, key) {
     const res = fakeRes();
-    await srv.route(method, path, body || {}, res, key
+    const role = key
         ? ({ [ADMIN]: 'admin', [OPERATOR]: 'operator', [VIEWER]: 'viewer', [AGENT]: 'agent' }[key] || null)
-        : null);
+        : null;
+    // K-02: ajan anahtarı agentId'ye bağlıdır; testte gövdedeki agentId ile eşlenir.
+    const identity = role
+        ? { role, agentId: role === 'agent' ? (body && body.agentId) || null : null }
+        : null;
+    await srv.route(method, path, body || {}, res, role, null, identity);
     return res;
 }
 
@@ -68,6 +73,14 @@ describe('ConsoleServer heartbeat + envanter', () => {
         expect(res.body.duplicates).toBe(1);
         res = await call(srv, 'POST', '/api/v1/heartbeat', { agentId: 'a1', inventory: inv }, AGENT);
         expect(res.body.orders).toEqual([]);
+    });
+
+    it('bağlı olmayan ajan anahtarı heartbeat reddeder (K-02)', async () => {
+        const srv = makeServer();
+        const res = fakeRes();
+        await srv.route('POST', '/api/v1/heartbeat', { agentId: 'a1', inventory: {} }, res, 'agent', null, { role: 'agent', agentId: null });
+        expect(res.statusCode).toBe(403);
+        expect(res.body.code).toBe('AGENT_KEY_UNBOUND');
     });
 
     it('kuyruk sayaçları ve emir geçmişi görünür (WP-03.T5)', async () => {
@@ -197,7 +210,7 @@ describe('ConsoleServer politika dağıtımı', () => {
     it('denetim günlüğü zinciri geçerli', async () => {
         const srv = makeServer();
         await call(srv, 'POST', '/api/v1/policies', { id: 'p', type: 'idle-lock', targets: ['a1'], params: { idleMinutes: 5 } }, OPERATOR);
-        const res = await call(srv, 'GET', '/api/v1/audit', {}, ADMIN);
+        const res = await call(srv, 'GET', '/api/v1/audit?verify=1', {}, ADMIN);
         expect(res.statusCode).toBe(200);
         expect(res.body.verify.ok).toBe(true);
         // WP-01.T6: audit yalnızca admin'e açıktır.

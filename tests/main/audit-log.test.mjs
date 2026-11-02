@@ -3,7 +3,7 @@
  * Hash zinciri: ekleme, doğrulama, kurcalama tespiti.
  */
 import { describe, it, expect } from 'vitest';
-import { AuditLog } from '../../src/main/services/AuditLog.js';
+import { AuditLog, MAX_RECORDS } from '../../src/main/services/AuditLog.js';
 
 describe('AuditLog', () => {
     it('kayıtlar zincirlenir ve doğrulanır', () => {
@@ -39,5 +39,22 @@ describe('AuditLog', () => {
 
     it('boş günlük geçerli', () => {
         expect(new AuditLog(null).verify()).toEqual({ ok: true, records: 0 });
+    });
+
+    it('O-10: rotasyonda rotatedFrom hash kapsamına girer; değiştirilirse TAMPERED', () => {
+        const log = new AuditLog(null);
+        for (let i = 0; i < MAX_RECORDS + 1; i += 1) {
+            log.append({ actor: 'system', action: 'rotate', detail: String(i) });
+        }
+        const list = log.load();
+        expect(list).toHaveLength(MAX_RECORDS);
+        expect(list[0].seq).toBe(2);
+        expect(typeof list[0].rotatedFrom).toBe('string');
+        expect(log.verify()).toEqual({ ok: true, records: MAX_RECORDS });
+
+        list[0].rotatedFrom = 'sahte-rotasyon';
+        const v = log.verify();
+        expect(v.ok).toBe(false);
+        expect(v.code).toBe('TAMPERED');
     });
 });

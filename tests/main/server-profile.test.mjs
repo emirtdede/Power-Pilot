@@ -17,7 +17,13 @@ function makeEngine({ role = 'workstation', windows = [] } = {}) {
     return new SafetyPolicyEngine(storage, execFn, () => 9999);
 }
 
-const con = (action, extra = {}) => ({ action, source: 'console', safetyPolicy: {}, ...extra });
+const OFF = {
+    checkProtectedApps: false,
+    checkUserActivity: false,
+    checkFullscreen: false,
+    checkSystemLoad: false
+};
+const con = (action, extra = {}) => ({ action, source: 'console', safetyPolicy: OFF, ...extra });
 const FULL_DAY = [{ id: 'mw', days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '23:59' }];
 
 describe('Sunucu profili kapıları', () => {
@@ -36,7 +42,7 @@ describe('Sunucu profili kapıları', () => {
 
     it('yerel görev sunucuda bile serbest (fiziksel yönetici)', async () => {
         const eng = makeEngine({ role: 'server' });
-        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: {} });
+        const r = await eng.evaluate({ action: 'shutdown', source: 'user_interface', safetyPolicy: OFF });
         expect(r.allowed).toBe(true);
     });
 

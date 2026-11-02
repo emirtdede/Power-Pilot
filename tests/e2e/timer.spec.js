@@ -41,7 +41,6 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
         const conditional = await window.evaluate(() => window.electronAPI.createTask({
             name: 'E2E koşullu görev',
             action: 'lock',
-            source: 'user_interface',
             trigger: { type: 'duration', durationMs: 3600000 },
             conditionGroup: {
                 operator: 'AND',
@@ -77,8 +76,11 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
         const previousTheme = await window.evaluate(() => localStorage.getItem('theme') || 'dark');
         const previousLanguage = await window.evaluate(() => localStorage.getItem('language') || 'tr');
         await app.evaluate(({ ipcMain }) => {
-            ipcMain.removeHandler('save-settings');
-            ipcMain.handle('save-settings', async () => ({ success: false, message: 'E2E reject' }));
+            // O-20: ayarlar artık tek atomik IPC ile yazılır; ikisi de reddedilir.
+            for (const channel of ['save-settings', 'save-settings-atomic']) {
+                ipcMain.removeHandler(channel);
+                ipcMain.handle(channel, async () => ({ success: false, message: 'E2E reject' }));
+            }
         });
         const nextTheme = previousTheme === 'light' ? 'dark' : 'light';
         const nextLanguage = previousLanguage === 'en' ? 'tr' : 'en';
@@ -101,7 +103,6 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
         const timed = await window.evaluate(() => window.electronAPI.createTask({
             name: 'E2E iptal görevi',
             action: 'lock',
-            source: 'user_interface',
             trigger: { type: 'duration', durationMs: 3600000 }
         }));
         expect(timed && timed.success).toBe(true);

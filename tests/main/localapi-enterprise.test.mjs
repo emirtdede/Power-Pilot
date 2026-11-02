@@ -127,9 +127,22 @@ describe('FAZ B: LocalAPI kurumsal uçları', () => {
 
     it('denetim ucu zincir doğrulamasıyla döner', async () => {
         const { svc } = makeService();
-        const res = await call(svc, 'GET', '/api/v1/audit');
+        const res = await call(svc, 'GET', '/api/v1/audit?verify=1');
         expect(res.statusCode).toBe(200);
         expect(res.body.verify.ok).toBe(true);
+    });
+
+    it('denetim ucu viewer/operator için 403, admin için 200 (O-06)', async () => {
+        for (const role of ['viewer', 'operator']) {
+            const { svc } = makeService({ role });
+            const list = await call(svc, 'GET', '/api/v1/audit');
+            expect(list.statusCode).toBe(403);
+            const verify = await call(svc, 'GET', '/api/v1/audit/verify');
+            expect(verify.statusCode).toBe(403);
+        }
+        const { svc } = makeService({ role: 'admin' });
+        expect((await call(svc, 'GET', '/api/v1/audit')).statusCode).toBe(200);
+        expect((await call(svc, 'GET', '/api/v1/audit/verify')).statusCode).toBe(200);
     });
 
     it('yönlendirici istisnası süreci öldürmez (500 döner)', async () => {

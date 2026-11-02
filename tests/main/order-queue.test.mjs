@@ -73,3 +73,67 @@ describe('OrderQueue', () => {
         expect(q.pending()).toHaveLength(51);
     });
 });
+
+/** Kalıcı depo sahtesi: saveOrders false döndürerek disk hatasını taklit eder. */
+function memStorage() {
+    let orders = [];
+    let fail = false;
+    return {
+        getOrders: () => orders,
+        saveOrders: (list) => {
+            if (fail) return false;
+            orders = list;
+            return true;
+        },
+        setFail: (value) => { fail = value; },
+        snapshot: () => orders
+    };
+}
+
+describe('OrderQueue kalıcılaştırma hataları (Y-06)', () => {
+    it('enqueue persist edilemezse QUEUE_PERSIST_FAILED; yarım kayıt kalmaz', () => {
+        const storage = memStorage();
+        const q = new OrderQueue(storage);
+        storage.setFail(true);
+        let err = null;
+        try { q.enqueue(signed('n1')); } catch (e) { err = e; }
+        expect(err && err.code).toBe('QUEUE_PERSIST_FAILED');
+        expect(q.pending()).toHaveLength(0);
+        expect(storage.snapshot()).toHaveLength(0);
+    });
+
+    it('ack persist edilemezse durum geri alınır', () => {
+        const storage = memStorage();
+        const q = new OrderQueue(storage);
+        const { record } = q.enqueue(signed('n2'));
+        storage.setFail(true);
+        expect(() => q.ack(record.key, { code: 'success' })).toThrowError(/kalıcılaştırılamadı/);
+        expect(record.status).toBe('pending');
+        expect(record.ackedAt).toBeNull();
+        expect(q.pending()).toHaveLength(1);
+    });
+
+    it('makbuz gönderildi işareti persist edilemezse geri alınır', () => {
+        const storage = memStorage();
+        const q = new OrderQueue(storage);
+        const { record } = q.enqueue(signed('n3'));
+        q.ack(record.key, { code: 'success' });
+        const receipts = q.peekUnsentReceipts();
+        storage.setFail(true);
+        expect(() => q.markReceiptsSent(receipts)).toThrow();
+        expect(record.receiptSent).toBe(false);
+        expect(q.peekUnsentReceipts()).toHaveLength(1);
+    });
+
+    it('makbuz hatası sayacı persist edilemezse geri alınır', () => {
+        const storage = memStorage();
+        const q = new OrderQueue(storage);
+        const { record } = q.enqueue(signed('n4'));
+        q.ack(record.key, { code: 'success' });
+        const receipts = q.peekUnsentReceipts();
+        storage.setFail(true);
+        expect(() => q.markReceiptsFailed(receipts, 'HTTP 500')).toThrow();
+        expect(record.receiptAttempts).toBeUndefined();
+        expect(record.lastReceiptError).toBeUndefined();
+    });
+});

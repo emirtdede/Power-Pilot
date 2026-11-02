@@ -59,6 +59,7 @@ function localApiService(settings = {}) {
     const storage = {
         getSettings: () => ({
             localApiKeyHash: TEST_HASH,
+            localApiKeyRole: 'admin',
             localApiEnabled: true,
             localApiPort: 0,
             lanModeEnabled: false,
@@ -361,7 +362,7 @@ describe('T-TLS-08: stop/start', () => {
     it('20 eşzamanlı istek altında stop/start → EADDRINUSE yok', async () => {
         const port = await freePort();
         const { svc } = localApiService({ localApiPort: port });
-        const started = svc.start();
+        const started = await svc.start();
         cleanups.push(() => svc.stop());
         expect(started.ok).toBe(true);
         await new Promise((resolve) => setTimeout(resolve, 50));
