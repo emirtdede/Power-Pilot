@@ -120,10 +120,14 @@ describe('MigrateV2 — saf yardımcılar', () => {
 
     it('cleanStaleTemps yarım kalan geçici dosyaları siler', () => {
         const target = path.join(dir, 'powerpilot.db');
-        fs.writeFileSync(`${target}.migrating-123-abcd`, 'x');
-        fs.writeFileSync(`.${path.basename(target)}.migrating-999`, 'y');
+        const staleA = `${target}.migrating-123-abcd`;
+        const staleB = path.join(dir, `.${path.basename(target)}.migrating-999`);
+        fs.writeFileSync(staleA, 'x');
+        fs.writeFileSync(staleB, 'y');
         fs.writeFileSync(path.join(dir, 'kalsin.txt'), 'z');
-        expect(cleanStaleTemps(target)).toBe(1);
+        expect(cleanStaleTemps(target)).toBe(2);
+        expect(fs.existsSync(staleA)).toBe(false);
+        expect(fs.existsSync(staleB)).toBe(false);
         expect(fs.existsSync(path.join(dir, 'kalsin.txt'))).toBe(true);
         expect(cleanStaleTemps(path.join(dir, 'olmayan', 'db'))).toBe(0);
     });

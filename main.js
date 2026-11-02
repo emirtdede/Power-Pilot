@@ -507,24 +507,29 @@ async function initServices() {
     // P0/BLOCKER-001: `powercfg /requests` yükseltilmiş yetki ister; paket
     // `asInvoker` çalışır. Yetenek yoksa kapı atlanır — bu GÖRÜNÜR olmalı:
     // açılışta tek denetim kaydı + get-security-status + Ayarlar uyarısı.
-    try {
-        const cap = await safetyPolicyEngine.probePowerRequestCapability();
-        if (cap && cap.available === false) {
-            log.warn('[Safety] Aktif güç isteği ölçümü kullanılamıyor (yükseltme gerekli); checkSystemLoad kapısı atlanacak.');
-            try {
-                auditLog.append({
-                    actor: 'system',
-                    action: 'power_request_check_unavailable',
-                    target: 'safety-policy',
-                    detail: 'powercfg /requests yükseltilmiş yetki gerektiriyor; checkSystemLoad kapısı atlanıyor, diğer kapılar etkin.'
-                });
-            } catch (auditErr) {
-                log.warn('[Safety] Yetenek kaydı denetim günlüğüne yazılamadı:', auditErr && auditErr.message);
+    // Pencere açılışını BLOKLAMAZ: sonda en fazla 3 sn sürebilir ve kapı
+    // zaten ilk görevde lazily ölçer; bu yüzden sonraki tura bırakılır.
+    const recordPowerRequestCapability = async () => {
+        try {
+            const cap = await safetyPolicyEngine.probePowerRequestCapability();
+            if (cap && cap.available === false) {
+                log.warn('[Safety] Aktif güç isteği ölçümü kullanılamıyor (yükseltme gerekli); checkSystemLoad kapısı atlanacak.');
+                try {
+                    auditLog.append({
+                        actor: 'system',
+                        action: 'power_request_check_unavailable',
+                        target: 'safety-policy',
+                        detail: 'powercfg /requests yükseltilmiş yetki gerektiriyor; checkSystemLoad kapısı atlanıyor, diğer kapılar etkin.'
+                    });
+                } catch (auditErr) {
+                    log.warn('[Safety] Yetenek kaydı denetim günlüğüne yazılamadı:', auditErr && auditErr.message);
+                }
             }
+        } catch (probeErr) {
+            log.warn('[Safety] Yetenek sondası başarısız:', probeErr && probeErr.message);
         }
-    } catch (probeErr) {
-        log.warn('[Safety] Yetenek sondası başarısız:', probeErr && probeErr.message);
-    }
+    };
+    setImmediate(() => { void recordPowerRequestCapability(); });
 
     // Wire up WarningManager events to UI
     const forwardWarning = (channel) => (data) => {
