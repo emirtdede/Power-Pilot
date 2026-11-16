@@ -10,6 +10,9 @@ const path = require('node:path');
 
 const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../src/renderer/locales/manifest.json'), 'utf8'));
 const languages = Object.keys(manifest.languages);
+const dictionaryOf = (lang) => JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, `../../src/renderer/locales/${lang}.json`), 'utf8')
+);
 
 test('17 dilde ana ekran ve ayarlar eksiksiz', async () => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'powerpilot-i18n-all-'));
@@ -46,12 +49,24 @@ test('17 dilde ana ekran ve ayarlar eksiksiz', async () => {
             await window.waitForTimeout(250);
             const state = await window.evaluate(() => ({
                 dir: document.documentElement.getAttribute('dir'),
-                text: document.querySelector('main')?.innerText || ''
+                text: document.querySelector('main')?.innerText || '',
+                aria: {
+                    menu: document.getElementById('btn-nav-toggle')?.getAttribute('aria-label'),
+                    minimize: document.getElementById('btn-minimize')?.getAttribute('aria-label'),
+                    maximize: document.getElementById('btn-maximize')?.getAttribute('aria-label'),
+                    close: document.getElementById('btn-close')?.getAttribute('aria-label')
+                }
             }));
             expect(state.dir, `${lang} dir`).toBe(lang === 'ar' ? 'rtl' : 'ltr');
             expect(state.text, `${lang} literal`).not.toContain("t('");
             expect(state.text, `${lang} undefined`).not.toContain('undefined');
             expect(state.text.trim().length, `${lang} boş`).toBeGreaterThan(20);
+            // Pencere denetimlerinin erişilebilir adı da aktif dilde olmalı.
+            const dict = dictionaryOf(lang);
+            expect(state.aria.menu, `${lang} menu aria`).toBe(dict.winMenu);
+            expect(state.aria.minimize, `${lang} minimize aria`).toBe(dict.winMinimize);
+            expect(state.aria.maximize, `${lang} maximize aria`).toBe(dict.winMaximize);
+            expect(state.aria.close, `${lang} close aria`).toBe(dict.modalClose);
         }
         expect(errors).toEqual([]);
     } finally {

@@ -33,7 +33,10 @@ describe('O-11/O-20 atomik ayar yolu', () => {
 
         expect(body).toMatch(/saveSettingsAtomic\(\{ settings: patch, pin \}\)/);
         expect(body).not.toMatch(/electronAPI\.saveSettings\(/);
-        expect(body).toMatch(/const patch = \{ language, \.\.\.energy\.patch, autonomyMode \}/);
+        // Değişmemiş güvenlik alanı patch'e girmez; aksi halde dil/tema kaydı
+        // PIN'siz kurulumda PIN kapısına takılır.
+        expect(body).toMatch(/const patch = \{ language, \.\.\.energy\.patch \};/);
+        expect(body).toMatch(/if \(autonomyMode !== previous\.autonomyMode\) patch\.autonomyMode = autonomyMode;/);
         // PIN iptalinde yalnızca form geri alınır; sunucuya yazım yok.
         expect(body).toMatch(/cancel: \(\) => \{ restoreForm\(\); \}/);
     });

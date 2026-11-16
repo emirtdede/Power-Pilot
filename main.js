@@ -82,6 +82,63 @@ function t(key, vars) {
     return translate(currentLanguage(), key, vars);
 }
 
+// Açılış hatası kullanıcıya aktif dilde gösterilir; ham (Türkçe) mesaj log'a gider.
+function startupErrorText(err) {
+    const code = err && err.code;
+    if (code === 'SECRET_BACKEND_UNAVAILABLE') return t('errorSecretBackendUnavailable');
+    if (code === 'SETTINGS_PERSIST_FAILED') return t('errorSaveFailed');
+    return t('unknownError');
+}
+
+// Servis sonuçlarındaki ham (Türkçe) mesajlar yerine aktif dilin metni gösterilir.
+const AI_RESULT_KEYS = {
+    AI_SILENCED: 'toastAiDisabled',
+    BUSY: 'aiBusy',
+    RATE_LIMITED: 'aiRateLimited',
+    AI_ERROR: 'aiNoResponse',
+    NO_PARSER: 'aiNoResponse'
+};
+const STT_RESULT_KEYS = {
+    INVALID_AUDIO: 'errorAudioParse',
+    TOO_SHORT: 'errorRecordingShort',
+    SILENCE: 'errorNotUnderstood',
+    NOT_HEARD: 'errorNotUnderstood',
+    TRANSCRIBE_FAILED: 'errorAudioParse',
+    MODEL_MISSING: 'errorSttMissing'
+};
+
+// Model indirme hataları servis içinde Türkçe üretilir; kullanıcıya kod →
+// anahtar eşlemesiyle aktif dilde gösterilir (ayrıntı log'da kalır).
+const MODEL_DOWNLOAD_KEYS = {
+    DISK_FULL: 'errorDownloadDiskSpace',
+    CONNECTION_FAILED: 'errorDownloadConnection',
+    RANGE_REJECTED: 'errorDownloadRange',
+    RANGE_MISMATCH: 'errorDownloadInterrupted',
+    EMPTY_BODY: 'errorDownloadInterrupted',
+    INTERRUPTED: 'errorDownloadInterrupted',
+    HTTP_STATUS: 'errorDownloadServer',
+    SIZE_MISMATCH: 'errorDownloadIntegrity',
+    PART_MISSING: 'errorDownloadIntegrity',
+    SIZE_VERIFY_FAILED: 'errorDownloadIntegrity',
+    SHA_COMPUTE_FAILED: 'errorDownloadIntegrity',
+    SHA_MISMATCH: 'errorDownloadIntegrity',
+    MOVE_FAILED: 'errorDownloadIntegrity',
+    MODEL_DIR_MISSING: 'errorAiDownloadFailed',
+    ALREADY_DOWNLOADING: 'errorDownloadBusy'
+};
+
+function localizeDownloadFailure(failure) {
+    if (!failure || typeof failure !== 'object') return failure;
+    const key = MODEL_DOWNLOAD_KEYS[failure.code] || 'errorAiDownloadFailed';
+    return { ...failure, error: t(key, failure.params || {}) };
+}
+
+function localizeResult(result, keys) {
+    if (!result || typeof result !== 'object') return result;
+    const key = keys[result.code];
+    return key ? { ...result, message: t(key) } : result;
+}
+
 // WBS-11.2 / WP-04.T4: PIN deneme sayacı (işlem-içi; yeniden başlatmada sıfırlanır, hash diskte kalır).
 const pinGuard = new PinGuard();
 let secretStore = null;
@@ -406,10 +463,10 @@ async function initServices() {
     // WP-11.T7: kurcalanmış audit / bakım modu → yıkıcı eylem yok.
     PowerService.setExecutionGuard(() => {
         if (storageService.maintenanceMode) {
-            return { ok: false, code: 'STORAGE_MAINTENANCE', error: storageService.maintenanceReason || 'Depo bakım modunda.' };
+            return { ok: false, code: 'STORAGE_MAINTENANCE', error: t('errorStorageMaintenance') };
         }
         if (storageService.auditTampered) {
-            return { ok: false, code: 'AUDIT_TAMPERED', error: 'Denetim zinciri kurcalanmış; yıkıcı eylemler bloke.' };
+            return { ok: false, code: 'AUDIT_TAMPERED', error: t('errorAuditTampered') };
         }
         return { ok: true };
     });
@@ -475,7 +532,7 @@ async function initServices() {
         url: STT_MODEL_URL
     });
     // WBS-7.4: AI servisi (ayrıştırıcı). Model yoksa AI_NOT_READY döner.
-    aiService = new AiService({ backend: aiBackend });
+    aiService = new AiService({ backend: aiBackend, translate: (key, vars) => t(key, vars) });
     // WBS-8.1: Ses servisi aynı model dizinini kullanır (ggml-base.bin).
     sttService = new SttService({ modelDir: path.join(app.getPath('userData'), 'models') });
     // WBS-E3: Cihaz profilleyici (kasa + watt tahmini/ölçümü).
@@ -910,7 +967,7 @@ if (!gotTheLock) {
             await initServices();
         } catch (err) {
             log.error('[Init] servisler başlatılamadı:', err && err.message);
-            dialog.showErrorBox('Power Pilot başlatılamadı', (err && err.message) || 'Bilinmeyen hata');
+            dialog.showErrorBox(t('startupFailed'), startupErrorText(err));
             app.quit();
             return;
         }
@@ -1283,10 +1340,22 @@ ipcHandle('delete-template', (event, templateId) => {
 });
 
 // WBS-7.4: AI IPC — durum (RAM kapısı dahil) + komut ayrıştırma.
+const AI_STATUS_KEYS = {
+    MODEL_MISSING: 'aiModelNotDownloaded',
+    NOT_CONFIGURED: 'aiModelNotDownloaded',
+    ALREADY_LOADING: 'loading',
+    WRONG_PROCESS: 'aiNotReady',
+    LOAD_FAILED: 'aiNoResponse'
+};
+
 ipcHandle('ai-status', () => {
     const totalGb = Math.round((os.totalmem() / 1073741824) * 10) / 10;
+    const status = aiBackend.getStatus();
+    // Durum metni servis içinde Türkçe üretilir; arayüze aktif dilde gider.
+    const key = AI_STATUS_KEYS[status.code];
     return {
-        ...aiBackend.getStatus(),
+        ...status,
+        ...(key ? { message: t(key) } : {}),
         model: modelManager.status(),
         stt: sttModelManager.status(),
         download: { ...aiDownloadState },
@@ -1294,7 +1363,7 @@ ipcHandle('ai-status', () => {
         ramOk: os.totalmem() >= 4294967296
     };
 });
-ipcHandle('ai-parse', (event, text) => {
+ipcHandle('ai-parse', async (event, text) => {
     // WBS-9.1 + el-freni: orkestratör kuyruk/susturma/denetim uygular;
     // tümü duraklatılmışken AI komutu reddedilir.
     if (taskManager && taskManager.pausedAll) {
@@ -1302,7 +1371,7 @@ ipcHandle('ai-parse', (event, text) => {
     }
     const input = normalizeAiInput(text, { allowEmpty: false });
     if (!input.ok) return { ok: false, code: input.code, message: t('errorInvalidRequest') };
-    return agentOrchestrator.runCommand(input.text);
+    return localizeResult(await agentOrchestrator.runCommand(input.text), AI_RESULT_KEYS);
 });
 ipcHandle('ai-diagnose', (event, reason) => {
     // WP-10.T9: sebep de aynı 4000 karakter sınırına tabidir.
@@ -1370,7 +1439,7 @@ ipcHandle('warning-confirm', (event, args) => {
 });
 // WBS-8.3: STT IPC — örnekler 16kHz mono olmalı (istemci yeniden örnekler).
 ipcHandle('stt-status', () => sttService.getStatus());
-ipcHandle('stt-transcribe', (event, payload) => {
+ipcHandle('stt-transcribe', async (event, payload) => {
     const { samples, sampleRate, uiLang } = payload || {};
     if (sampleRate !== 16000) {
         return { ok: false, code: 'INVALID_SAMPLE_RATE', message: t('errorAudioFormat') };
@@ -1379,7 +1448,7 @@ ipcHandle('stt-transcribe', (event, payload) => {
     if (len === 0 || len > 500000) {
         return { ok: false, code: 'INVALID_AUDIO', message: t('errorAudioSize') };
     }
-    return sttService.transcribePcm(samples, uiLang);
+    return localizeResult(await sttService.transcribePcm(samples, uiLang), STT_RESULT_KEYS);
 });
 // WBS-7.5: Model indirme/yükleme IPC — indirme arka planda sürer, durum polling ile izlenir.
 let aiDownloadState = { state: 'idle', file: null, received: 0, total: null, step: 0, steps: 2, error: null };
@@ -1399,19 +1468,28 @@ ipcHandle('ai-model-download', () => {
             if (out.llm.success && out.stt) {
                 log.info(`[ModelManager] STT indirme: ${out.stt.success ? 'ok' : out.stt.error}`);
             }
-            const failed = !out.llm.success ? out.llm : (out.stt && !out.stt.success ? out.stt : null);
+            const failed = !out.llm.success ? localizeDownloadFailure(out.llm)
+                : (out.stt && !out.stt.success ? localizeDownloadFailure(out.stt) : null);
             aiDownloadState = failed
                 ? { state: 'failed', file: aiDownloadState.file, received: aiDownloadState.received, total: aiDownloadState.total, step: aiDownloadState.step, steps: 2, error: failed.error || t('errorAiDownloadFailed') }
                 : { state: 'done', file: null, received: 0, total: null, step: 2, steps: 2, error: null };
         } catch (err) {
             log.error('[ModelManager] beklenmeyen hata:', err && err.message);
-            aiDownloadState = { state: 'failed', file: null, received: 0, total: null, step: 0, steps: 2, error: (err && err.message) || t('unknownError') };
+            aiDownloadState = { state: 'failed', file: null, received: 0, total: null, step: 0, steps: 2, error: t('unknownError') };
         }
     };
     run();
     return { started: true };
 });
-ipcHandle('ai-model-load', () => aiBackend.loadModel());
+ipcHandle('ai-model-load', async () => {
+    const res = await aiBackend.loadModel();
+    if (res && res.loaded === false) {
+        // Yükleme hatası kodu arayüzde ham kod olarak görünmesin.
+        const key = AI_STATUS_KEYS[res.code];
+        return key ? { ...res, message: t(key) } : res;
+    }
+    return res;
+});
 ipcHandle('ai-model-unload', async () => {
     await aiBackend.unload();
     return { success: true, ...aiBackend.getStatus() };

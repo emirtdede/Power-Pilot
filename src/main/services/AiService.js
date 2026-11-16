@@ -79,18 +79,38 @@ const SYSTEM_PROMPT = [
     'Örnek 4: "süre yok" → {"action":"shutdown","kind":"duration","missing":["durationMs"],"question":"Süre ne kadar olsun? (örn. 2 saat)"}.'
 ].join(' ');
 
-const CLARIFY_QUESTIONS = {
-    durationMs: 'Süre ne kadar olsun? (örn. 2 saat)',
-    targetTime: 'Saat kaçta çalışsın? (örn. 23:00)',
-    condition: 'Hangi koşulda çalışsın? (örn. indirme bitince)'
+// Netleştirme soruları ana süzgeçte dile çevrilir; anahtar → i18n anahtarı.
+const CLARIFY_KEYS = {
+    durationMs: 'aiClarifyDuration',
+    targetTime: 'aiClarifyTime',
+    condition: 'aiClarifyCondition'
+};
+
+// translate enjekte edilmezse (birim testleri, gömülü kullanım) Türkçe metin
+// korunur; üretimde ana süreç aktif dilin sözlüğünü geçirir.
+const DEFAULT_TRANSLATIONS = {
+    aiClarifyDuration: 'Süre ne kadar olsun? (örn. 2 saat)',
+    aiClarifyTime: 'Saat kaçta çalışsın? (örn. 23:00)',
+    aiClarifyCondition: 'Hangi koşulda çalışsın? (örn. indirme bitince)',
+    aiClarifyGeneric: 'Biraz daha ayrıntı verir misiniz? (eylem + süre/koşul)',
+    aiClarifyIncomplete: 'Eksik bilgiyi tamamlar mısınız?',
+    aiClarifyNegated: 'Kapatmayı mı istiyorsunuz, kapatmamayı mı? Lütfen netleştirin.',
+    aiNegatedIntent: 'Cümlede olumsuzluk var; kapatma/uyutma önerilmedi. Kapatmayı mı istiyorsunuz?',
+    aiModelNotDownloaded: 'AI modeli indirilmedi.',
+    aiNoResponse: 'AI yanıt veremedi.',
+    aiNotReady: 'AI hazır değil.',
+    errorEmptyCommand: 'Boş komut.'
 };
 
 class AiService {
     // completer(prompt, {schema, temperature, maxTokens}) → string.
     // Üretimde varsayılan; testlerde sahte verilir.
-    constructor({ backend, completer = null } = {}) {
+    constructor({ backend, completer = null, translate = null } = {}) {
         this.backend = backend;
         this.completer = completer || this.defaultCompleter.bind(this);
+        this.translate = typeof translate === 'function'
+            ? translate
+            : (key) => DEFAULT_TRANSLATIONS[key] || key;
     }
 
     async defaultCompleter(prompt, { schema, temperature, maxTokens }) {
@@ -131,7 +151,8 @@ class AiService {
             ok: true,
             needsClarification: {
                 missingFields: fields.length > 0 ? fields : ['unknown'],
-                question: (first && CLARIFY_QUESTIONS[first]) || 'Biraz daha ayrıntı verir misiniz? (eylem + süre/koşul)'
+                question: (first && CLARIFY_KEYS[first] && this.translate(CLARIFY_KEYS[first]))
+                    || this.translate('aiClarifyGeneric')
             }
         };
     }
@@ -150,7 +171,7 @@ class AiService {
                 ok: true,
                 needsClarification: {
                     missingFields: parsed.missing,
-                    question: parsed.question || 'Eksik bilgiyi tamamlar mısınız?'
+                    question: parsed.question || this.translate('aiClarifyIncomplete')
                 }
             };
         }
@@ -194,7 +215,7 @@ class AiService {
     async parseCommand(text) {
         const input = String(text == null ? '' : text).trim();
         if (!input) {
-            return { ok: false, code: 'EMPTY', message: 'Boş komut.' };
+            return { ok: false, code: 'EMPTY', message: this.translate('errorEmptyCommand') };
         }
         // WP-06.T2 (K-03): olumsuz cümlede yıkıcı eylem önerilmez. Bu kapı
         // deterministik yol ve LLM yolu için ortaktır (AI bypass'i kapalı).
@@ -203,10 +224,10 @@ class AiService {
             return {
                 ok: false,
                 code: 'NEGATED_INTENT',
-                message: 'Cümlede olumsuzluk var; kapatma/uyutma önerilmedi. Kapatmayı mı istiyorsunuz?',
+                message: this.translate('aiNegatedIntent'),
                 needsClarification: {
                     missingFields: ['action'],
-                    question: 'Kapatmayı mı istiyorsunuz, kapatmamayı mı? Lütfen netleştirin.'
+                    question: this.translate('aiClarifyNegated')
                 }
             };
         }
@@ -228,7 +249,8 @@ class AiService {
         }
         const status = this.backend.getStatus();
         if (!status.loaded) {
-            return { ok: false, code: 'AI_NOT_READY', message: status.message || 'AI hazır değil.', status };
+            const notReadyKey = status.code === 'MODEL_MISSING' ? 'aiModelNotDownloaded' : 'aiNotReady';
+            return { ok: false, code: 'AI_NOT_READY', message: this.translate(notReadyKey), status };
         }
         let raw;
         try {
@@ -239,7 +261,7 @@ class AiService {
             });
         } catch (err) {
             log.warn(`[AiService] çıkarım hatası: ${err && err.message}`);
-            return { ok: false, code: 'AI_ERROR', message: 'AI yanıt veremedi.' };
+            return { ok: false, code: 'AI_ERROR', message: this.translate('aiNoResponse') };
         }
         let parsed = null;
         try {

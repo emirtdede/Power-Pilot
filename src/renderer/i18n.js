@@ -60,6 +60,18 @@ let translations = {};
         return FALLBACK_DICTIONARY;
     });
 
+    // Güvenlik ağı: sözlük yüklenemese veya app.js erken çökse bile statik
+    // iskelet gizli kalmasın (i18n-pending CSS kapısı).
+    const revealSkeleton = () => {
+        try {
+            const root = document.documentElement;
+            if (root && root.classList && typeof root.classList.remove === 'function') {
+                root.classList.remove('i18n-pending');
+            }
+        } catch (_) { /* sınırlı DOM (test/VM) — kapı yoksa yapılacak iş yok */ }
+    };
+    if (typeof setTimeout === 'function') setTimeout(revealSkeleton, 2000);
+
     window.PPLocale = {
         ready,
         load,

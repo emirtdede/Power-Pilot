@@ -96,6 +96,13 @@
                 const value = dict[key];
                 if (value) el.title = value;
             });
+            // data-i18n-aria-label keeps icon-only buttons screen-reader friendly
+            // in the active language (window controls, dialog close buttons).
+            document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+                const key = el.getAttribute('data-i18n-aria-label');
+                const value = dict[key];
+                if (value) el.setAttribute('aria-label', value);
+            });
             // Rail modunda nav etiketleri gizlenir; ipucu + erişilebilir ad aynı
             // sözlükten gelir (data-nav-key → data-tip / aria-label).
             document.querySelectorAll('[data-nav-key]').forEach(el => {
@@ -111,6 +118,8 @@
             document.documentElement.setAttribute('lang', lang);
             // WP-14: Arapça sağdan-sola; diğerleri soldan-sağa.
             document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+            // Statik Türkçe iskelet artık aktif dille değiştirildi; kapıyı aç.
+            document.documentElement.classList.remove('i18n-pending');
             // Dynamic labels, countdown text and per-view renderers live inside
             // the DOMContentLoaded scope. afterLanguageChange() is wired there so
             // a language switch refreshes them with the new dictionary.
@@ -915,21 +924,23 @@
             }
 
             // Smart Finish Task Creation (WBS-6.1/6.2: 7 koşul + çoklu kurucu + saat)
+            // Etiketler anahtar olarak tutulur; dil değişince yeniden çevrilir
+            // (init anında sabitlenen metin eski dilde kalmamalı).
             const SF_TYPE_CONFIG = {
-                process_running: { label: t('sfProcessNameLabel'), placeholder: 'handbrake.exe', kind: 'text', extra: 'onclose' },
-                cpu_usage: { label: t('sfCpuThreshold'), placeholder: '10', kind: 'number', extra: 'none' },
-                user_idle: { label: t('sfIdleSeconds'), placeholder: '300', kind: 'number', extra: 'none' },
-                network_speed: { label: t('sfNetworkThreshold'), placeholder: '50', kind: 'number', extra: 'none' },
-                disk_activity: { label: t('sfDiskThreshold'), placeholder: '100', kind: 'number', extra: 'none' },
-                battery_level: { label: t('sfBatteryLevel'), placeholder: '20', kind: 'number', extra: 'direction' },
-                file_stable: { label: t('sfFilePath'), placeholder: 'C:\\Yedekler', kind: 'text', extra: 'seconds' }
+                process_running: { labelKey: 'sfProcessNameLabel', placeholder: 'handbrake.exe', kind: 'text', extra: 'onclose' },
+                cpu_usage: { labelKey: 'sfCpuThreshold', placeholder: '10', kind: 'number', extra: 'none' },
+                user_idle: { labelKey: 'sfIdleSeconds', placeholder: '300', kind: 'number', extra: 'none' },
+                network_speed: { labelKey: 'sfNetworkThreshold', placeholder: '50', kind: 'number', extra: 'none' },
+                disk_activity: { labelKey: 'sfDiskThreshold', placeholder: '100', kind: 'number', extra: 'none' },
+                battery_level: { labelKey: 'sfBatteryLevel', placeholder: '20', kind: 'number', extra: 'direction' },
+                file_stable: { labelKey: 'sfFilePath', placeholder: 'C:\\Yedekler', kind: 'text', extra: 'seconds' }
             };
             let sfConditions = [];
 
             function onSfTypeChange() {
                 const type = document.getElementById('sf-condition-type').value;
                 const cfg = SF_TYPE_CONFIG[type] || SF_TYPE_CONFIG.process_running;
-                document.getElementById('sf-value-label').innerText = cfg.label;
+                document.getElementById('sf-value-label').innerText = t(cfg.labelKey);
                 document.getElementById('sf-condition-value').placeholder = t('examplePrefix') + ' ' + cfg.placeholder;
                 document.getElementById('sf-condition-value').type = cfg.kind === 'number' ? 'number' : 'text';
                 const extraRow = document.getElementById('sf-extra-row');
@@ -1508,6 +1519,8 @@
                 loadAssistant();
                 settingsRefreshAi();
                 wizardRefreshAi();
+                // Smart Finish etiketleri anahtardan çevrildiği için yenilenir.
+                if (typeof onSfTypeChange === 'function') onSfTypeChange();
             };
 
             // Built-in template ids → translation keys (names/descriptions live
@@ -2372,7 +2385,7 @@
                         btnAiMic.textContent = '⏹';
                         btnAiMic.classList.add('animate-pulse');
                         const stEl = document.getElementById('ai-mic-status');
-                        stEl.textContent = 'Dinleniyor... (sessizlikte durur, en fazla 15sn)';
+                        stEl.textContent = t('aiMicListening');
                         stEl.classList.remove('hidden');
                         micWatch = setInterval(() => {
                             try {
@@ -2811,10 +2824,10 @@
                                 : await window.electronAPI.aiModelLoad();
                             if (unloading) {
                                 if (res && res.success !== false) showToast(t('toastAiDisabled'), 'info');
-                                else showToast((res && (res.error || res.code)) || t('errorCouldNotClose'), 'error');
+                                else showToast((res && (res.message || res.error || res.code)) || t('errorCouldNotClose'), 'error');
                             } else if (res && res.loaded) showToast(t('toastAiEnabled'), 'success');
                             else if (res && res.code === 'ALREADY_LOADING') showToast(t('errorModelLoading'), 'info');
-                            else showToast((res && (res.error || res.code)) || t('errorDownloadFirst'), 'error');
+                            else showToast((res && (res.message || res.error || res.code)) || t('errorDownloadFirst'), 'error');
                         } finally {
                             btnWzLoad.disabled = false;
                             btnWzLoad.replaceChildren(...oldNodes);
@@ -2917,10 +2930,10 @@
                                 : await window.electronAPI.aiModelLoad();
                             if (unloading) {
                                 if (res && res.success !== false) showToast(t('toastAiDisabled'), 'info');
-                                else showToast((res && (res.error || res.code)) || t('errorCouldNotClose'), 'error');
+                                else showToast((res && (res.message || res.error || res.code)) || t('errorCouldNotClose'), 'error');
                             } else if (res && res.loaded) showToast(t('toastAiEnabled'), 'success');
                             else if (res && res.code === 'ALREADY_LOADING') showToast(t('errorModelLoading'), 'info');
-                            else showToast((res && (res.error || res.code)) || t('errorDownloadFirst'), 'error');
+                            else showToast((res && (res.message || res.error || res.code)) || t('errorDownloadFirst'), 'error');
                         } finally {
                             btnSetLoad.disabled = false;
                             btnSetLoad.replaceChildren(...oldNodes);
@@ -3305,7 +3318,10 @@
                     showToast(energy.error, 'error');
                     return;
                 }
-                const patch = { language, ...energy.patch, autonomyMode };
+                const patch = { language, ...energy.patch };
+                // Güvenlik alanı yalnızca gerçekten değiştiyse gönderilir; aksi
+                // halde PIN'siz kurulumda dil/tema kaydı bile PIN kapısına takılır.
+                if (autonomyMode !== previous.autonomyMode) patch.autonomyMode = autonomyMode;
                 const commit = async () => {
                     localStorage.setItem('autostart', autostart);
                     localStorage.setItem('voice', elVoice ? elVoice.checked : false);

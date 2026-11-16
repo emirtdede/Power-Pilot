@@ -142,7 +142,7 @@ class ModelManager {
      */
     async download(onProgress = null) {
         if (!this.modelDir) {
-            return { success: false, error: 'Model dizini tanımlı değil.' };
+            return { success: false, code: 'MODEL_DIR_MISSING', error: 'Model dizini tanımlı değil.' };
         }
         // Eşzamanlı çift indirme aynı .part dosyasını bozar — ikinci çağrı reddedilir.
         if (this.downloading) {
@@ -184,6 +184,10 @@ class ModelManager {
                     return {
                         success: false,
                         code: 'DISK_FULL',
+                        params: {
+                            requiredMb: Math.ceil(this.expectedBytes * 1.1 / 1048576),
+                            freeMb: Math.floor(free / 1048576)
+                        },
                         error: `Yeterli disk alanı yok (gerekli ~${Math.ceil(this.expectedBytes * 1.1 / 1048576)} MB, boş ${Math.floor(free / 1048576)} MB).`
                     };
                 }
@@ -195,7 +199,7 @@ class ModelManager {
         try {
             res = await this.fetchFn(this.url, { headers });
         } catch (err) {
-            return { success: false, error: `Bağlantı hatası: ${err.message}` };
+            return { success: false, code: 'CONNECTION_FAILED', error: `Bağlantı hatası: ${err.message}` };
         }
 
         // 416: .part zaten tam olabilir; değilse baştan tek deneme.
@@ -209,7 +213,7 @@ class ModelManager {
                 fs.rmSync(part, { force: true });
                 return this.downloadInner(onProgress, attempt + 1);
             }
-            return { success: false, error: 'Sunucu Range isteğini reddetti (HTTP 416).', bytes: startAt };
+            return { success: false, code: 'RANGE_REJECTED', error: 'Sunucu Range isteğini reddetti (HTTP 416).', bytes: startAt };
         }
 
         if (res.status === 200 && startAt > 0) {
@@ -217,7 +221,7 @@ class ModelManager {
             startAt = 0;
         }
         if (res.status !== 200 && res.status !== 206) {
-            return { success: false, error: `Sunucu hatası: HTTP ${res.status}` };
+            return { success: false, code: 'HTTP_STATUS', params: { status: res.status }, error: `Sunucu hatası: HTTP ${res.status}` };
         }
 
         if (res.status === 206) {
@@ -227,17 +231,17 @@ class ModelManager {
                     fs.rmSync(part, { force: true });
                     return this.downloadInner(onProgress, attempt + 1);
                 }
-                return { success: false, error: `Content-Range uyuşmazlığı (beklenen ${startAt}, gelen ${rangeStart}).` };
+                return { success: false, code: 'RANGE_MISMATCH', error: `Content-Range uyuşmazlığı (beklenen ${startAt}, gelen ${rangeStart}).` };
             }
         }
 
         if (!res.body) {
-            return { success: false, error: 'Sunucu gövdesi boş (res.body null).' };
+            return { success: false, code: 'EMPTY_BODY', error: 'Sunucu gövdesi boş (res.body null).' };
         }
 
         const total = this.parseTotal(res, startAt);
         if (this.expectedBytes != null && total != null && total !== this.expectedBytes) {
-            return { success: false, error: `Boyut uyuşmazlığı (beklenen ${this.expectedBytes}, sunucu ${total}).` };
+            return { success: false, code: 'SIZE_MISMATCH', error: `Boyut uyuşmazlığı (beklenen ${this.expectedBytes}, sunucu ${total}).` };
         }
 
         const out = fs.createWriteStream(part, { flags: startAt > 0 ? 'a' : 'w' });
@@ -262,7 +266,7 @@ class ModelManager {
             await once(out, 'finish');
         } catch (err) {
             try { out.destroy(); } catch (_) {}
-            return { success: false, error: `İndirme kesildi: ${err.message}`, bytes: received };
+            return { success: false, code: 'INTERRUPTED', error: `İndirme kesildi: ${err.message}`, bytes: received };
         }
 
         return this.finalizeDownload(part, full, received, onProgress, hadPartial && res.status === 206);
@@ -273,30 +277,30 @@ class ModelManager {
         try {
             actualBytes = fs.statSync(part).size;
         } catch (_) {
-            return { success: false, error: 'İndirilen .part dosyası bulunamadı.' };
+            return { success: false, code: 'PART_MISSING', error: 'İndirilen .part dosyası bulunamadı.' };
         }
 
         if (this.expectedBytes != null && actualBytes !== this.expectedBytes) {
             // Eksik dosya resume için saklanır; fazla dosya silinir.
             if (actualBytes > this.expectedBytes) fs.rmSync(part, { force: true });
-            return { success: false, error: `Boyut doğrulaması başarısız (${actualBytes}/${this.expectedBytes}).`, bytes: actualBytes };
+            return { success: false, code: 'SIZE_VERIFY_FAILED', error: `Boyut doğrulaması başarısız (${actualBytes}/${this.expectedBytes}).`, bytes: actualBytes };
         }
 
         let sha256;
         try {
             sha256 = await this.computeSha256(part);
         } catch (err) {
-            return { success: false, error: `SHA-256 hesaplanamadı: ${err.message}`, bytes: actualBytes };
+            return { success: false, code: 'SHA_COMPUTE_FAILED', error: `SHA-256 hesaplanamadı: ${err.message}`, bytes: actualBytes };
         }
         if (this.expectedSha256 && sha256 !== this.expectedSha256) {
             fs.rmSync(part, { force: true });
-            return { success: false, error: `SHA-256 uyuşmazlığı (${sha256}).`, bytes: actualBytes };
+            return { success: false, code: 'SHA_MISMATCH', error: `SHA-256 uyuşmazlığı (${sha256}).`, bytes: actualBytes };
         }
 
         try {
             fs.renameSync(part, full);
         } catch (err) {
-            return { success: false, error: `Dosya taşınamadı: ${err.message}`, bytes: actualBytes };
+            return { success: false, code: 'MOVE_FAILED', error: `Dosya taşınamadı: ${err.message}`, bytes: actualBytes };
         }
 
         const manifest = {

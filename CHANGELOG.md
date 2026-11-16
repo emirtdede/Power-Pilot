@@ -13,6 +13,27 @@
   politikaları bağlandı.
 
 ### Düzeltmeler
+- **Dil sızıntıları giderildi.** Pencere denetimlerinin ve diyalog kapatma
+  düğmelerinin erişilebilir adları (`aria-label`) sabit Türkçe/İngilizce
+  yerine sözlükten geliyor; sesli komut "dinleniyor" durumu, açılış hata
+  penceresi, AI netleştirme soruları/mesajları ve AI durum satırı aktif dile
+  çevrildi. AI modeli indirme/yükleme hataları servis içindeki Türkçe metin
+  yerine kod → sözlük anahtarı eşlemesiyle gösteriliyor (disk alanı, bağlantı,
+  HTTP durumu, bütünlük doğrulaması); teknik ayrıntı log'da kalıyor.
+  Statik Türkçe iskelet, sözlük uygulanana kadar `i18n-pending`
+  kapısıyla gizlendiği için başka dilde açan kullanıcı yanlış dil görmez.
+  Oturum içi dil değişiminde Smart Finish gibi çalışma zamanında üretilen
+  etiketler de anahtardan yeniden çevriliyor (eski dilde kalmıyor).
+  Yeni regresyon testi (`tests/renderer/i18n-keys.test.mjs`) tüm i18n
+  başvurularının sözlükte bulunmasını, 17 dilin anahtar eşitliğini ve
+  ikon-only düğmelerin i18n'li erişilebilir adını doğrular. E2E tarafında
+  `i18n-all` pencere denetimlerinin 17 dildeki erişilebilir adını, yeni
+  `i18n-switch` ise yeniden yükleme olmadan dil değişimini doğrular.
+- **Ayarları kaydetmek gereksiz PIN istiyordu.** Dil/tema gibi güvenlik dışı
+  ayarlar kaydedilirken değişmemiş `autonomyMode` alanı da patch'e girdiği
+  için PIN'siz kurulumda tüm kayıt `PIN_REQUIRED` ile engelleniyordu.
+  Güvenlik alanı artık yalnızca gerçekten değiştiğinde gönderiliyor; otorite
+  değişimi PIN kapısından geçmeye devam ediyor.
 - **P0 — Zamanlanmış güç eylemleri yükseltilmemiş kurulumda hiç çalışmıyordu.**
   Güvenlik motoru, aktif güç isteği kontrolü için `powercfg.exe /requests`
   çalıştırıyor; bu komut yönetici yetkisi ister ve paketlenmiş uygulama

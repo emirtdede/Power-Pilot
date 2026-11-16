@@ -498,3 +498,12 @@ input[type="number"] {
 #wz-progress-bar {
     width: 0;
 }
+
+/*
+ * i18n açılış kapısı: statik iskelet Türkçedir. Sözlük uygulanana kadar
+ * çeviriye tabi metinler gizlenir; böylece başka dilde açan kullanıcı bir an
+ * bile yanlış dil görmez. app.js sınıfı kaldırır; i18n.js 2 sn güvenlik ağıdır.
+ */
+html.i18n-pending [data-i18n] {
+    visibility: hidden;
+}
