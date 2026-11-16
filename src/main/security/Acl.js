@@ -20,13 +20,29 @@ function isWindows() {
 }
 
 /**
+ * Windows sistem araçlarını System32'den tam yolla çözer.
+ * PATH'te daha önce gelen bir `whoami` (ör. Git Bash/MSYS) `/user` bayrağını
+ * tanımaz; bu durumda SID bulunamıyor ve ACL sıkılaştırması sessizce
+ * devre dışı kalıyordu. Tam yol aynı zamanda PATH'e bırakılmış bir
+ * `icacls`/`cipher` ikamesinin çalıştırılmasını da engeller.
+ */
+function systemTool(name) {
+    const root = process.env.SystemRoot || process.env.windir || 'C:\\Windows';
+    const full = path.join(root, 'System32', `${name}.exe`);
+    try {
+        if (fs.existsSync(full)) return full;
+    } catch (_) { /* yut — aşağıdaki yalın ada düşer */ }
+    return name;
+}
+
+/**
  * Geçerli kullanıcının SID'i (`whoami /user`). Sonuç önbelleğe alınır.
  */
 function currentUserSid() {
     if (!isWindows()) return null;
     if (cachedSid) return cachedSid;
     try {
-        const out = execFileSync('whoami', ['/user', '/fo', 'csv', '/nh'], {
+        const out = execFileSync(systemTool('whoami'), ['/user', '/fo', 'csv', '/nh'], {
             encoding: 'utf8',
             windowsHide: true,
             timeout: 10000
@@ -72,7 +88,7 @@ function securePath(target, { isDirectory = null } = {}) {
     const sid = currentUserSid();
     if (!sid) return { ok: false, code: 'SID_UNAVAILABLE' };
     try {
-        execFileSync('icacls', aclArgs(resolved, sid, dir), { stdio: 'ignore', windowsHide: true, timeout: 30000 });
+        execFileSync(systemTool('icacls'), aclArgs(resolved, sid, dir), { stdio: 'ignore', windowsHide: true, timeout: 30000 });
         return { ok: true, sid };
     } catch (err) {
         return { ok: false, code: 'ICACLS_FAILED', error: (err && err.message) || 'icacls başarısız', sid };
@@ -106,7 +122,7 @@ function securePathAsync(target, { isDirectory = null } = {}) {
     const sid = currentUserSid();
     if (!sid) return Promise.resolve({ ok: false, code: 'SID_UNAVAILABLE' });
     return new Promise((resolve) => {
-        execFile('icacls', aclArgs(resolved, sid, dir), { windowsHide: true, timeout: 30000 }, (err) => {
+        execFile(systemTool('icacls'), aclArgs(resolved, sid, dir), { windowsHide: true, timeout: 30000 }, (err) => {
             resolve(err
                 ? { ok: false, code: 'ICACLS_FAILED', error: (err && err.message) || 'icacls başarısız', sid }
                 : { ok: true, sid });
@@ -128,7 +144,7 @@ function secureFileAsync(file) {
 function listAces(target) {
     if (!isWindows()) return { ok: false, code: 'UNSUPPORTED_PLATFORM', output: '' };
     try {
-        const output = execFileSync('icacls', [path.resolve(target)], {
+        const output = execFileSync(systemTool('icacls'), [path.resolve(target)], {
             encoding: 'utf8',
             windowsHide: true,
             timeout: 10000
@@ -145,7 +161,7 @@ function listAces(target) {
 function encryptFileEfs(file) {
     if (!isWindows()) return { ok: false, code: 'UNSUPPORTED_PLATFORM' };
     try {
-        execFileSync('cipher', ['/E', '/A', path.resolve(file)], {
+        execFileSync(systemTool('cipher'), ['/E', '/A', path.resolve(file)], {
             stdio: 'ignore',
             windowsHide: true,
             timeout: 30000
