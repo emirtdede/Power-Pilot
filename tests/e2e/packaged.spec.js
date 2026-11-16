@@ -148,6 +148,10 @@ test.describe('paketlenmiş uygulama (WP-15.T3)', () => {
             const locale = await cdp.evaluate("window.electronAPI.getLocale('tr')");
             expect(locale && locale.ok).toBe(true);
             expect(locale.dictionary && typeof locale.dictionary === 'object').toBe(true);
+            // Paketlenmiş asar güncel sözlüğü içermeli (dil sızıntısı regresyonu).
+            for (const key of ['winMenu', 'winMinimize', 'aiMicListening', 'errorDownloadIntegrity']) {
+                expect(key in locale.dictionary, key).toBe(true);
+            }
 
             // Native modül (better-sqlite3) ve DB dosyası userData altında hazır.
             expect(fs.existsSync(path.join(userDataDir, 'powerpilot.db'))).toBe(true);
