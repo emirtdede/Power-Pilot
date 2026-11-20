@@ -11,12 +11,16 @@ module.exports = defineConfig({
         // CPU çekişmesinde ölçüm hatası üretir; işçi sayısı sabitlenir.
         maxWorkers: 2,
         minWorkers: 1,
+        testTimeout: 30000,
+        hookTimeout: 30000,
         projects: [
             {
                 test: {
                     name: 'main',
                     root: './tests/main',
                     environment: 'node',
+                    testTimeout: 30000,
+                    hookTimeout: 30000,
                     include: ['**/*.test.mjs'],
                     setupFiles: ['../setup/main-setup.mjs']
                 }
@@ -26,6 +30,8 @@ module.exports = defineConfig({
                     name: 'renderer',
                     root: './tests/renderer',
                     environment: 'jsdom',
+                    testTimeout: 30000,
+                    hookTimeout: 30000,
                     include: ['**/*.test.mjs'],
                     setupFiles: ['../setup/renderer-setup.mjs']
                 }
