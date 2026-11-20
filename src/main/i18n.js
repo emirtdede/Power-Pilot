@@ -13,23 +13,136 @@ const path = require('path');
 const log = require('./logger');
 
 const LOCALE_DIR = path.join(__dirname, 'locales');
+// Şu an eksiksiz çevirisi diskte bulunan 17 dil.
 const LANGUAGE_ORDER = Object.freeze([
     'tr', 'en', 'de', 'sv', 'no', 'da', 'fr', 'pl', 'it', 'nl',
     'cs', 'es', 'pt', 'ja', 'zh', 'ko', 'ar'
 ]);
-const LANGUAGE_ALIASES = Object.freeze({ nb: 'no', nbNo: 'no', 'nb-no': 'no', zhCn: 'zh', 'zh-cn': 'zh', ptPt: 'pt', 'pt-pt': 'pt' });
+
+// Dev Cleaner ile birebir aynı 73 dil kataloğu. Çevirisi henüz diskte
+// bulunmayan diller arayüzde seçilebilir ve İngilizce (en) fallback döner.
+const ALL_LANGUAGES = Object.freeze([
+    { id: 'tr', name: 'Turkish', nativeName: 'Türkçe' },
+    { id: 'en', name: 'English', nativeName: 'English' },
+    { id: 'de', name: 'German', nativeName: 'Deutsch' },
+    { id: 'es', name: 'Spanish', nativeName: 'Español' },
+    { id: 'fr', name: 'French', nativeName: 'Français' },
+    { id: 'it', name: 'Italian', nativeName: 'Italiano' },
+    { id: 'pt', name: 'Portuguese', nativeName: 'Português' },
+    { id: 'nl', name: 'Dutch', nativeName: 'Nederlands' },
+    { id: 'pl', name: 'Polish', nativeName: 'Polski' },
+    { id: 'ru', name: 'Russian', nativeName: 'Русский' },
+    { id: 'ja', name: 'Japanese', nativeName: '日本語' },
+    { id: 'ko', name: 'Korean', nativeName: '한국어' },
+    { id: 'zh', name: 'Chinese (Simplified)', nativeName: '简体中文' },
+    { id: 'zh-tw', name: 'Chinese (Traditional)', nativeName: '繁體中文' },
+    { id: 'sv', name: 'Swedish', nativeName: 'Svenska' },
+    { id: 'ar', name: 'Arabic', nativeName: 'العربية', rtl: true },
+    { id: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
+    { id: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia' },
+    { id: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
+    { id: 'uk', name: 'Ukrainian', nativeName: 'Українська' },
+    { id: 'el', name: 'Greek', nativeName: 'Ελληνικά' },
+    { id: 'cs', name: 'Czech', nativeName: 'Čeština' },
+    { id: 'da', name: 'Danish', nativeName: 'Dansk' },
+    { id: 'fi', name: 'Finnish', nativeName: 'Suomi' },
+    { id: 'no', name: 'Norwegian', nativeName: 'Norsk' },
+    { id: 'hu', name: 'Hungarian', nativeName: 'Magyar' },
+    { id: 'ro', name: 'Romanian', nativeName: 'Română' },
+    { id: 'th', name: 'Thai', nativeName: 'ไทย' },
+    { id: 'ms', name: 'Malay', nativeName: 'Bahasa Melayu' },
+    { id: 'fil', name: 'Filipino', nativeName: 'Filipino' },
+    { id: 'bn', name: 'Bengali', nativeName: 'বাংলা' },
+    { id: 'he', name: 'Hebrew', nativeName: 'עברית', rtl: true },
+    { id: 'fa', name: 'Persian', nativeName: 'فارسی', rtl: true },
+    { id: 'ur', name: 'Urdu', nativeName: 'اردو', rtl: true },
+    { id: 'az', name: 'Azerbaijani', nativeName: 'Azərbaycan dili' },
+    { id: 'kk', name: 'Kazakh', nativeName: 'Қазақша' },
+    { id: 'uz', name: 'Uzbek', nativeName: 'Oʻzbekcha' },
+    { id: 'bg', name: 'Bulgarian', nativeName: 'Български' },
+    { id: 'sk', name: 'Slovak', nativeName: 'Slovenčina' },
+    { id: 'hr', name: 'Croatian', nativeName: 'Hrvatski' },
+    { id: 'et', name: 'Estonian', nativeName: 'Eesti' },
+    { id: 'ta', name: 'Tamil', nativeName: 'தமிழ்' },
+    { id: 'te', name: 'Telugu', nativeName: 'తెలుగు' },
+    { id: 'mr', name: 'Marathi', nativeName: 'मराठी' },
+    { id: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ' },
+    { id: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી' },
+    { id: 'ml', name: 'Malayalam', nativeName: 'മലയാളം' },
+    { id: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ' },
+    { id: 'lt', name: 'Lithuanian', nativeName: 'Lietuvių' },
+    { id: 'lv', name: 'Latvian', nativeName: 'Latviešu' },
+    { id: 'sr', name: 'Serbian', nativeName: 'Srpski' },
+    { id: 'sl', name: 'Slovenian', nativeName: 'Slovenščina' },
+    { id: 'bs', name: 'Bosnian', nativeName: 'Bosanski' },
+    { id: 'sq', name: 'Albanian', nativeName: 'Shqip' },
+    { id: 'mk', name: 'Macedonian', nativeName: 'Македонски' },
+    { id: 'is', name: 'Icelandic', nativeName: 'Íslenska' },
+    { id: 'sw', name: 'Swahili', nativeName: 'Kiswahili' },
+    { id: 'am', name: 'Amharic', nativeName: 'አማርኛ' },
+    { id: 'ha', name: 'Hausa', nativeName: 'Hausa' },
+    { id: 'yo', name: 'Yoruba', nativeName: 'Yorùbá' },
+    { id: 'af', name: 'Afrikaans', nativeName: 'Afrikaans' },
+    { id: 'ka', name: 'Georgian', nativeName: 'ქართული' },
+    { id: 'hy', name: 'Armenian', nativeName: 'Հայերեն' },
+    { id: 'ky', name: 'Kyrgyz', nativeName: 'Кыргызча' },
+    { id: 'tk', name: 'Turkmen', nativeName: 'Türkmençe' },
+    { id: 'mn', name: 'Mongolian', nativeName: 'Монгол' },
+    { id: 'ca', name: 'Catalan', nativeName: 'Català' },
+    { id: 'eu', name: 'Basque', nativeName: 'Euskara' },
+    { id: 'gl', name: 'Galician', nativeName: 'Galego' },
+    { id: 'ga', name: 'Irish', nativeName: 'Gaeilge' },
+    { id: 'my', name: 'Burmese', nativeName: 'မြန်မာစာ' },
+    { id: 'km', name: 'Khmer', nativeName: 'ភាសាខ្មែរ' },
+    { id: 'si', name: 'Sinhala', nativeName: 'සිංහල' }
+]);
+const ALL_LANGUAGE_CODES = Object.freeze(ALL_LANGUAGES.map((l) => l.id));
+const RTL_LANGUAGES = Object.freeze(new Set(ALL_LANGUAGES.filter((l) => l.rtl).map((l) => l.id)));
+const LANGUAGE_ALIASES = Object.freeze({
+    nb: 'no', nbNo: 'no', 'nb-no': 'no',
+    zhCn: 'zh', 'zh-cn': 'zh', 'zh-sg': 'zh', 'zh-hans': 'zh',
+    'zh-tw': 'zh-tw', 'zh-hk': 'zh-tw', 'zh-hant': 'zh-tw',
+    ptPt: 'pt', 'pt-pt': 'pt', 'pt-br': 'pt',
+    tl: 'fil', iw: 'he'
+});
 const cache = new Map();
 let turkish = null;
 const warned = new Set();
 
+/**
+ * Desteklenen diller dışındaki sistem dilleri **İngilizceye** düşer.
+ *
+ * Önceden 'tr'ye düşüyordu; bu, Rusça/Hintçe/Vietnamca bir Windows'ta
+ * uygulamanın ilk açılışta Türkçe görünmesi demekti. İngilizce nötr ve
+ * uluslararası varsayılandır; Türkçe yalnızca gerçekten Türkçe sistemde gelir.
+ */
+const FALLBACK_LANGUAGE = 'en';
+
 function normalizeLanguage(language) {
     const raw = String(language || '').trim();
-    if (!raw) return 'tr';
+    if (!raw) return FALLBACK_LANGUAGE;
     const lower = raw.toLowerCase();
     const alias = LANGUAGE_ALIASES[lower] || LANGUAGE_ALIASES[raw];
-    if (alias) return alias;
+    if (alias && LANGUAGE_ORDER.includes(alias)) return alias;
     const base = lower.split('-')[0];
-    return LANGUAGE_ORDER.includes(base) ? base : 'tr';
+    return LANGUAGE_ORDER.includes(base) ? base : FALLBACK_LANGUAGE;
+}
+
+/** 73 dil kataloğunda yer alan herhangi bir dil kodunu doğrular. */
+function normalizeCatalogLanguage(language) {
+    const raw = String(language || '').trim();
+    if (!raw) return FALLBACK_LANGUAGE;
+    const lower = raw.toLowerCase();
+    if (ALL_LANGUAGE_CODES.includes(lower)) return lower;
+    const alias = LANGUAGE_ALIASES[lower] || LANGUAGE_ALIASES[raw];
+    if (alias && ALL_LANGUAGE_CODES.includes(alias)) return alias;
+    const base = lower.split('-')[0];
+    return ALL_LANGUAGE_CODES.includes(base) ? base : FALLBACK_LANGUAGE;
+}
+
+function hasLocaleFile(lang) {
+    if (!ALL_LANGUAGE_CODES.includes(lang)) return false;
+    return fs.existsSync(path.join(LOCALE_DIR, `${lang}.server.json`));
 }
 
 function readLocaleFile(lang) {
@@ -51,6 +164,33 @@ function loadLocale(language) {
     return dict;
 }
 
+/**
+ * 73 dilden herhangi biri için sözlük yükler: diskte `<lang>.server.json`
+ * varsa onu döndürür; henüz çevrilmemişse İngilizce (`en.server.json`)
+ * fallback ile birlikte seçili dil kodunu korur.
+ */
+function loadLocaleForRenderer(language) {
+    const lang = normalizeCatalogLanguage(language);
+    const translated = hasLocaleFile(lang);
+    const resolvedLang = translated ? lang : FALLBACK_LANGUAGE;
+    const dictionary = translated ? (cache.has(lang) ? cache.get(lang) : (() => {
+        try {
+            const d = readLocaleFile(lang);
+            cache.set(lang, d);
+            return d;
+        } catch (_) {
+            return loadLocale(FALLBACK_LANGUAGE);
+        }
+    })()) : loadLocale(FALLBACK_LANGUAGE);
+    return {
+        lang,
+        resolvedLang,
+        fallback: !translated,
+        rtl: RTL_LANGUAGES.has(lang),
+        dictionary
+    };
+}
+
 function loadTurkish() {
     if (turkish) return turkish;
     try {
@@ -62,8 +202,8 @@ function loadTurkish() {
     return turkish;
 }
 
-/** Geriye uyum: verilen dilin sözlüğünü döndürür (varsayılan tr). */
-function loadTranslations(language = 'tr') {
+/** Geriye uyum: verilen dilin sözlüğünü döndürür (varsayılan en). */
+function loadTranslations(language = 'en') {
     return loadLocale(language);
 }
 
@@ -155,9 +295,15 @@ function resetCache() {
 
 module.exports = {
     LANGUAGE_ORDER,
+    ALL_LANGUAGES,
+    ALL_LANGUAGE_CODES,
+    RTL_LANGUAGES,
     normalizeLanguage,
+    normalizeCatalogLanguage,
+    hasLocaleFile,
     loadTranslations,
     loadLocale,
+    loadLocaleForRenderer,
     translate,
     actionLabel,
     taskName,

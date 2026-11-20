@@ -85,7 +85,7 @@ describe('SttService kapılar (TS-8.1)', () => {
         expect(calls[0].bytes).toBe(MAX_SAMPLES * 4);
     });
 
-    it('dil arayüz dilinden eşlenir (no→nn), bilinmeyende tr fallback', async () => {
+    it('dil arayüz dilinden eşlenir (no→nn), bilinmeyende en fallback', async () => {
         expect(STT_LANGS.no).toBe('nn');
         expect(STT_LANGS.tr).toBe('tr');
         const calls = [];
@@ -94,7 +94,8 @@ describe('SttService kapılar (TS-8.1)', () => {
         svc.context = await binding.initWhisper({ filePath: 'x' });
         const r = await svc.transcribePcm(voicedArray(16000), 'xx-bilinmeyen');
         expect(r.ok).toBe(true);
-        expect(calls[0].opts.language).toBe('tr');
+        // Bilinmeyen arayüz dili İngilizce'ye düşer (Türkçe'ye değil).
+        expect(calls[0].opts.language).toBe('en');
     });
 
     it('boş metin NOT_HEARD döner', async () => {

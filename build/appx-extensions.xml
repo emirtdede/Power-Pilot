@@ -1,0 +1,17 @@
+<!--
+  Store (MSIX) startupTask uzantısı.
+  Enabled="false": kullanıcı Windows Ayarlar > Uygulamalar > Başlangıç'tan açar
+  (Store politikası 10.2.8 — kullanıcı onayı). Uygulama içi "Başlangıç
+  ayarlarını aç" düğmesi ms-settings:startupapps sayfasına götürür.
+  Executable değeri electron-builder'ın ürettiği EXE adıyla birebir aynı olmalı.
+  NOT: Bu dosya electron-builder tarafından AppxManifest.xml içine olduğu gibi
+  gömülür; bu yüzden burada XML bildirimi (<?xml ...?>) OLMAZ — aksi halde
+  belge içinde ikinci bir bildirim oluşur ve MakeAppx manifesti reddeder.
+-->
+<uap5:Extension
+    xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+    Category="windows.startupTask"
+    Executable="app\Power Pilot.exe"
+    EntryPoint="Windows.FullTrustApplication">
+  <uap5:StartupTask TaskId="PowerPilotStartup" Enabled="false" DisplayName="Power Pilot" />
+</uap5:Extension>

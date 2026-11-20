@@ -118,7 +118,9 @@ describe('StorageService — ayarlar', () => {
     it('getSettings savunmacı kopya döner', () => {
         const a = svc.getSettings();
         a.language = 'hack';
-        expect(svc.getSettings().language).toBe('tr');
+        // Varsayılan dil null ("kullanıcı seçmedi") — ilk çalıştırmada sistem
+        // dili algılanır. Dışarıdan yapılan mutasyon içeriği kirletmemeli.
+        expect(svc.getSettings().language).toBeNull();
     });
 
     it('updateSettings geçersiz gövdeyi reddeder ve proto anahtarlarını atlar', () => {

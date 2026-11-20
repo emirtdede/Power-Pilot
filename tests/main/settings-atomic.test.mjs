@@ -24,21 +24,22 @@ function handlerBody(source, channel, nextMarker) {
 }
 
 describe('O-11/O-20 atomik ayar yolu', () => {
-    it('renderer dil/enerji/otonomi için tek saveSettingsAtomic çağırır', () => {
-        const start = rendererSource.indexOf("document.getElementById('btn-settings-save')");
-        const end = rendererSource.indexOf("document.getElementById('btn-settings-default')");
+    it('renderer dil/uyku/enerji/otonomi için saveSettingsAtomic kullanır ve kritik değişimde onay ister', () => {
+        const start = rendererSource.indexOf('async function saveWakeSettings()');
+        const end = rendererSource.indexOf('// Split-Nav Smooth Section Jump');
         expect(start).toBeGreaterThan(-1);
         expect(end).toBeGreaterThan(start);
         const body = rendererSource.slice(start, end);
 
         expect(body).toMatch(/saveSettingsAtomic\(\{ settings: patch, pin \}\)/);
         expect(body).not.toMatch(/electronAPI\.saveSettings\(/);
-        // Değişmemiş güvenlik alanı patch'e girmez; aksi halde dil/tema kaydı
-        // PIN'siz kurulumda PIN kapısına takılır.
-        expect(body).toMatch(/const patch = \{ language, \.\.\.energy\.patch \};/);
-        expect(body).toMatch(/if \(autonomyMode !== previous\.autonomyMode\) patch\.autonomyMode = autonomyMode;/);
+        // Uyku/enerji ayarları güvenlik alanı taşımadan atomik yazılır;
+        // otonomi değişikliği yalnızca onay + PIN kapısıyla ayrı yazılır.
+        expect(body).toMatch(/const patch = \{ wakeMode, wakeToleranceMinutes: wakeTolRaw \};/);
+        expect(body).toMatch(/const patch = \{ autonomyMode: nextMode \};/);
+        expect(body).toMatch(/requestActionConfirm\(/);
         // PIN iptalinde yalnızca form geri alınır; sunucuya yazım yok.
-        expect(body).toMatch(/cancel: \(\) => \{ restoreForm\(\); \}/);
+        expect(body).toMatch(/cancel: \(\) => \{ restoreAutonomy\(\); \}/);
     });
 
     it('main save-settings-atomic önce doğrular + PIN ister, sonra tek kez uygular', () => {

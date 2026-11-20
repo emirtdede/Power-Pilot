@@ -51,12 +51,40 @@ Invoke-RestMethod -Uri "http://127.0.0.1:18456/api/v1/tasks/task_123/cancel" -Me
 
 ## 3. CLI Kullanımı (`src/cli/powerpilot.js`)
 
+CLI, yerel API'nin tüm kullanıcı uçlarını kapsar ve **yalnızca** `POWERPILOT_API_KEY`
+ortam değişkeni tanımlıysa çalışır (demo anahtarı yoktur).
+
 ```bash
-export POWERPILOT_API_KEY="pp_key_sizin_anahtariz"
-node src/cli/powerpilot.js status
-node src/cli/powerpilot.js tasks
-node src/cli/powerpilot.js lock|signout|restart|sleep|hibernate|shutdown
+export POWERPILOT_API_KEY="pp_key_..."
+node src/cli/powerpilot.js --help
 ```
+
+### Komutlar
+
+| Komut | Ne yapar |
+|---|---|
+| `status` | Durum, sürüm, aktif görev sayısı |
+| `tasks [--limit N] [--offset N]` | Görevleri sayfalı listeler |
+| `timer --action <eylem> --durationMs <ms> [--name <ad>]` | Süreli görev kurar |
+| `cancel --id <taskId>` | Görevi iptal eder |
+| `lock \| signout \| restart \| sleep \| hibernate \| shutdown` | Anında güç eylemi (görev hattından geçer) |
+| `audit [--limit N] [--beforeSeq N] [--verify]` | Denetim günlüğü (yalnızca Pro) |
+| `audit-verify` | Denetim zinciri bütünlüğü (yalnızca Pro) |
+| `inventory` | Cihaz envanteri (yalnızca Pro) |
+| `exemptions` | Güvenlik muafiyetleri (yalnızca Pro) |
+| `maintenance-windows` | Bakım pencereleri (yalnızca Pro) |
+| `orders` | Bekleyen konsol emirleri (yalnızca Pro) |
+
+Genel bayraklar: `--json` (ham JSON), `--help`.
+
+```bash
+node src/cli/powerpilot.js timer --action shutdown --durationMs 3600000 --name "Gece kapat"
+node src/cli/powerpilot.js tasks --limit 5 --json
+node src/cli/powerpilot.js cancel --id task_abc123
+```
+
+> Store sürümünde kurumsal uçlar kapalıdır; bu komutlar `503`/`404` yerine
+> açıklayıcı hata döndürür. Pro (NSIS) sürümünde tümü etkindir.
 
 ---
 

@@ -6,7 +6,7 @@
 (function (root) {
     'use strict';
 
-    function taskSignature(list, { filter = 'active', lang = 'tr' } = {}) {
+    function taskSignature(list, { filter = 'active', lang = 'en' } = {}) {
         return JSON.stringify({
             filter,
             lang,

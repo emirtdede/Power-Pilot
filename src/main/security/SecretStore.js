@@ -141,6 +141,7 @@ class SecretStore {
             throw Object.assign(new Error('safeStorage kullanılamıyor; çözme reddedildi.'), { code: 'SECRET_BACKEND_UNAVAILABLE' });
         }
         let result;
+        let backendReEncrypt = false;
         try {
             const buf = Buffer.from(cipher, 'base64');
             let plain;
@@ -149,12 +150,30 @@ class SecretStore {
             } else {
                 plain = await backend.decryptString(buf);
             }
-            result = Buffer.isBuffer(plain) ? plain.toString('utf8') : String(plain);
+            // Electron 43+ safeStorage.decryptStringAsync() `{ result, shouldReEncrypt }`
+            // nesnesi döner; eski/senkron backend'ler doğrudan string veya Buffer döner.
+            if (plain && typeof plain === 'object' && !Buffer.isBuffer(plain)
+                && Object.prototype.hasOwnProperty.call(plain, 'result')) {
+                if (typeof plain.result === 'string') {
+                    result = plain.result;
+                } else if (Buffer.isBuffer(plain.result)) {
+                    result = plain.result.toString('utf8');
+                } else {
+                    throw new Error('beklenmeyen çözme yanıtı');
+                }
+                backendReEncrypt = plain.shouldReEncrypt === true;
+            } else if (Buffer.isBuffer(plain)) {
+                result = plain.toString('utf8');
+            } else if (typeof plain === 'string') {
+                result = plain;
+            } else {
+                throw new Error('beklenmeyen çözme yanıtı');
+            }
         } catch (err) {
             throw Object.assign(new Error(`Çözme başarısız: ${(err && err.message) || 'bozuk cipher'}`), { code: 'SECRET_DECRYPT_FAILED' });
         }
         const version = Number(meta && meta.v);
-        return { result, shouldReEncrypt: !Number.isFinite(version) || version < ENTRY_VERSION };
+        return { result, shouldReEncrypt: backendReEncrypt || !Number.isFinite(version) || version < ENTRY_VERSION };
     }
 
     // --- kalıcılık ---------------------------------------------------------

@@ -1,0 +1,255 @@
+{
+  "_comment": "C3 — Microsoft Store başvuru metinleri. Her dilde: appName (<=256), shortDescription (<=270), description (<=10000), features (<=10 adet, her biri <=200). Bu dosya tests/main/store-listing.test.mjs tarafından doğrulanır; Partner Center'a kopyala-yapıştır kaynağıdır.",
+  "version": 1,
+  "productId": "9XXXXXXXXXXX",
+  "languages": {
+    "tr": {
+      "storeLanguage": "Turkish (Türkçe)",
+      "appName": "Power Pilot",
+      "shortDescription": "Bilgisayarınız belirlediğiniz iş bitince veya süre dolunca kendiliğinden kapansın, uyusun ya da kilitlensin. Tamamen çevrimdışı çalışır.",
+      "description": "Power Pilot, bilgisayarınızın güç yönetimini sizin yerinize düşünen sade bir Windows uygulamasıdır.\n\nİndirme bittiğinde, render tamamlandığında, bilgisayar boşta kaldığında veya belirlediğiniz saat geldiğinde kapatma, yeniden başlatma, uyku, hazırda bekletme, oturum kapatma veya ekran kilidi eylemini otomatikleştirir.\n\nÖNE ÇIKANLAR\n• Smart Finish: Bir işlem kapanınca, CPU düşünce, ağ trafiği durunca veya dosya değişmeyi bırakınca devreye girer.\n• Güvenlik motoru: Kaydedilmemiş işi olan korunan uygulamalar açıkken eylemi engeller ve size nedenini söyler.\n• Geri sayım uyarısı: Eylemden önce 1 ve 5 dakika kala haber verir; dilerseniz iptal edersiniz.\n• Kapatma engellendiğinde sessiz kalmaz: Windows onay penceresi bekliyorsa bunu açıkça bildirir.\n• Tekrarlayan program: Her gün, hafta içi, hafta sonu veya seçtiğiniz günlerde çalışır.\n• Şablonlar: Hazır senaryoları tek tıkla kurun; kendi şablonlarınızı dosyaya aktarın.\n• Geçmiş ve \"neden çalışmadı?\" paneli: Her çalıştırmanın sonucunu sade bir dille gösterir.\n• Opsiyonel yerel yapay zekâ: Komutlarınızı anlar; model cihazınızda çalışır, internete gönderilmez.\n\nGİZLİLİK\nUygulama çevrimdışı önceliklidir. Hiçbir kullanım istatistiği, telemetri veya çökme raporu toplanmaz ve paylaşılmaz. Verileriniz yalnızca bu bilgisayarda kalır; \"Verilerimi sil\" ile tek adımda temizlenir.\n\nKURUMSAL SÜRÜM\nYerel REST API, konsol ajanı ve servis modu ayrı Enterprise sürümünde sunulur; mağaza sürümünde kapalıdır.",
+      "features": [
+        "Süre dolunca otomatik kapatma, uyku veya kilit",
+        "İş bitince devreye giren Smart Finish koşulları",
+        "Güvenlik motoru ve \"neden çalışmadı?\" açıklaması",
+        "Tekrarlayan programlar ve hazır şablonlar",
+        "Çevrimdışı çalışan opsiyonel yapay zekâ asistanı",
+        "Telemetri yok; veriler yalnızca cihazda"
+      ]
+    },
+    "en": {
+      "storeLanguage": "English (United States)",
+      "appName": "Power Pilot",
+      "shortDescription": "Have your PC shut down, sleep, or lock itself when a task finishes or a timer ends. Runs fully offline.",
+      "description": "Power Pilot is a simple Windows app that takes care of your PC's power management for you.\n\nWhen a download finishes, a render completes, the PC goes idle, or a time you set arrives, it automates shutdown, restart, sleep, hibernate, sign-out, or screen lock.\n\nHIGHLIGHTS\n• Smart Finish: Triggers when a process closes, CPU drops, network traffic stops, or a file stops changing.\n• Safety engine: Blocks the action while protected apps have unsaved work, and tells you why.\n• Countdown warning: Notifies you 5 and 1 minute before the action; cancel anytime.\n• Never silent when shutdown is blocked: If Windows is waiting on an app's confirmation, you are told clearly.\n• Recurring schedules: Every day, weekdays, weekends, or the days you pick.\n• Templates: Set up common scenarios in one click; export your own templates to a file.\n• History and a \"why didn't it run?\" panel: Explains every run in plain language.\n• Optional on-device AI: Understands your commands; the model runs locally and never leaves your PC.\n\nPRIVACY\nOffline-first. No usage statistics, telemetry, or crash reports are collected or shared. Your data stays on this computer and can be erased in one step with \"Delete my data\".\n\nENTERPRISE EDITION\nLocal REST API, console agent, and service mode are offered in a separate Enterprise edition and are disabled in the Store build.",
+      "features": [
+        "Automatic shutdown, sleep, or lock when a timer ends",
+        "Smart Finish conditions that trigger when work is done",
+        "Safety engine with a plain-language \"why\" explanation",
+        "Recurring schedules and ready-made templates",
+        "Optional offline on-device AI assistant",
+        "No telemetry; data stays on your device"
+      ]
+    },
+    "de": {
+      "storeLanguage": "German (Deutsch)",
+      "appName": "Power Pilot",
+      "shortDescription": "Lassen Sie Ihren PC sich selbst herunterfahren, in den Ruhezustand wechseln oder sperren, wenn eine Aufgabe endet oder ein Timer abläuft. Läuft vollständig offline.",
+      "description": "Power Pilot ist eine schlichte Windows-App, die Ihnen die Energieverwaltung Ihres PCs abnimmt.\n\nWenn ein Download endet, ein Rendering fertig ist, der PC untätig wird oder eine von Ihnen gesetzte Uhrzeit erreicht ist, automatisiert sie Herunterfahren, Neustart, Ruhezustand, Standby, Abmelden oder Sperren.\n\nHIGHLIGHTS\n• Smart Finish: Wird ausgelöst, wenn ein Prozess endet, die CPU-Last sinkt, der Netzwerkverkehr stoppt oder eine Datei sich nicht mehr ändert.\n• Sicherheitsmodul: Blockiert die Aktion, solange geschützte Apps ungespeicherte Arbeit haben, und nennt den Grund.\n• Countdown-Warnung: Meldet sich 5 und 1 Minute vorher; jederzeit abbrechbar.\n• Kein Schweigen bei blockiertem Herunterfahren: Wartet Windows auf eine Bestätigung, wird Ihnen das klar mitgeteilt.\n• Wiederkehrende Zeitpläne: Täglich, werktags, am Wochenende oder an gewählten Tagen.\n• Vorlagen: Häufige Szenarien mit einem Klick einrichten; eigene Vorlagen exportieren.\n• Verlauf und ein \"Warum lief es nicht?\"-Bereich: Erklärt jeden Lauf in verständlicher Sprache.\n• Optionale lokale KI: Versteht Ihre Befehle; das Modell läuft lokal und verlässt Ihren PC nie.\n\nDATENSCHUTZ\nOffline-first. Es werden keine Nutzungsstatistiken, Telemetrie oder Absturzberichte erfasst oder geteilt. Ihre Daten bleiben auf diesem Computer und lassen sich mit \"Meine Daten löschen\" in einem Schritt entfernen.\n\nENTERPRISE-EDITION\nLokale REST-API, Konsolen-Agent und Dienstmodus sind in einer separaten Enterprise-Edition verfügbar und in der Store-Version deaktiviert.",
+      "features": [
+        "Automatisches Herunterfahren, Standby oder Sperren bei Timer-Ende",
+        "Smart-Finish-Bedingungen, die bei Arbeitsende auslösen",
+        "Sicherheitsmodul mit verständlicher \"Warum\"-Erklärung",
+        "Wiederkehrende Zeitpläne und fertige Vorlagen",
+        "Optionaler offline lokaler KI-Assistent",
+        "Keine Telemetrie; Daten bleiben auf Ihrem Gerät"
+      ]
+    },
+    "sv": {
+      "storeLanguage": "Swedish (Svenska)",
+      "appName": "Power Pilot",
+      "shortDescription": "Låt datorn stänga av, vila eller låsa sig själv när en uppgift blir klar eller en timer tar slut. Fungerar helt offline.",
+      "description": "Power Pilot är en enkel Windows-app som sköter datorns strömhantering åt dig.\n\nNär en nedladdning blir klar, en rendering är färdig, datorn blir inaktiv eller en tid du valt inträffar, automatiserar den avstängning, omstart, vila, viloläge, utloggning eller låsning.\n\nHÖJDPUNKTER\n• Smart Finish: Utlöses när en process stängs, CPU sjunker, nätverkstrafiken stoppar eller en fil slutar ändras.\n• Säkerhetsmotor: Blockerar åtgärden medan skyddade program har osparat arbete och berättar varför.\n• Nedräkningsvarning: Meddelar 5 och 1 minut innan; avbryt när som helst.\n• Aldrig tyst när avstängning blockeras: Väntar Windows på en apps bekräftelse får du veta det tydligt.\n• Återkommande scheman: Varje dag, vardagar, helger eller valda dagar.\n• Mallar: Sätt upp vanliga scenarier med ett klick; exportera egna mallar till en fil.\n• Historik och en \"varför kördes det inte?\"-panel: Förklarar varje körning i klarspråk.\n• Valfri lokal AI: Förstår dina kommandon; modellen körs lokalt och lämnar aldrig datorn.\n\nINTEGRITET\nOffline-first. Ingen användningsstatistik, telemetri eller kraschrapporter samlas in eller delas. Dina data stannar på den här datorn och kan raderas i ett steg med \"Radera mina data\".\n\nENTERPRISE-UTGÅVA\nLokalt REST-API, konsolagent och tjänsteläge erbjuds i en separat Enterprise-utgåva och är inaktiverade i Store-versionen.",
+      "features": [
+        "Automatisk avstängning, vila eller låsning när timern tar slut",
+        "Smart Finish-villkor som utlöses när arbetet är klart",
+        "Säkerhetsmotor med tydlig \"varför\"-förklaring",
+        "Återkommande scheman och färdiga mallar",
+        "Valfri offline lokal AI-assistent",
+        "Ingen telemetri; data stannar på din enhet"
+      ]
+    },
+    "no": {
+      "storeLanguage": "Norwegian (Norsk)",
+      "appName": "Power Pilot",
+      "shortDescription": "La PC-en slå seg av, hvile eller låse seg selv når en oppgave er ferdig eller en timer utløper. Fungerer helt offline.",
+      "description": "Power Pilot er en enkel Windows-app som tar seg av strømstyringen på PC-en for deg.\n\nNår en nedlasting er ferdig, en rendering er fullført, PC-en blir inaktiv eller et tidspunkt du har valgt inntreffer, automatiserer den avslåing, omstart, hvile, dvalemodus, utlogging eller låsing.\n\nHØYDEPUNKTER\n• Smart Finish: Utløses når en prosess lukkes, CPU synker, nettverkstrafikken stopper eller en fil slutter å endres.\n• Sikkerhetsmotor: Blokkerer handlingen mens beskyttede apper har ulagret arbeid, og forklarer hvorfor.\n• Nedtellingvarsel: Varsler 5 og 1 minutt før; avbryt når som helst.\n• Aldri stille når avslåing blokkeres: Venter Windows på en appbekreftelse, får du beskjed tydelig.\n• Gjentakende tidsplaner: Hver dag, ukedager, helger eller valgte dager.\n• Maler: Sett opp vanlige scenarioer med ett klikk; eksporter egne maler til fil.\n• Historikk og et «hvorfor kjørte det ikke?»-panel: Forklarer hver kjøring i klarspråk.\n• Valgfri lokal AI: Forstår kommandoene dine; modellen kjører lokalt og forlater aldri PC-en.\n\nPERSONVERN\nOffline-first. Ingen bruksstatistikk, telemetri eller krasjrapporter samles inn eller deles. Dataene dine blir på denne datamaskinen og kan slettes i ett steg med «Slett dataene mine».\n\nENTERPRISE-UTGAVE\nLokalt REST-API, konsollagent og tjenestemodus tilbys i en egen Enterprise-utgave og er deaktivert i Store-versjonen.",
+      "features": [
+        "Automatisk avslåing, hvile eller låsing når timeren utløper",
+        "Smart Finish-betingelser som utløses når arbeidet er ferdig",
+        "Sikkerhetsmotor med tydelig «hvorfor»-forklaring",
+        "Gjentakende tidsplaner og ferdige maler",
+        "Valgfri offline lokal AI-assistent",
+        "Ingen telemetri; dataene blir på enheten din"
+      ]
+    },
+    "da": {
+      "storeLanguage": "Danish (Dansk)",
+      "appName": "Power Pilot",
+      "shortDescription": "Lad pc'en slukke, hvile eller låse sig selv, når en opgave er færdig, eller en timer udløber. Kører helt offline.",
+      "description": "Power Pilot er en enkel Windows-app, der klarer strømstyringen på pc'en for dig.\n\nNår en download er færdig, en rendering er fuldført, pc'en bliver inaktiv, eller et tidspunkt, du har valgt, indtræffer, automatiserer den nedlukning, genstart, hvile, dvaletilstand, log af eller låsning.\n\nHØJDEPUNKTER\n• Smart Finish: Udløses, når en proces lukkes, CPU falder, netværkstrafikken stopper, eller en fil holder op med at ændre sig.\n• Sikkerhedsmotor: Blokerer handlingen, mens beskyttede apps har ugemt arbejde, og fortæller hvorfor.\n• Nedtællingsadvarsel: Varsler 5 og 1 minut før; annullér når som helst.\n• Aldrig tavs, når nedlukning blokeres: Venter Windows på en appbekræftelse, får du klar besked.\n• Gentagne tidsplaner: Hver dag, på hverdage, i weekenden eller valgte dage.\n• Skabeloner: Opsæt almindelige scenarier med ét klik; eksportér egne skabeloner til fil.\n• Historik og et \"hvorfor kørte det ikke?\"-panel: Forklarer hver kørsel i klart sprog.\n• Valgfri lokal AI: Forstår dine kommandoer; modellen kører lokalt og forlader aldrig pc'en.\n\nPRIVATLIV\nOffline-first. Der indsamles eller deles ingen brugsstatistik, telemetri eller nedbrudsrapporter. Dine data bliver på denne computer og kan slettes i ét trin med \"Slet mine data\".\n\nENTERPRISE-UDGAVE\nLokal REST-API, konsolagent og tjenestetilstand tilbydes i en separat Enterprise-udgave og er deaktiveret i Store-versionen.",
+      "features": [
+        "Automatisk nedlukning, hvile eller låsning, når timeren udløber",
+        "Smart Finish-betingelser, der udløses, når arbejdet er færdigt",
+        "Sikkerhedsmotor med klar \"hvorfor\"-forklaring",
+        "Gentagne tidsplaner og færdige skabeloner",
+        "Valgfri offline lokal AI-assistent",
+        "Ingen telemetri; data bliver på din enhed"
+      ]
+    },
+    "fr": {
+      "storeLanguage": "French (Français)",
+      "appName": "Power Pilot",
+      "shortDescription": "Laissez votre PC s'éteindre, se mettre en veille ou se verrouiller seul à la fin d'une tâche ou d'un minuteur. Fonctionne entièrement hors ligne.",
+      "description": "Power Pilot est une application Windows simple qui gère la alimentation de votre PC à votre place.\n\nLorsqu'un téléchargement se termine, qu'un rendu est fini, que le PC devient inactif ou qu'une heure que vous avez choisie arrive, elle automatise l'arrêt, le redémarrage, la veille, l'hibernation, la déconnexion ou le verrouillage.\n\nPOINTS FORTS\n• Smart Finish : Se déclenche quand un processus se ferme, que le CPU baisse, que le trafic réseau s'arrête ou qu'un fichier cesse de changer.\n• Moteur de sécurité : Bloque l'action tant que des applications protégées ont du travail non enregistré, et explique pourquoi.\n• Avertissement de compte à rebours : Prévient 5 et 1 minute avant ; annulable à tout moment.\n• Jamais silencieux si l'arrêt est bloqué : Si Windows attend la confirmation d'une application, vous en êtes informé clairement.\n• Planifications récurrentes : Chaque jour, en semaine, le week-end ou les jours choisis.\n• Modèles : Configurez des scénarios courants en un clic ; exportez vos modèles dans un fichier.\n• Historique et panneau « pourquoi ça n'a pas tourné ? » : Explique chaque exécution en langage clair.\n• IA locale facultative : Comprend vos commandes ; le modèle tourne localement et ne quitte jamais votre PC.\n\nCONFIDENTIALITÉ\nHors ligne d'abord. Aucune statistique d'usage, télémétrie ou rapport de plantage n'est collecté ni partagé. Vos données restent sur cet ordinateur et peuvent être effacées en une étape avec « Supprimer mes données ».\n\nÉDITION ENTREPRISE\nL'API REST locale, l'agent console et le mode service sont proposés dans une édition Entreprise distincte et désactivés dans la version Store.",
+      "features": [
+        "Arrêt, veille ou verrouillage automatique à la fin du minuteur",
+        "Conditions Smart Finish déclenchées à la fin du travail",
+        "Moteur de sécurité avec explication claire du « pourquoi »",
+        "Planifications récurrentes et modèles prêts à l'emploi",
+        "Assistant IA local hors ligne facultatif",
+        "Aucune télémétrie ; les données restent sur votre appareil"
+      ]
+    },
+    "pl": {
+      "storeLanguage": "Polish (Polski)",
+      "appName": "Power Pilot",
+      "shortDescription": "Pozwól, aby komputer sam się wyłączył, uśpił lub zablokował po zakończeniu zadania lub upływie timera. Działa w pełni offline.",
+      "description": "Power Pilot to prosta aplikacja Windows, która przejmuje zarządzanie energią komputera.\n\nGdy zakończy się pobieranie, renderowanie, komputer będzie bezczynny lub nadejdzie wybrana godzina, automatyzuje wyłączenie, ponowne uruchomienie, uśpienie, hibernację, wylogowanie lub blokadę ekranu.\n\nNAJWAŻNIEJSZE\n• Smart Finish: Uruchamia się, gdy proces się zamknie, CPU spadnie, ruch sieciowy ustanie lub plik przestanie się zmieniać.\n• Silnik bezpieczeństwa: Blokuje akcję, gdy chronione aplikacje mają niezapisane dane, i wyjaśnia dlaczego.\n• Ostrzeżenie o odliczaniu: Powiadamia 5 i 1 minutę wcześniej; można anulować w każdej chwili.\n• Nigdy nie milczy przy zablokowanym wyłączaniu: Jeśli Windows czeka na potwierdzenie aplikacji, dowiesz się o tym jasno.\n• Harmonogramy cykliczne: Codziennie, w dni robocze, weekendy lub wybrane dni.\n• Szablony: Skonfiguruj typowe scenariusze jednym kliknięciem; eksportuj własne szablony do pliku.\n• Historia i panel „dlaczego nie zadziałało?”: Wyjaśnia każde uruchomienie prostym językiem.\n• Opcjonalna lokalna AI: Rozumie polecenia; model działa lokalnie i nigdy nie opuszcza komputera.\n\nPRYWATNOŚĆ\nNajpierw offline. Nie są zbierane ani udostępniane żadne statystyki użycia, telemetria ani raporty awarii. Dane pozostają na tym komputerze i można je usunąć jednym krokiem przez „Usuń moje dane”.\n\nEDYCJA ENTERPRISE\nLokalne REST API, agent konsoli i tryb usługi są dostępne w osobnej edycji Enterprise i wyłączone w wersji ze Sklepu.",
+      "features": [
+        "Automatyczne wyłączanie, uśpienie lub blokada po upływie timera",
+        "Warunki Smart Finish uruchamiane po zakończeniu pracy",
+        "Silnik bezpieczeństwa z jasnym wyjaśnieniem „dlaczego”",
+        "Harmonogramy cykliczne i gotowe szablony",
+        "Opcjonalny lokalny asystent AI offline",
+        "Brak telemetrii; dane pozostają na urządzeniu"
+      ]
+    },
+    "it": {
+      "storeLanguage": "Italian (Italiano)",
+      "appName": "Power Pilot",
+      "shortDescription": "Lascia che il PC si spenga, vada in sospensione o si blocchi da solo al termine di un'attività o di un timer. Funziona completamente offline.",
+      "description": "Power Pilot è una semplice app Windows che gestisce l'alimentazione del PC al posto tuo.\n\nQuando un download termina, un rendering è completo, il PC diventa inattivo o arriva un orario che hai scelto, automatizza spegnimento, riavvio, sospensione, ibernazione, disconnessione o blocco.\n\nIN EVIDENZA\n• Smart Finish: Si attiva quando un processo si chiude, la CPU scende, il traffico di rete si ferma o un file smette di cambiare.\n• Motore di sicurezza: Blocca l'azione mentre app protette hanno lavoro non salvato e spiega il motivo.\n• Avviso di conto alla rovescia: Avvisa 5 e 1 minuto prima; annullabile in qualsiasi momento.\n• Mai silenzioso se lo spegnimento è bloccato: Se Windows attende la conferma di un'app, te lo dice chiaramente.\n• Pianificazioni ricorrenti: Ogni giorno, nei giorni feriali, nel weekend o nei giorni scelti.\n• Modelli: Configura scenari comuni con un clic; esporta i tuoi modelli in un file.\n• Cronologia e pannello \"perché non è partito?\": Spiega ogni esecuzione in linguaggio semplice.\n• IA locale opzionale: Capisce i tuoi comandi; il modello gira localmente e non lascia mai il PC.\n\nPRIVACY\nOffline-first. Nessuna statistica d'uso, telemetria o rapporto di arresto anomalo viene raccolto o condiviso. I tuoi dati restano su questo computer e possono essere cancellati in un passaggio con \"Elimina i miei dati\".\n\nEDIZIONE ENTERPRISE\nAPI REST locale, agente console e modalità servizio sono offerti in un'edizione Enterprise separata e disattivati nella versione Store.",
+      "features": [
+        "Spegnimento, sospensione o blocco automatico al termine del timer",
+        "Condizioni Smart Finish attivate al termine del lavoro",
+        "Motore di sicurezza con chiara spiegazione del \"perché\"",
+        "Pianificazioni ricorrenti e modelli pronti",
+        "Assistente IA locale offline opzionale",
+        "Nessuna telemetria; i dati restano sul dispositivo"
+      ]
+    },
+    "nl": {
+      "storeLanguage": "Dutch (Nederlands)",
+      "appName": "Power Pilot",
+      "shortDescription": "Laat je pc zichzelf uitschakelen, sluimeren of vergrendelen wanneer een taak klaar is of een timer afloopt. Werkt volledig offline.",
+      "description": "Power Pilot is een eenvoudige Windows-app die het energiebeheer van je pc overneemt.\n\nWanneer een download klaar is, een render voltooid is, de pc inactief wordt of een door jou gekozen tijd aanbreekt, automatiseert hij afsluiten, herstarten, sluimeren, slaapstand, afmelden of vergrendelen.\n\nHOOGTEPUNTEN\n• Smart Finish: Wordt geactiveerd wanneer een proces sluit, de CPU daalt, netwerkverkeer stopt of een bestand niet meer verandert.\n• Veiligheidsmotor: Blokkeert de actie zolang beschermde apps niet-opgeslagen werk hebben, en legt uit waarom.\n• Aftelwaarschuwing: Meldt 5 en 1 minuut vooraf; altijd annuleerbaar.\n• Nooit stil bij geblokkeerd afsluiten: Wacht Windows op bevestiging van een app, dan krijg je dat duidelijk te horen.\n• Terugkerende schema's: Elke dag, op werkdagen, in het weekend of op gekozen dagen.\n• Sjablonen: Stel veelvoorkomende scenario's in met één klik; exporteer eigen sjablonen naar een bestand.\n• Geschiedenis en een \"waarom liep het niet?\"-paneel: Legt elke uitvoering in begrijpelijke taal uit.\n• Optionele lokale AI: Begrijpt je opdrachten; het model draait lokaal en verlaat je pc nooit.\n\nPRIVACY\nOffline-first. Er worden geen gebruiksstatistieken, telemetrie of crashrapporten verzameld of gedeeld. Je gegevens blijven op deze computer en zijn in één stap te wissen met \"Mijn gegevens verwijderen\".\n\nENTERPRISE-EDITIE\nLokale REST-API, console-agent en servicemodus zijn beschikbaar in een aparte Enterprise-editie en uitgeschakeld in de Store-versie.",
+      "features": [
+        "Automatisch afsluiten, sluimeren of vergrendelen bij aflopen timer",
+        "Smart Finish-condities die aftrappen wanneer werk klaar is",
+        "Veiligheidsmotor met duidelijke \"waarom\"-uitleg",
+        "Terugkerende schema's en kant-en-klare sjablonen",
+        "Optionele offline lokale AI-assistent",
+        "Geen telemetrie; gegevens blijven op je apparaat"
+      ]
+    },
+    "cs": {
+      "storeLanguage": "Czech (Čeština)",
+      "appName": "Power Pilot",
+      "shortDescription": "Nechte počítač, aby se sám vypnul, uspal nebo uzamkl po dokončení úlohy nebo vypršení časovače. Funguje zcela offline.",
+      "description": "Power Pilot je jednoduchá aplikace pro Windows, která za vás převezme správu napájení počítače.\n\nKdyž skončí stahování, dokončí se render, počítač je nečinný nebo nastane vámi zvolený čas, automatizuje vypnutí, restart, spánek, hibernaci, odhlášení nebo uzamčení.\n\nHLAVNÍ VLASTNOSTI\n• Smart Finish: Spustí se, když se zavře proces, klesne CPU, ustane síťový provoz nebo se přestane měnit soubor.\n• Bezpečnostní modul: Zablokuje akci, dokud mají chráněné aplikace neuloženou práci, a vysvětlí proč.\n• Upozornění s odpočtem: Oznámí se 5 a 1 minutu předem; kdykoli lze zrušit.\n• Nikdy nemlčí při blokovaném vypnutí: Čeká-li Windows na potvrzení aplikace, jasně vám to sdělí.\n• Opakované plány: Každý den, ve všední dny, o víkendu nebo ve zvolené dny.\n• Šablony: Nastavte běžné scénáře jedním kliknutím; exportujte vlastní šablony do souboru.\n• Historie a panel „proč se to nespustilo?“: Vysvětlí každé spuštění srozumitelně.\n• Volitelná lokální AI: Rozumí vašim příkazům; model běží lokálně a nikdy neopustí počítač.\n\nSOUKROMÍ\nOffline-first. Neshromažďují se ani nesdílejí žádné statistiky používání, telemetrie ani zprávy o pádech. Vaše data zůstávají na tomto počítači a lze je smazat jedním krokem pomocí „Smazat moje data“.\n\nEDICE ENTERPRISE\nLokální REST API, konzolový agent a servisní režim jsou nabízeny v samostatné edici Enterprise a ve verzi ze Storu jsou vypnuté.",
+      "features": [
+        "Automatické vypnutí, spánek nebo uzamčení po vypršení časovače",
+        "Podmínky Smart Finish spouštěné po dokončení práce",
+        "Bezpečnostní modul s jasným vysvětlením „proč“",
+        "Opakované plány a hotové šablony",
+        "Volitelný offline lokální AI asistent",
+        "Žádná telemetrie; data zůstávají na zařízení"
+      ]
+    },
+    "es": {
+      "storeLanguage": "Spanish (Español)",
+      "appName": "Power Pilot",
+      "shortDescription": "Deja que tu PC se apague, suspenda o bloquee solo cuando termina una tarea o un temporizador. Funciona totalmente sin conexión.",
+      "description": "Power Pilot es una aplicación sencilla para Windows que gestiona la energía de tu PC por ti.\n\nCuando termina una descarga, se completa un render, el PC queda inactivo o llega una hora que hayas elegido, automatiza apagar, reiniciar, suspender, hibernar, cerrar sesión o bloquear.\n\nDESTACADOS\n• Smart Finish: Se activa cuando un proceso se cierra, baja la CPU, se detiene el tráfico de red o un archivo deja de cambiar.\n• Motor de seguridad: Bloquea la acción mientras aplicaciones protegidas tienen trabajo sin guardar, y explica por qué.\n• Aviso de cuenta atrás: Avisa 5 y 1 minuto antes; cancela cuando quieras.\n• Nunca en silencio si se bloquea el apagado: Si Windows espera la confirmación de una app, te lo dice con claridad.\n• Programaciones recurrentes: Cada día, entre semana, fines de semana o los días que elijas.\n• Plantillas: Configura escenarios habituales con un clic; exporta tus plantillas a un archivo.\n• Historial y panel «¿por qué no se ejecutó?»: Explica cada ejecución en lenguaje sencillo.\n• IA local opcional: Entiende tus comandos; el modelo se ejecuta localmente y nunca sale de tu PC.\n\nPRIVACIDAD\nSin conexión primero. No se recopilan ni comparten estadísticas de uso, telemetría ni informes de fallos. Tus datos se quedan en este equipo y pueden borrarse en un paso con «Eliminar mis datos».\n\nEDICIÓN EMPRESARIAL\nLa API REST local, el agente de consola y el modo servicio se ofrecen en una edición Enterprise aparte y están desactivados en la versión de la Store.",
+      "features": [
+        "Apagado, suspensión o bloqueo automático al terminar el temporizador",
+        "Condiciones Smart Finish que se activan al terminar el trabajo",
+        "Motor de seguridad con explicación clara del «por qué»",
+        "Programaciones recurrentes y plantillas listas",
+        "Asistente de IA local sin conexión opcional",
+        "Sin telemetría; los datos se quedan en tu dispositivo"
+      ]
+    },
+    "pt": {
+      "storeLanguage": "Portuguese (Português)",
+      "appName": "Power Pilot",
+      "shortDescription": "Deixe o PC se desligar, suspender ou bloquear sozinho quando uma tarefa termina ou um temporizador acaba. Funciona totalmente offline.",
+      "description": "Power Pilot é um aplicativo simples para Windows que cuida da energia do seu PC por você.\n\nQuando um download termina, uma renderização é concluída, o PC fica inativo ou chega um horário que você escolheu, ele automatiza desligar, reiniciar, suspender, hibernar, sair ou bloquear.\n\nDESTAQUES\n• Smart Finish: Dispara quando um processo fecha, a CPU cai, o tráfego de rede para ou um arquivo deixa de mudar.\n• Motor de segurança: Bloqueia a ação enquanto apps protegidos têm trabalho não salvo e explica o motivo.\n• Aviso de contagem regressiva: Avisa 5 e 1 minuto antes; cancele quando quiser.\n• Nunca em silêncio quando o desligamento é bloqueado: Se o Windows espera a confirmação de um app, você é avisado claramente.\n• Agendamentos recorrentes: Todos os dias, dias úteis, fins de semana ou os dias que escolher.\n• Modelos: Configure cenários comuns com um clique; exporte seus modelos para um arquivo.\n• Histórico e painel \"por que não rodou?\": Explica cada execução em linguagem simples.\n• IA local opcional: Entende seus comandos; o modelo roda localmente e nunca sai do seu PC.\n\nPRIVACIDADE\nOffline primeiro. Nenhuma estatística de uso, telemetria ou relatório de falha é coletado ou compartilhado. Seus dados ficam neste computador e podem ser apagados em um passo com \"Excluir meus dados\".\n\nEDIÇÃO ENTERPRISE\nAPI REST local, agente de console e modo de serviço são oferecidos em uma edição Enterprise separada e ficam desativados na versão da Store.",
+      "features": [
+        "Desligamento, suspensão ou bloqueio automático ao fim do temporizador",
+        "Condições Smart Finish acionadas ao terminar o trabalho",
+        "Motor de segurança com explicação clara do \"por quê\"",
+        "Agendamentos recorrentes e modelos prontos",
+        "Assistente de IA local offline opcional",
+        "Sem telemetria; os dados ficam no seu dispositivo"
+      ]
+    },
+    "ja": {
+      "storeLanguage": "Japanese (日本語)",
+      "appName": "Power Pilot",
+      "shortDescription": "タスクの完了時やタイマー終了時に、PC を自動でシャットダウン・スリープ・ロック。完全オフラインで動作します。",
+      "description": "Power Pilot は、PC の電源管理を代行するシンプルな Windows アプリです。\n\nダウンロードの完了、レンダリングの終了、PC がアイドル状態になったとき、または指定した時刻になると、シャットダウン、再起動、スリープ、休止状態、サインアウト、画面ロックを自動化します。\n\n主な特長\n• Smart Finish: プロセスの終了、CPU の低下、ネットワーク通信の停止、ファイルの更新停止を検知して実行します。\n• セーフティエンジン: 保護対象のアプリに未保存の作業がある間は実行を止め、理由を表示します。\n• カウントダウン通知: 5 分前と 1 分前に通知。いつでもキャンセルできます。\n• シャットダウンが妨げられた場合も通知: Windows がアプリの確認を待っているときは、はっきりお知らせします。\n• 繰り返しスケジュール: 毎日、平日、週末、指定した曜日に実行できます。\n• テンプレート: よくあるシナリオをワンクリックで設定。自作テンプレートはファイルに書き出せます。\n• 履歴と「なぜ実行されなかったか」パネル: 実行ごとの結果をやさしい言葉で説明します。\n• 任意のローカル AI: コマンドを理解します。モデルは端末内で動作し、外部に送信されません。\n\nプライバシー\nオフライン優先。利用統計、テレメトリ、クラッシュレポートは一切収集・共有しません。データはこのコンピューター内に留まり、「データを削除」で一括消去できます。\n\nエンタープライズ版\nローカル REST API、コンソールエージェント、サービスモードは別の Enterprise 版で提供され、Store 版では無効です。",
+      "features": [
+        "タイマー終了時に自動でシャットダウン・スリープ・ロック",
+        "作業完了で発動する Smart Finish 条件",
+        "理由をわかりやすく示すセーフティエンジン",
+        "繰り返しスケジュールとすぐ使えるテンプレート",
+        "オフラインで動く任意のローカル AI アシスタント",
+        "テレメトリなし。データは端末内に保持"
+      ]
+    },
+    "zh": {
+      "storeLanguage": "Chinese (Simplified, 简体中文)",
+      "appName": "Power Pilot",
+      "shortDescription": "任务完成或计时结束时，让电脑自动关机、睡眠或锁定。完全离线运行。",
+      "description": "Power Pilot 是一款简洁的 Windows 应用，替你处理电脑的电源管理。\n\n当下载完成、渲染结束、电脑空闲，或到达你设定的时间时，它会自动执行关机、重启、睡眠、休眠、注销或锁定屏幕。\n\n主要功能\n• Smart Finish：当进程关闭、CPU 占用下降、网络流量停止或文件不再变化时触发。\n• 安全引擎：受保护的应用有未保存内容时阻止操作，并说明原因。\n• 倒计时提醒：提前 5 分钟和 1 分钟提醒，可随时取消。\n• 关机被阻止时绝不沉默：若 Windows 正在等待应用确认，会明确告知你。\n• 重复计划：每天、工作日、周末或你选择的日期。\n• 模板：一键设置常见场景，可将自建模板导出为文件。\n• 历史记录与“为什么没有执行？”面板：用通俗语言解释每次运行。\n• 可选的本地 AI：理解你的指令；模型在本机运行，绝不上传。\n\n隐私\n离线优先。不收集也不共享任何使用统计、遥测或崩溃报告。数据仅保存在本机，可通过“删除我的数据”一步清除。\n\n企业版\n本地 REST API、控制台代理和服务模式在单独的企业版中提供，商店版已禁用。",
+      "features": [
+        "计时结束时自动关机、睡眠或锁定",
+        "工作完成时触发的 Smart Finish 条件",
+        "带有通俗“为什么”说明的安全引擎",
+        "重复计划与现成模板",
+        "可选的离线本地 AI 助手",
+        "无遥测；数据仅保存在本机"
+      ]
+    },
+    "ko": {
+      "storeLanguage": "Korean (한국어)",
+      "appName": "Power Pilot",
+      "shortDescription": "작업이 끝나거나 타이머가 종료되면 PC가 스스로 종료·절전·잠금되도록 하세요. 완전 오프라인으로 동작합니다.",
+      "description": "Power Pilot은 PC 전원 관리를 대신 처리해 주는 간단한 Windows 앱입니다.\n\n다운로드가 끝나거나, 렌더링이 완료되거나, PC가 유휴 상태가 되거나, 설정한 시간이 되면 종료, 다시 시작, 절전, 최대 절전, 로그아웃, 화면 잠금을 자동화합니다.\n\n주요 기능\n• Smart Finish: 프로세스가 닫히거나, CPU 사용량이 낮아지거나, 네트워크 트래픽이 멈추거나, 파일 변경이 끝나면 실행됩니다.\n• 안전 엔진: 보호된 앱에 저장하지 않은 작업이 있으면 실행을 차단하고 이유를 알려 줍니다.\n• 카운트다운 알림: 5분 전과 1분 전에 알려 주며 언제든 취소할 수 있습니다.\n• 종료가 차단되면 절대 조용히 넘어가지 않습니다: Windows가 앱 확인을 기다리는 경우 분명히 알려 줍니다.\n• 반복 일정: 매일, 평일, 주말 또는 선택한 요일에 실행됩니다.\n• 템플릿: 자주 쓰는 시나리오를 한 번의 클릭으로 설정하고, 직접 만든 템플릿을 파일로 내보낼 수 있습니다.\n• 기록 및 “왜 실행되지 않았나요?” 패널: 모든 실행 결과를 쉬운 말로 설명합니다.\n• 선택적 로컬 AI: 명령을 이해하며, 모델은 기기에서 실행되고 외부로 전송되지 않습니다.\n\n개인정보\n오프라인 우선. 사용 통계, 원격 측정, 충돌 보고서를 수집하거나 공유하지 않습니다. 데이터는 이 컴퓨터에만 남으며 “내 데이터 삭제”로 한 번에 지울 수 있습니다.\n\n엔터프라이즈 에디션\n로컬 REST API, 콘솔 에이전트, 서비스 모드는 별도의 Enterprise 에디션에서 제공되며 스토어 버전에서는 비활성화됩니다.",
+      "features": [
+        "타이머 종료 시 자동 종료·절전·잠금",
+        "작업 완료 시 작동하는 Smart Finish 조건",
+        "이유를 쉽게 설명하는 안전 엔진",
+        "반복 일정과 바로 쓰는 템플릿",
+        "오프라인으로 동작하는 선택적 로컬 AI 도우미",
+        "원격 측정 없음; 데이터는 기기에 보관"
+      ]
+    },
+    "ar": {
+      "storeLanguage": "Arabic (العربية)",
+      "appName": "Power Pilot",
+      "shortDescription": "دع حاسوبك يُغلق أو ينام أو يُقفل تلقائيًا عند انتهاء مهمة أو مؤقت. يعمل دون اتصال بالإنترنت بالكامل.",
+      "description": "‏Power Pilot تطبيق بسيط لنظام Windows يتولى إدارة الطاقة في حاسوبك نيابةً عنك.\n\nعند انتهاء تنزيل، أو اكتمال عملية معالجة، أو خمول الحاسوب، أو حلول وقت اخترته، يؤتمت الإغلاق أو إعادة التشغيل أو النوم أو السبات أو تسجيل الخروج أو قفل الشاشة.\n\nأبرز المزايا\n• ‏Smart Finish: يعمل عند إغلاق برنامج، أو انخفاض استخدام المعالج، أو توقف حركة الشبكة، أو توقف الملف عن التغيّر.\n• محرك الأمان: يمنع التنفيذ ما دامت هناك تطبيقات محمية لديها عمل غير محفوظ، ويوضح السبب.\n• تنبيه العدّ التنازلي: يذكّرك قبل 5 دقائق ودقيقة واحدة، ويمكنك الإلغاء في أي وقت.\n• لا يصمت أبدًا عند منع الإغلاق: إذا كان Windows ينتظر تأكيد أحد التطبيقات فسيُخبرك بوضوح.\n• جداول متكررة: كل يوم، أو أيام العمل، أو عطلة الأسبوع، أو الأيام التي تختارها.\n• القوالب: أنشئ سيناريوهات شائعة بنقرة واحدة، وصدّر قوالبك إلى ملف.\n• السجل ولوحة «لماذا لم يعمل؟»: تشرح كل تنفيذ بلغة واضحة.\n• ذكاء اصطناعي محلي اختياري: يفهم أوامرك، ويعمل النموذج على جهازك ولا يغادره أبدًا.\n\nالخصوصية\nالعمل دون اتصال أولًا. لا تُجمع أي إحصاءات استخدام أو قياسات عن بُعد أو تقارير أعطال ولا تُشارك. تبقى بياناتك على هذا الحاسوب ويمكن مسحها بخطوة واحدة عبر «حذف بياناتي».\n\nإصدار المؤسسات\n‏واجهة REST المحلية ووكيل وحدة التحكم ووضع الخدمة متاحة في إصدار Enterprise منفصل ومعطّلة في إصدار المتجر.",
+      "features": [
+        "إغلاق أو نوم أو قفل تلقائي عند انتهاء المؤقت",
+        "شروط Smart Finish التي تعمل عند انتهاء العمل",
+        "محرك أمان مع شرح واضح لـ«السبب»",
+        "جداول متكررة وقوالب جاهزة",
+        "مساعد ذكاء اصطناعي محلي اختياري دون اتصال",
+        "لا قياسات عن بُعد؛ تبقى البيانات على جهازك"
+      ]
+    }
+  },
+  "metadata": {
+    "privacyPolicyUrl": "https://vellium.dev/en/legal/privacy",
+    "supportUrl": "https://vellium.dev/en/legal/support",
+    "eulaUrl": "https://vellium.dev/en/legal/products/power-pilot",
+    "contactUrl": "https://vellium.dev/en/contact",
+    "websiteUrl": "https://vellium.dev",
+    "supportEmail": "info@vellium.dev",
+    "privacyPolicyDoc": "docs/store/PRIVACY_POLICY.md",
+    "privacyPolicyStaticFallback": "docs/store/privacy.html"
+  }
+}

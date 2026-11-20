@@ -186,6 +186,11 @@ function validateTaskData(data) {
     if (data.name !== undefined && (typeof data.name !== 'string' || data.name.length > 120)) {
         return fail('Görev adı en fazla 120 karakter olmalı.', 'INVALID_NAME');
     }
+    // Boşluktan ibaret ad kabul edilmez: kullanıcı listede adsız bir görev
+    // görürdü ("   " satırı). Yalnızca boşluk = ad verilmemiş sayılır.
+    if (typeof data.name === 'string' && data.name.trim().length === 0) {
+        return fail('Görev adı boşluktan oluşamaz.', 'INVALID_NAME');
+    }
     // K2: Depolanmış XSS kapısı — ad innerHTML lavabolarına akıyor.
     if (typeof data.name === 'string' && /[<>]/.test(data.name)) {
         return fail('Görev adı < ve > içeremez.', 'INVALID_NAME');
@@ -352,11 +357,21 @@ function validateWol(payload) {
     return { ok: true };
 }
 
+const { ALL_LANGUAGE_CODES } = require('../i18n');
+const SUPPORTED_LANGUAGES = ALL_LANGUAGE_CODES;
+const THEME_IDS = [
+    'obsidian', 'slate', 'navy', 'blue', 'cyan', 'indigo', 'purple',
+    'pink', 'red', 'orange', 'yellow', 'emerald', 'grass', 'lime'
+];
+
 const SETTINGS_SCHEMA = {
     autostart: 'boolean',
     theme: ['light', 'dark'],
+    themeId: THEME_IDS,
+    sidebarCollapsed: 'boolean',
     notifications: 'boolean',
-    language: ['tr', 'en', 'de', 'sv', 'no', 'da', 'fr', 'pl', 'it', 'nl', 'cs', 'es', 'pt', 'ja', 'zh', 'ko', 'ar'],
+    // null = kullanıcı henüz dil seçmedi → ilk çalıştırmada sistem dili algılanır.
+    language: { enum: SUPPORTED_LANGUAGES, nullable: true },
     localApiPort: { int: [1, 65535] },
     lanAllowedIps: { ipList: 16 },
     blockRemoteShutdownWhenActive: 'boolean',
@@ -388,6 +403,9 @@ const SETTINGS_SCHEMA = {
     bootGuardSeconds: { int: [0, 1800] },
     // L-11: tepsi "AI'yi sustur" penceresi şema doğrulamasından geçer.
     aiSilencedUntil: { int: [0, 9999999999999], nullable: true },
+    // Uyku/standby dönüşü politikası: kaçırılan görev çalıştırılsın mı, atlansın mı?
+    wakeMode: ['run', 'skip'],
+    wakeToleranceMinutes: { int: [0, 1440] },
 };
 
 /**
@@ -426,6 +444,9 @@ function validateSettings(patch, currentSettings = {}, schema = SETTINGS_SCHEMA)
         if (val === null && rule && typeof rule === 'object' && rule.nullable) continue;
         if (rule === 'boolean' && typeof val !== 'boolean') return fail(`${key} boolean olmalı.`, 'INVALID_SETTING');
         if (Array.isArray(rule) && !rule.includes(val)) return fail(`${key} geçersiz değer.`, 'INVALID_SETTING');
+        if (rule && Array.isArray(rule.enum) && !rule.enum.includes(val)) {
+            return fail(`${key} geçersiz değer.`, 'INVALID_SETTING');
+        }
         if (rule && rule.int && (!Number.isInteger(val) || val < rule.int[0] || val > rule.int[1])) {
             return fail(`${key} ${rule.int[0]}..${rule.int[1]} aralığında olmalı.`, 'INVALID_SETTING');
         }

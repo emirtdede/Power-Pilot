@@ -1,6 +1,12 @@
 <div align="center">
 
-# ⚡ Power Pilot — Windows Power Management & Automation
+<a href="https://vellium.dev" target="_blank" rel="noopener noreferrer">
+  <img src="assets/vellium-banner.svg" alt="Vellium - Intelligent · Reliable · Enduring" width="100%" />
+</a>
+
+<br /><br />
+
+# ✦ Power Pilot — Local-First Windows Power Management & Automation
 
 </div>
 
@@ -8,9 +14,9 @@
 
 <div align="center">
 
-[![](https://img.shields.io/badge/Language-English-blue?style=for-the-badge&logo=google-translate)](#english-version)
+[![](https://img.shields.io/badge/Language-English-000000?style=for-the-badge&logo=googletranslate&logoColor=white)](#english-version)
 &nbsp;&nbsp;&nbsp;&nbsp;
-[![](https://img.shields.io/badge/Dil-T%C3%BCrk%C3%A7e-red?style=for-the-badge&logo=google-translate)](#turkish-version)
+[![](https://img.shields.io/badge/Dil-T%C3%BCrk%C3%A7e-000000?style=for-the-badge&logo=googletranslate&logoColor=white)](#turkish-version)
 
 </div>
 
@@ -18,15 +24,18 @@
 
 <div align="center">
 
-[![CI](https://img.shields.io/github/actions/workflow/status/emirtdede/Power-Pilot/ci.yml?style=for-the-badge&logo=github-actions&label=CI)](https://github.com/emirtdede/Power-Pilot/actions/workflows/ci.yml)
-![Electron](https://img.shields.io/badge/Electron-43.8.1-47848F?style=for-the-badge&logo=electron&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-24.18.1-339933?style=for-the-badge&logo=node.js&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-Vanilla-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-3-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
-![Windows](https://img.shields.io/badge/Platform-Windows_10%2F11-0078D6?style=for-the-badge&logo=windows&logoColor=white)
-![Security](https://img.shields.io/badge/Security-Hardened-00C853?style=for-the-badge&logo=shield&logoColor=white)
-![License](https://img.shields.io/badge/License-Proprietary-blue?style=for-the-badge)
+[![CI](https://img.shields.io/github/actions/workflow/status/emirtdede/Power-Pilot/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI&color=000000)](https://github.com/emirtdede/Power-Pilot/actions/workflows/ci.yml)
+![Release](https://img.shields.io/badge/Release-v1.0.0-000000?style=flat-square)
+![Electron](https://img.shields.io/badge/Electron-43.8.1-000000?style=flat-square&logo=electron&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-24.18.1-000000?style=flat-square&logo=node.js&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-000000?style=flat-square&logo=javascript&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-WAL_Mode-000000?style=flat-square&logo=sqlite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-000000?style=flat-square&logo=tailwindcss&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-Server_Built--in-000000?style=flat-square)
+![Languages](https://img.shields.io/badge/Languages-73_Supported-000000?style=flat-square)
+![Themes](https://img.shields.io/badge/Themes-28_Palettes-000000?style=flat-square)
+![Windows](https://img.shields.io/badge/Windows-10%2F11_x64-000000?style=flat-square&logo=windows&logoColor=white)
+![Security](https://img.shields.io/badge/Security-Hardened-000000?style=flat-square&logo=shield&logoColor=white)
 
 </div>
 
@@ -36,9 +45,9 @@
 # English Version
 
 <div align="center">
-  <img src="public/power-pilot.svg" alt="Power Pilot Logo" width="130" height="130" />
-  <h3>Power Pilot — Local-First Windows Power Automation</h3>
-  <p><em>Scheduled power actions, Smart Finish conditions, on-device AI, and a hardened local API in one desktop app.</em></p>
+  <img src="public/power-pilot.svg" alt="Power Pilot Logo" width="108" height="108" />
+  <h3>Power Pilot — Smart, Local-First Power Management &amp; Task Automation for Windows</h3>
+  <p><em>Scheduled Power Transitions, Smart Finish Condition Engine, On-Device AI, Built-in MCP Server, Terminal CLI, 28 Themes, and a Hardened Local API</em></p>
   <p><strong>Developed &amp; Published by <a href="https://vellium.dev">Vellium</a></strong></p>
 </div>
 
@@ -46,11 +55,11 @@
 
 ## 💻 Project Overview
 
-**Power Pilot** is a local-first Windows desktop application for scheduling, monitoring, and automating power transitions. Built with **Electron 43**, **Node.js 24**, and **vanilla JavaScript**, it combines a hardened main process, a sandboxed renderer, and a local SQLite database. Core scheduling works without an account, a cloud service, or an internet connection.
+**Power Pilot (`v1.0.0`)** is a local-first Windows desktop application for scheduling, monitoring, and automating power transitions. Built with **Electron 43**, **Node.js 24**, and **vanilla JavaScript**, it combines a hardened main process, a sandboxed 60 FPS renderer, and a local **WAL-mode SQLite** database. Core scheduling works without an account, a cloud service, or an internet connection.
 
-It goes beyond a simple countdown. **Smart Finish** waits for real work to finish — a process to close, CPU usage to drop, the user to become idle, or a file/folder to stop changing. The **Safety Policy Engine** blocks risky actions while protected applications are running, and the optional **on-device AI assistant** turns natural-language or voice commands into automation tasks using locally stored Qwen and Whisper models.
+It goes beyond a simple countdown. **Smart Finish** waits for real work to finish — a process to close, CPU usage to drop, network or disk activity to settle, battery thresholds, user idle time, or a file/folder to stop changing. The **Safety Policy Engine** blocks risky actions while protected applications are running, and the optional **on-device AI assistant** turns natural-language or voice commands into automation tasks using locally stored Qwen and Whisper models.
 
-For teams and advanced users, Power Pilot provides an optional **local REST API** with API-key roles, TLS/mTLS, IP allowlists, Ed25519-signed orders, webhooks, Wake-on-LAN, an n8n/Telegram workflow, a command-line client, and a headless Windows service agent. Every remote path is designed to fail closed.
+For developers, AI coding agents, and enterprise teams, Power Pilot ships with a **built-in Model Context Protocol (MCP) server** (`powerpilot-mcp` / `powerpilot mcp`), a **terminal CLI** (`powerpilot`), a dedicated **in-app Documentation Center**, **multi-subpage Settings with one-click preset profiles**, and an optional **local REST API** with API-key roles, TLS/mTLS, IP allowlists, Ed25519-signed orders, webhooks, Wake-on-LAN, an n8n/Telegram workflow, and a headless Windows service agent. Every remote path is designed to fail closed.
 
 > **Documentation:** architecture, audits, release process, runbooks, and API references are indexed in [`docs/README.md`](docs/README.md).
 
@@ -60,20 +69,21 @@ For teams and advanced users, Power Pilot provides an optional **local REST API*
 
 ### ⚡ Power Actions & Scheduling
 - **Shutdown**, **Restart**, **Sleep**, **Hibernate**, **Lock**, and **Sign out** actions.
-- Quick presets (15 min, 30 min, 1 hour, 2 hours) and custom countdowns.
+- Quick presets (15 min, 30 min, 1 hour, 2 hours) and custom countdowns integrated directly inside the scheduling card without detached floating footer bars.
 - Safety-capped scheduling up to **24 days** (2,073,600 seconds).
-- Persistent tasks with a pre-action warning countdown, snooze, cancel, and optional **PIN protection**.
+- Persistent tasks with a pre-action warning countdown, snooze, cancel, and optional **4 / 6 / 8-digit PIN protection**.
 - Automatic UI-language detection from the Windows display locale on first launch.
 
 ### 🧠 Smart Finish Condition Engine
-- Wait for a selected **process** to close.
-- Wait for **CPU usage** to remain below a configured threshold.
-- Wait for keyboard/mouse **idle time**.
+- Wait for a selected **process** to close (`handbrake.exe`, `blender.exe`, `steam.exe`, etc.).
+- Wait for **CPU usage**, **network throughput**, or **disk activity** to remain below a configured threshold.
+- Wait for keyboard/mouse **idle time** or **battery percentage** thresholds.
 - Wait for a **file or folder** to stop growing/changing.
-- Configurable **stability duration** (default 15–60 seconds) to prevent false triggers.
+- Configurable **AND / OR condition operator**, **stability duration** (default 15–60 seconds), **recurring schedules** (daily, weekdays, weekends, custom days), and **action chaining**.
 
-### 🛡️ Safety & Task Lifecycle
-- **Protected-app rules** for games, IDEs, render tools, and video-call applications.
+### 🛡️ Safety, Fallbacks & Task Lifecycle
+- **Protected-app rules** for games, IDEs, render tools, fullscreen presentations, and active disk/network I/O.
+- **Configurable Power Action Fallbacks**: automatically fall back (e.g., *Hibernate → Sleep*, *Sleep → Lock*, or *Retry Once after 30s*) if the OS or hardware rejects the primary transition.
 - Conflict resolution: one priority action at a time; conflicting tasks become `Blocked`.
 - **Fail-closed remote shutdown protection** while the user is actively using the PC.
 - Full task states: `Draft`, `Scheduled`, `Monitoring`, `Warning`, `Snoozed`, `Executing`, `Completed`, `Blocked`, `Failed`, `Expired`.
@@ -84,28 +94,27 @@ For teams and advanced users, Power Pilot provides an optional **local REST API*
 - Model files stay on the device; downloads are pinned to immutable URLs and verified by **SHA-256**.
 - Inference runs locally — no cloud AI service is required.
 
-### 📊 Dashboard, Templates & History
-- Dashboard with the active task, next run, and quick actions.
-- Reusable automation **templates**.
-- Local **history** and estimated savings/usage statistics.
-- Always-on-top **mini widget** and **system-tray** controls.
-- Light and dark themes, desktop notifications, and Windows auto-start.
+### 🧩 Built-in MCP Server, Terminal CLI & Documentation Center
+- **Built-in MCP Server (`src/mcp/server.js`)**: JSON-RPC 2.0 over stdio for **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf**, and **Cline** with 8 tools (`powerpilot_status`, `powerpilot_schedule_timer`, `powerpilot_cancel_timer`, `powerpilot_list_tasks`, `powerpilot_power_action`, `powerpilot_audit_verify`, `powerpilot_inventory`, `powerpilot_pending_orders`).
+- **Terminal & PowerShell CLI (`powerpilot`)**: schedule timers (`--minutes` or `--durationMs`), list/cancel tasks, verify audit chains, trigger immediate power actions, or output raw `--json` for scripts.
+- **Dedicated In-App Documentation Tab**: split-layout guide covering Quick Start, CLI & Terminal, MCP Server JSON configs, REST API, and Keyboard Shortcuts with one-click copy buttons.
 
-### 🔌 Integrations
+### ⚙️ Multi-Subpage Settings & Curated Presets
+- **7 Dedicated Settings Sub-Pages**: *General & Profiles*, *Appearance & Language*, *Notifications & Sound*, *Automation & Fallbacks*, *Energy & AI*, *Keyboard Shortcuts*, and *Security, PIN & Backup*.
+- **One-Click Preset Profiles**: *Standard User (Recommended)*, *Night Download & Render*, *Enterprise & Kiosk Security*, and *Maximum Energy Saver*.
+- **Instant Auto-Save + Critical Action Confirmation**: regular preferences save immediately on change; high-impact changes (*Full AI Autonomy*, *Restore Defaults*, *Delete All Data*) require explicit confirmation dialogs.
+- **In-App & Desktop Notifications**: configurable toast corner position, duration, quiet hours range (`22:00–08:00`), pre-action warning timing, and one-click JSON configuration export/import.
+
+### 🎨 28 Theme Palettes, Theme-Reactive SVG Logo & 73-Language Catalog
+- **2 Modes × 14 Color Themes (28 Palettes)**: `Obsidian`, `Slate`, `Navy`, `Blue`, `Cyan`, `Indigo`, `Purple`, `Pink`, `Red`, `Orange`, `Yellow`, `Emerald`, `Grass`, and `Lime` across Light and Dark modes.
+- **Theme-Reactive In-App SVG Brand Mark**: dynamically adapts to all 28 theme palettes while keeping the native Windows application icon untouched.
+- **73-Language Catalog**: 17 fully translated locales (Turkish, English, German, Swedish, Norwegian, Danish, French, Polish, Italian, Dutch, Czech, Spanish, Portuguese, Japanese, Chinese, Korean, Arabic) + 56 planned languages with automatic English fallback and full **RTL** mirroring (`ar`, `he`, `fa`, `ur`).
+
+### 🔌 Local REST API & Enterprise Integrations
 - Local **REST API** (OpenAPI 3.0), bound to `127.0.0.1:18456` by default.
 - API-key roles: `viewer`, `operator`, and `admin`, with rotation reminders.
 - **n8n + Telegram** workflow included in [`integrations/n8n/`](integrations/n8n/).
-- **PowerShell/CLI** client, outbound **webhooks** (none/HMAC/Basic auth), and **Wake-on-LAN** magic-packet wizard.
-- Optional LAN mode with IP/CIDR allowlisting and TLS/mTLS.
-
-### 🌎 Internationalization
-- **17 languages**: Turkish, English, German, Swedish, Norwegian, Danish, French, Polish, Italian, Dutch, Czech, Spanish, Portuguese, Japanese, Chinese, Korean, and Arabic.
-- Server-side tray, notification, and IPC messages are localized as well as the renderer UI.
-
-### 🏢 Enterprise & Service Mode
-- Optional **enterprise console** for LAN device orchestration.
-- **Headless Windows service agent** for managed fleets.
-- Policy templates, device inventory, signed orders, and receipt/audit reporting.
+- Outbound **webhooks** (none/HMAC/Basic auth), **Wake-on-LAN** magic-packet wizard, optional LAN mode with IP/CIDR allowlisting and TLS/mTLS, and **headless Windows service agent**.
 
 ---
 
@@ -113,26 +122,26 @@ For teams and advanced users, Power Pilot provides an optional **local REST API*
 
 <div align="center">
 
-![Electron](https://img.shields.io/badge/Electron_43.8-47848F?style=for-the-badge&logo=electron&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js_24-339933?style=for-the-badge&logo=node.js&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS_3.4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite_3-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
-![Vitest](https://img.shields.io/badge/Vitest_3.2-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)
-![Playwright](https://img.shields.io/badge/Playwright_1.64-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)
+![Electron](https://img.shields.io/badge/Electron_43.8-000000?style=flat-square&logo=electron&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js_24-000000?style=flat-square&logo=node.js&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript_ES2022-000000?style=flat-square&logo=javascript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS_3.4-000000?style=flat-square&logo=tailwindcss&logoColor=white)
+![SQLite](https://img.shields.io/badge/better--sqlite3-000000?style=flat-square&logo=sqlite&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest_5.0-000000?style=flat-square&logo=vitest&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright_1.64-000000?style=flat-square&logo=playwright&logoColor=white)
 
 </div>
 
 ### Runtime & UI
-- **Electron 43.8.1** — Windows desktop runtime, tray, windows, and native integration
-- **Node.js 24.18.1+** — main-process services, IPC, and tooling
-- **HTML5 + CSS3 + vanilla JavaScript** — no frontend framework
+- **Electron 43.8.1** — Windows desktop runtime, tray, frameless window controls, and native integration
+- **Node.js 24.18.1+** — main-process services, IPC, CLI, and MCP stdio server
+- **HTML5 + CSS3 + vanilla JavaScript** — zero frontend framework overhead, locked 60 FPS GPU-friendly transitions
 - **Tailwind CSS 3.4.19** — build-time utility CSS, no runtime CDN
 - **Material Symbols + Public Sans** — locally bundled icon and text fonts
 
 ### Data & Security
 - **better-sqlite3 13** — WAL-mode SQLite with atomic migrations and `secure_delete`
-- **@node-rs/argon2 2.2** — Argon2id PIN hashing with attempt lockout
+- **@node-rs/argon2 2.2** — Argon2id PIN hashing (4 / 6 / 8 digits) with attempt lockout
 - **Electron `safeStorage` / Windows DPAPI** — encrypted secrets at rest
 - **Ed25519 + HMAC-SHA256** — signed orders and a tamper-evident audit chain
 - **TLS/mTLS** — optional HTTPS local API with client certificates
@@ -140,63 +149,67 @@ For teams and advanced users, Power Pilot provides an optional **local REST API*
 
 ### Automation, AI & Integrations
 - **TaskManager + TimerRegistry** — persistent scheduling and execution claims
-- **SmartFinishEngine + SafetyPolicyEngine** — condition evaluation and fail-closed policies
+- **SmartFinishEngine + SafetyPolicyEngine** — condition evaluation, fallbacks, and fail-closed policies
 - **node-llama-cpp 3.20 + @fugood/whisper.node** — local Qwen/Whisper AI stack
-- **Local REST API + OpenAPI 3.0** — n8n, CLI, webhook, and enterprise integrations
-- **n8n / Telegram / Wake-on-LAN** — ready-made automation bridge
+- **Built-in MCP Server + Local REST API (OpenAPI 3.0)** — AI agents, n8n, CLI, webhook, and enterprise integrations
 
 ### Build, Test & Release
-- **electron-builder 26.15** — NSIS installer and APPX packaging
-- **Vitest 3.2 + Playwright 1.64** — unit, coverage, and Electron E2E tests
-- **GitHub Actions** — CI, dependency audit, SBOM, signing, and release gates
-- **CycloneDX SBOM + signature verification** — reproducible release evidence
+- **electron-builder 26.15** — custom Windows 11 NSIS installer/uninstaller, Portable build, and APPX packaging
+- **Vitest + Playwright 1.64** — 147 unit test suites (1,699 tests) and 18 Electron E2E test specs
+- **GitHub Actions** — CI (`main` and `development` branches), dependency audit, SBOM, signing, and release gates
 
 ---
 
 ## 📁 Project Structure
 
-```text
+```tree
 Power_Pilot/
 ├── .github/                         # CI, Dependabot, issue/PR templates, security policy
-├── build/appx/                      # Microsoft Store / APPX tile and splash assets
-├── docs/                            # Architecture, audits, release, runbooks, API schema
-│   ├── architecture/                # Automation, Smart Finish, safety, local API, enterprise
+├── assets/
+│   └── vellium-banner.svg           # Pure black-and-white animated Vellium header banner
+├── build/
+│   ├── appx/                        # Microsoft Store / APPX tile and splash assets
+│   ├── installerSidebar.bmp         # Custom 24-bit NSIS welcome/finish sidebar (version-free)
+│   ├── uninstallerSidebar.bmp       # Custom 24-bit NSIS uninstaller sidebar (version-free)
+│   ├── installerHeader.bmp          # Custom 24-bit NSIS inner page header (version-free)
+│   └── installer.nsh                # Custom NSIS install/uninstall hooks & Task Scheduler cleanup
+├── docs/                            # Architecture, audits, release, runbooks, i18n plan, API schema
+│   ├── architecture/                # Automation, Smart Finish, safety, local API, accessibility
 │   ├── audit/                       # QA and pre-deployment audit reports
+│   ├── i18n/                        # 73-language translation architecture & rollout plan
 │   ├── integrations/                # n8n and PowerShell/CLI guides
 │   ├── openapi/                     # OpenAPI 3.0 schema for the local REST API
 │   ├── release/                     # Signing, ASAR integrity, SBOM documentation
 │   └── runbooks/                    # Incident response and operations
 ├── integrations/n8n/workflows/      # Ready-to-import n8n workflow (Telegram timer)
-├── public/                          # Brand SVGs served by the app
-├── scripts/                         # Release, packaging, security, backup, SBOM tools
+├── public/                          # Canonical Power Pilot & Vellium brand SVGs
+├── scripts/                         # Release, packaging, NSIS asset generator, security, SBOM tools
 ├── src/
 │   ├── agent/                       # Headless Windows service agent
 │   ├── assets/                      # App and publisher logos
-│   ├── cli/                         # Command-line client
+│   ├── cli/                         # Command-line client (powerpilot & commands catalog)
 │   ├── console/                     # Enterprise console server and store
+│   ├── mcp/
+│   │   └── server.js                # Built-in JSON-RPC 2.0 stdio MCP server (8 tools, 2 resources)
 │   ├── main/
 │   │   ├── ai/                      # Input normalization and AI helpers
 │   │   ├── config/                  # Feature flags and external-link policy
 │   │   ├── ipc/                     # IPC validation and sender guard
 │   │   ├── locales/                 # 17 server-side locale dictionaries
 │   │   ├── order/                   # Signed order schema and nonce store
-│   │   ├── security/                # App protocol, CSP paths, PIN, secrets, TLS, SSRF
+│   │   ├── security/                # App protocol, CSP, PIN, secrets, TLS, SSRF
 │   │   ├── services/                # Task, power, AI, API, audit and history services
 │   │   ├── storage/                 # SQLite storage and migrations
-│   │   └── util/                    # Timers and shared helpers
-│   ├── renderer/                    # Dashboard UI, mini widget and i18n client
+│   │   └── util/                    # Timers, crash guard, portable mode, and shared helpers
+│   ├── renderer/                    # 12-view UI, 28-palette themes.css, mini widget, and 73-locale i18n
 │   ├── vendor/fonts/                # Locally bundled Material Symbols and Public Sans
-│   ├── index.html                   # Main window markup
+│   ├── index.html                   # Main frameless window markup (12 views)
 │   └── mini.html                    # Compact always-on-top mini widget
-├── tests/                           # Vitest unit tests and Playwright Electron E2E tests
+├── tests/                           # Vitest unit tests (147 files) and Playwright Electron E2E tests
 ├── main.js                          # Electron main process, tray, windows, and IPC
 ├── preload.js                       # Context-isolated renderer bridge
 ├── electron-builder.config.cjs      # Signing-aware electron-builder configuration
-├── tailwind.config.js               # Tailwind build configuration
-├── playwright.config.js             # Electron E2E configuration
-├── vitest.config.js                 # Unit and coverage configuration
-├── package.json                     # Scripts, dependencies and build metadata
-└── powerpilot_icon.ico              # Windows application icon
+└── package.json                     # Scripts, bin (powerpilot / powerpilot-mcp), and v1.0.0 metadata
 ```
 
 ---
@@ -205,9 +218,9 @@ Power_Pilot/
 
 ```mermaid
 flowchart TD
-    subgraph UI["Sandboxed Renderer"]
+    subgraph UI["Sandboxed Renderer (12 Views)"]
         HTML["index.html / mini.html"]
-        APP["app.js / tasksView.js"]
+        APP["app.js / tasksView.js / themes.css"]
         PRE["preload.js (contextBridge)"]
     end
 
@@ -229,7 +242,7 @@ flowchart TD
     end
 
     OS["Windows power APIs / OS commands"]
-    EXT["n8n / Telegram / CLI / Webhooks"]
+    EXT["MCP Server / CLI / n8n / Telegram / Webhooks"]
 
     HTML --> APP --> PRE --> IPC
     IPC --> TASK
@@ -265,13 +278,69 @@ flowchart TD
 
 ---
 
+## 🖥️ CLI & Built-in MCP Server Usage
+
+### Terminal & PowerShell CLI (`powerpilot`)
+
+```powershell
+# Set your Local API key (generated in Integrations -> Create API Key)
+$env:POWERPILOT_API_KEY = "<your-api-key>"
+
+# Query service status and active countdown
+node src/cli/powerpilot.js status --json
+
+# Schedule a 45-minute shutdown timer
+node src/cli/powerpilot.js timer --action shutdown --minutes 45 --name "Night Render"
+
+# List scheduled and active tasks
+node src/cli/powerpilot.js tasks --limit 20 --json
+
+# Cancel a task by ID
+node src/cli/powerpilot.js cancel --id task_1
+
+# Verify HMAC-SHA256 audit log chain integrity
+node src/cli/powerpilot.js audit-verify
+```
+
+### Model Context Protocol (MCP) Server (`powerpilot-mcp`)
+
+Add Power Pilot to **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf**, or **Cline**:
+
+```json
+{
+  "mcpServers": {
+    "powerpilot": {
+      "command": "node",
+      "args": ["src/mcp/server.js"],
+      "env": {
+        "POWERPILOT_API_KEY": "<your-api-key>",
+        "POWERPILOT_API_HOST": "127.0.0.1",
+        "POWERPILOT_API_PORT": "18456"
+      }
+    }
+  }
+}
+```
+
+---
+
 ## ⚙️ Installation & Usage
 
-### Prerequisites
+### Installing as an end user (from the setup file)
+
+1. Download `Power Pilot Setup 1.0.0.exe` (or `Power Pilot Portable 1.0.0.exe`).
+2. Run it. **No administrator (UAC) prompt is requested** — it installs per-user (`asInvoker`, `perMachine: false`) into `%LOCALAPPDATA%\Programs\Power Pilot`.
+3. You can pick a different install directory in the custom Vellium setup wizard.
+4. After install, **Power Pilot** appears in the Start menu.
+
+**SmartScreen on unsigned downloads:** Until release signing (Azure Trusted Signing or Microsoft Store) is applied, Windows may show the blue "Windows protected your PC" prompt on first run. Choose **More info → Run anyway**. The Store (MSIX) build is re-signed by Microsoft and never shows it.
+
+**Uninstall:** Windows Settings → Apps → Power Pilot → Uninstall. The custom uninstaller cleans up `\PowerPilot*` Windows Task Scheduler entries and lets you choose whether to keep or permanently remove your local `%APPDATA%\powerpilot` data.
+
+### Prerequisites (building from source)
 - **Windows 10 (1809+) or Windows 11** (64-bit)
 - **Node.js 24.18.1+** and npm
 - **Git**
-- **Visual Studio Build Tools** when native modules need to be rebuilt (`npm install` runs `electron-rebuild`)
 
 ### Run from Source
 
@@ -285,20 +354,23 @@ npm start
 ### Tests & Release Gates
 
 ```bash
-npm test                 # Vitest unit tests
-npm run test:security    # Security checks
-npm run test:e2e         # Playwright Electron E2E
+npm test                 # Vitest unit tests (147 suites / 1,699 tests)
+npm run test:security    # Static security & CSP checks
+npm run test:e2e         # Playwright Electron E2E suite
 npm run coverage         # Coverage report (release gate)
-npm run locales:check    # 17-language key parity
-npm run models:verify    # Model manifests and SHA-256
-npm run release:check    # Release consistency gate
+npm run locales:check    # 17-language key parity & unused key check
+npm run models:verify    # Model manifests and SHA-256 pins
+npm run release:check    # Release consistency gate (v1.0.0)
 ```
 
 ### Build Installers
 
 ```bash
-# NSIS setup (dist/Power Pilot Setup 1.1.0.exe)
+# NSIS setup (dist/Power Pilot Setup 1.0.0.exe)
 npm run dist:nsis
+
+# Portable single-file build (dist/Power Pilot Portable 1.0.0.exe)
+npm run dist:portable
 
 # APPX package (requires Windows SDK and APPX_PUBLISHER)
 npm run dist:appx
@@ -308,34 +380,18 @@ npm run pack
 npm run verify:pack
 ```
 
-### Code Signing
-
-Production builds are signed with the Windows certificate selected by subject name:
-
-```powershell
-$env:WIN_CERT_SUBJECT = "CN=Vellium, O=Vellium, C=TR"
-# Optional when multiple certificates share the same subject
-$env:WIN_CERT_SHA1 = "<certificate-thumbprint>"
-# Optional local timestamp endpoint override
-$env:WIN_TIMESTAMP_URL = "http://timestamp.digicert.com"
-
-npm run dist:nsis
-```
-
-If `WIN_CERT_SUBJECT` is not set, packaging continues without signing; unsigned builds are intended for local testing only. See [`docs/release/RELEASE_SIGNING.md`](docs/release/RELEASE_SIGNING.md) and [`docs/release/ASAR-INTEGRITY.md`](docs/release/ASAR-INTEGRITY.md).
-
 ---
 
 ## 📦 Distribution Packages
 
 Build artifacts are produced under `dist/`:
 
-- **NSIS installer** — `Power Pilot Setup 1.1.0.exe`
-- **APPX package** — `Power Pilot 1.1.0.appx`
+- **NSIS installer** — `Power Pilot Setup 1.0.0.exe`
+- **Portable executable** — `Power Pilot Portable 1.0.0.exe` (stores data in adjacent `PowerPilotData/`)
+- **APPX package** — `Power Pilot 1.0.0.appx`
 - **Unpacked build** — `dist/win-unpacked/` via `npm run pack`
 - **SBOM** — `npm run sbom`
 - **Signature verification** — `npm run verify:signature`
-- **Packaged E2E / verification** — `npm run verify:pack` and `scripts/packaged-e2e.ps1`
 
 Published builds and release notes are available on the [GitHub Releases](https://github.com/emirtdede/Power-Pilot/releases) page.
 
@@ -345,9 +401,9 @@ Published builds and release notes are available on the [GitHub Releases](https:
 
 **Proprietary commercial software.** Copyright © 2026 Vellium. All rights reserved.
 
-No rights are granted to copy, modify, publish, distribute, sublicense, or sell the software except under a separate written commercial or pilot agreement with Vellium. Pilot use is limited to the organization, duration, and device count stated in that agreement. See [`LICENSE`](LICENSE) for the full terms.
+No rights are granted to copy, modify, publish, distribute, sublicense, or sell the software except under a separate written commercial or pilot agreement with Vellium. See [`LICENSE`](LICENSE) for the full terms.
 
-**Official Website:** [Vellium.dev](https://vellium.dev) • **Publisher:** Vellium • **Contact:** [info@vellium.dev](mailto:info@vellium.dev)
+**Official Website:** [vellium.dev](https://vellium.dev) &bull; **Publisher:** Vellium &bull; **Support:** [support@vellium.dev](mailto:support@vellium.dev)
 
 ---
 
@@ -359,9 +415,9 @@ No rights are granted to copy, modify, publish, distribute, sublicense, or sell 
 # Türkçe Versiyon
 
 <div align="center">
-  <img src="public/power-pilot.svg" alt="Power Pilot Logosu" width="130" height="130" />
-  <h3>Power Pilot — Yerel Öncelikli Windows Güç Otomasyonu</h3>
-  <p><em>Zamanlanmış güç eylemleri, Smart Finish koşulları, cihaz üzerinde yapay zekâ ve sıkılaştırılmış yerel API tek bir masaüstü uygulamasında.</em></p>
+  <img src="public/power-pilot.svg" alt="Power Pilot Logosu" width="108" height="108" />
+  <h3>Power Pilot — Windows İçin Akıllı, Yerel Öncelikli Güç Yönetimi ve Görev Otomasyonu</h3>
+  <p><em>Zamanlanmış Güç Eylemleri, Smart Finish Koşul Motoru, Cihaz Üzeri Yapay Zekâ, Yerleşik MCP Sunucusu, Terminal CLI, 28 Tema ve Sıkılaştırılmış Yerel API</em></p>
   <p><strong>Geliştirici ve Yayıncı: <a href="https://vellium.dev">Vellium</a></strong></p>
 </div>
 
@@ -369,11 +425,11 @@ No rights are granted to copy, modify, publish, distribute, sublicense, or sell 
 
 ## 💻 Proje Genel Bakışı
 
-**Power Pilot**, güç geçişlerini zamanlamak, izlemek ve otomatikleştirmek için geliştirilmiş, yerel öncelikli bir Windows masaüstü uygulamasıdır. **Electron 43**, **Node.js 24** ve **vanilla JavaScript** ile geliştirilmiştir; sıkılaştırılmış bir ana süreç, sandbox içindeki bir arayüz ve yerel bir SQLite veritabanını bir araya getirir. Temel zamanlama; hesap, bulut servisi veya internet bağlantısı gerektirmez.
+**Power Pilot (`v1.0.0`)**, güç geçişlerini zamanlamak, izlemek ve otomatikleştirmek için geliştirilmiş, yerel öncelikli bir Windows masaüstü uygulamasıdır. **Electron 43**, **Node.js 24** ve **vanilla JavaScript** ile geliştirilmiştir; sıkılaştırılmış bir ana süreç, sandbox içinde 60 FPS çalışan arayüz ve yerel bir **WAL modlu SQLite** veritabanını bir araya getirir. Temel zamanlama; hesap, bulut servisi veya internet bağlantısı gerektirmez.
 
-Power Pilot basit bir geri sayımdan daha fazlasını yapar. **Smart Finish**, gerçek işin bittiğini algılar: seçilen sürecin kapanması, CPU kullanımının eşiğin altına düşmesi, kullanıcının boşta kalması veya bir dosya/klasörün değişmeyi bırakması. **Güvenlik Politikası Motoru**, korunan uygulamalar açıkken riskli eylemleri engeller; isteğe bağlı **cihaz üzeri yapay zekâ asistanı** ise doğal dil veya sesli komutları yerel Qwen ve Whisper modelleriyle otomasyon görevlerine dönüştürür.
+Power Pilot basit bir geri sayımdan daha fazlasını yapar. **Smart Finish**, gerçek işin bittiğini algılar: seçilen sürecin kapanması, CPU kullanımının, ağ trafiğinin veya disk etkinliğinin eşiğin altına düşmesi, pil yüzdesi, kullanıcının boşta kalması ya da bir dosya/klasörün değişmeyi bırakması. **Güvenlik Politikası Motoru**, korunan uygulamalar açıkken riskli eylemleri engeller; isteğe bağlı **cihaz üzeri yapay zekâ asistanı** ise doğal dil veya sesli komutları yerel Qwen ve Whisper modelleriyle otomasyon görevlerine dönüştürür.
 
-Ekipler ve ileri düzey kullanıcılar için isteğe bağlı bir **yerel REST API** sunulur: API anahtarı rolleri, TLS/mTLS, IP izin listeleri, Ed25519 imzalı emirler, webhook'lar, Wake-on-LAN, n8n/Telegram iş akışı, komut satırı istemcisi ve başsız Windows servis ajanı. Tüm uzaktan erişim yolları fail-closed (güvenli tarafta kalacak şekilde) tasarlanmıştır.
+Geliştiriciler, yapay zekâ kodlama ajanları ve kurumsal ekipler için Power Pilot; **yerleşik Model Context Protocol (MCP) sunucusu** (`powerpilot-mcp` / `powerpilot mcp`), **terminal CLI istemcisi** (`powerpilot`), kenar menüsünde bağımsız **Dokümantasyon Merkezi**, **tek tıkla hazır profiller sunan çoklu alt sayfalı Ayarlar mimarisi** ve isteğe bağlı **yerel REST API** (API anahtarı rolleri, TLS/mTLS, IP izin listeleri, Ed25519 imzalı emirler, webhook'lar, Wake-on-LAN, n8n/Telegram iş akışı ve başsız Windows servis ajanı) ile birlikte gelir.
 
 > **Dokümantasyon:** mimari, denetimler, sürüm süreci, runbook'lar ve API referansları [`docs/README.md`](docs/README.md) içinde indekslenmiştir.
 
@@ -383,284 +439,69 @@ Ekipler ve ileri düzey kullanıcılar için isteğe bağlı bir **yerel REST AP
 
 ### ⚡ Güç Eylemleri ve Zamanlama
 - **Kapatma**, **Yeniden Başlatma**, **Uyku**, **Hazırda Bekletme**, **Kilitleme** ve **Oturumu Kapatma** eylemleri.
-- Hızlı ön ayarlar (15 dk, 30 dk, 1 saat, 2 saat) ve özel geri sayımlar.
+- Hızlı ön ayarlar (15 dk, 30 dk, 1 saat, 2 saat) ve bağımsız alt katman olmadan doğrudan kart içine entegre başlatma/iptal kontrolleri.
 - **24 güne** (2.073.600 saniye) kadar güvenlik sınırlı zamanlama.
-- Eylem öncesi uyarı geri sayımı, erteleme, iptal ve isteğe bağlı **PIN koruması** ile kalıcı görevler.
-- İlk açılışta Windows görüntüleme dilinden otomatik arayüz dili algılama.
+- Eylem öncesi uyarı geri sayımı, erteleme, iptal ve isteğe bağlı **4 / 6 / 8 haneli PIN koruması** ile kalıcı görevler.
 
 ### 🧠 Smart Finish Koşul Motoru
-- Seçilen **sürecin** kapanmasını bekleme.
-- **CPU kullanımının** belirlenen eşiğin altında kalmasını bekleme.
-- Klavye/fare **boşta kalma süresini** bekleme.
+- Seçilen **sürecin** kapanmasını bekleme (`handbrake.exe`, `blender.exe`, `steam.exe` vb.).
+- **CPU kullanımının**, **ağ hızının** veya **disk etkinliğinin** belirlenen eşiğin altında kalmasını bekleme.
+- Klavye/fare **boşta kalma süresini** veya **batarya seviyesini** bekleme.
 - Bir **dosya veya klasörün** büyümeyi/değişmeyi bırakmasını bekleme.
-- Yanlış tetiklemeleri önlemek için yapılandırılabilir **kararlılık süresi** (varsayılan 15–60 saniye).
+- Yapılandırılabilir **VE / VEYA koşul bağlacı**, **kararlılık süresi** (varsayılan 15–60 sn), **tekrarlayan program** (her gün, hafta içi, hafta sonu, özel günler) ve **zincirleme güç eylemleri**.
 
-### 🛡️ Güvenlik ve Görev Yaşam Döngüsü
-- Oyunlar, IDE'ler, render araçları ve görüntülü görüşme uygulamaları için **korunan uygulama kuralları**.
-- Çakışma çözümü: aynı anda tek öncelikli eylem; çakışan görevler `Blocked` durumuna geçer.
+### 🛡️ Güvenlik, Fallback ve Görev Yaşam Döngüsü
+- Oyunlar, IDE'ler, render araçları, tam ekran sunumlar ve yoğun ağ/disk G/Ç işlemleri için **korunan uygulama kuralları**.
+- **Güç Eylemi Yedekleme (Fallback) Mekanizması**: birincil güç eylemi işletim sistemi veya donanım tarafından reddedilirse otomatik yedek eylem (*Hazırda Beklet → Uyku*, *Uyku → Ekranı Kilitle* veya *30 sn sonra yeniden dene*).
 - Kullanıcı aktifken **fail-closed uzaktan kapatma koruması**.
-- Tam görev durumları: `Draft`, `Scheduled`, `Monitoring`, `Warning`, `Snoozed`, `Executing`, `Completed`, `Blocked`, `Failed`, `Expired`.
 
-### 🤖 Cihaz Üzerinde Yapay Zekâ Asistanı
-- Doğal dilde görev oluşturma için isteğe bağlı yerel **Qwen** LLM.
-- Sesli komutlar için isteğe bağlı yerel **Whisper** konuşma-metin motoru.
-- Model dosyaları cihazda kalır; indirmeler değişmez URL'lere ve **SHA-256** doğrulamasına bağlıdır.
-- Çıkarım yerel olarak çalışır — bulut yapay zekâ servisi gerekmez.
+### 🧩 Yerleşik MCP Sunucusu, Terminal CLI ve Dokümantasyon Merkezi
+- **Yerleşik MCP Sunucusu (`src/mcp/server.js`)**: **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf** ve **Cline** ajanları için 8 araçlık (`powerpilot_status`, `powerpilot_schedule_timer`, `powerpilot_cancel_timer`, `powerpilot_list_tasks`, `powerpilot_power_action`, `powerpilot_audit_verify`, `powerpilot_inventory`, `powerpilot_pending_orders`) stdio JSON-RPC 2.0 sunucusu.
+- **Terminal ve PowerShell CLI (`powerpilot`)**: `--minutes` veya `--durationMs` ile görev kurma, görev listeleme/iptal, denetim zinciri doğrulama ve `--json` çıktısı.
+- **Bağımsız Dokümantasyon Sekmesi**: kenar menüsünden doğrudan erişilen; Hızlı Başlangıç, CLI ve Terminal, MCP Sunucusu, REST API ve Kısayollar alt sayfalarını tek tıkla kopyalama düğmeleriyle sunan rehber.
 
-### 📊 Pano, Şablonlar ve Geçmiş
-- Aktif görev, sonraki çalışma ve hızlı eylemleri gösteren pano.
-- Yeniden kullanılabilir otomasyon **şablonları**.
-- Yerel **geçmiş** ve tahmini tasarruf/kullanım istatistikleri.
-- Her zaman üstte kalan **mini widget** ve **sistem tepsisi** kontrolleri.
-- Açık/koyu tema, masaüstü bildirimleri ve Windows ile otomatik başlatma.
+### ⚙️ Çoklu Alt Sayfalı Ayarlar ve Hazır Profiller
+- **7 Ayrı Ayar Alt Sayfası**: *Genel ve Profiller*, *Görünüm ve Dil*, *Bildirimler ve Ses*, *Otomasyon ve Fallback*, *Enerji ve Yapay Zekâ*, *Klavye Kısayolları*, *Güvenlik, PIN ve Yedekleme*.
+- **Tek Tıkla Hazır Profiller**: *Standart Kullanıcı (Önerilen)*, *Gece İndirme ve Render*, *Kurumsal ve Kiosk Güvenliği*, *Maksimum Enerji Tasarrufu*.
+- **Anında Otomatik Kayıt ve Kritik Değişiklik Onayı**: standart tercihler anında kaydedilir; kritik değişiklikler (*Tam AI Özerkliği*, *Varsayılana Dön*, *Tüm Verileri Sil*) onay penceresi ister.
 
-### 🔌 Entegrasyonlar
-- Varsayılan olarak `127.0.0.1:18456` adresine bağlanan yerel **REST API** (OpenAPI 3.0).
-- API anahtarı rolleri: `viewer`, `operator` ve `admin`; rotasyon hatırlatmaları.
-- [`integrations/n8n/`](integrations/n8n/) altında hazır **n8n + Telegram** iş akışı.
-- **PowerShell/CLI** istemcisi, giden **webhook'lar** (yok/HMAC/Basic auth) ve **Wake-on-LAN** sihirbazı.
-- İsteğe bağlı LAN modu; IP/CIDR izin listesi ve TLS/mTLS desteği.
-
-### 🌎 Çok Dilli Altyapı
-- **17 dil**: Türkçe, İngilizce, Almanca, İsveççe, Norveççe, Danca, Fransızca, Lehçe, İtalyanca, Felemenkçe, Çekçe, İspanyolca, Portekizce, Japonca, Çince, Korece ve Arapça.
-- Arayüzün yanı sıra tepsi, bildirimler ve IPC hata mesajları da yerelleştirilir.
-
-### 🏢 Kurumsal ve Servis Modu
-- LAN cihaz orkestrasyonu için isteğe bağlı **kurumsal konsol**.
-- Yönetilen filolar için **başsız Windows servis ajanı**.
-- Politika şablonları, cihaz envanteri, imzalı emirler ve makbuz/denetim raporlaması.
-
----
-
-## 🛠️ Teknoloji Yığını
-
-<div align="center">
-
-![Electron](https://img.shields.io/badge/Electron_43.8-47848F?style=for-the-badge&logo=electron&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js_24-339933?style=for-the-badge&logo=node.js&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-ES2022-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS_3.4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite_3-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
-![Vitest](https://img.shields.io/badge/Vitest_3.2-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)
-![Playwright](https://img.shields.io/badge/Playwright_1.64-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)
-
-</div>
-
-### Çalışma Zamanı ve Arayüz
-- **Electron 43.8.1** — Windows masaüstü çalışma zamanı, tepsi, pencereler ve yerel entegrasyon
-- **Node.js 24.18.1+** — ana süreç servisleri, IPC ve araçlar
-- **HTML5 + CSS3 + vanilla JavaScript** — önyüz çatısı yok
-- **Tailwind CSS 3.4.19** — derleme zamanında üretilen yardımcı CSS; çalışma zamanında CDN yok
-- **Material Symbols + Public Sans** — yerel olarak paketlenen ikon ve metin yazı tipleri
-
-### Veri ve Güvenlik
-- **better-sqlite3 13** — WAL modunda SQLite, atomik migrasyonlar ve `secure_delete`
-- **@node-rs/argon2 2.2** — deneme kilitlemeli Argon2id PIN hash'leme
-- **Electron `safeStorage` / Windows DPAPI** — diskte şifreli sırlar
-- **Ed25519 + HMAC-SHA256** — imzalı emirler ve kurcalamaya dayanıklı denetim zinciri
-- **TLS/mTLS** — istemci sertifikalı isteğe bağlı HTTPS yerel API
-- **Electron fuses + ASAR bütünlüğü** — sıkılaştırılmış üretim paketleme
-
-### Otomasyon, Yapay Zekâ ve Entegrasyonlar
-- **TaskManager + TimerRegistry** — kalıcı zamanlama ve yürütme talepleri
-- **SmartFinishEngine + SafetyPolicyEngine** — koşul değerlendirme ve fail-closed politikalar
-- **node-llama-cpp 3.20 + @fugood/whisper.node** — yerel Qwen/Whisper yapay zekâ yığını
-- **Yerel REST API + OpenAPI 3.0** — n8n, CLI, webhook ve kurumsal entegrasyonlar
-- **n8n / Telegram / Wake-on-LAN** — hazır otomasyon köprüsü
-
-### Derleme, Test ve Sürüm
-- **electron-builder 26.15** — NSIS kurulum dosyası ve APPX paketleme
-- **Vitest 3.2 + Playwright 1.64** — birim, kapsam ve Electron E2E testleri
-- **GitHub Actions** — CI, bağımlılık denetimi, SBOM, imzalama ve sürüm kapıları
-- **CycloneDX SBOM + imza doğrulama** — tekrarlanabilir sürüm kanıtı
-
----
-
-## 📁 Proje Yapısı
-
-```text
-Power_Pilot/
-├── .github/                         # CI, Dependabot, issue/PR şablonları, güvenlik politikası
-├── build/appx/                      # Microsoft Store / APPX karo ve açılış görselleri
-├── docs/                            # Mimari, denetim, sürüm, runbook ve API şeması
-│   ├── architecture/                # Otomasyon, Smart Finish, güvenlik, yerel API, kurumsal
-│   ├── audit/                       # QA ve yayın öncesi denetim raporları
-│   ├── integrations/                # n8n ve PowerShell/CLI rehberleri
-│   ├── openapi/                     # Yerel REST API için OpenAPI 3.0 şeması
-│   ├── release/                     # İmzalama, ASAR bütünlüğü ve SBOM belgeleri
-│   └── runbooks/                    # Olay müdahale ve operasyon prosedürleri
-├── integrations/n8n/workflows/      # İçe aktarılabilir n8n iş akışı (Telegram zamanlayıcı)
-├── public/                          # Uygulama tarafından sunulan marka SVG'leri
-├── scripts/                         # Sürüm, paketleme, güvenlik, yedekleme ve SBOM araçları
-├── src/
-│   ├── agent/                       # Başsız Windows servis ajanı
-│   ├── assets/                      # Uygulama ve yayıncı logoları
-│   ├── cli/                         # Komut satırı istemcisi
-│   ├── console/                     # Kurumsal konsol sunucusu ve deposu
-│   ├── main/
-│   │   ├── ai/                      # Girdi normalizasyonu ve yapay zekâ yardımcıları
-│   │   ├── config/                  # Özellik bayrakları ve dış bağlantı politikası
-│   │   ├── ipc/                     # IPC doğrulama ve gönderen koruması
-│   │   ├── locales/                 # 17 sunucu tarafı yerelleştirme sözlüğü
-│   │   ├── order/                   # İmzalı emir şeması ve nonce deposu
-│   │   ├── security/                # Uygulama protokolü, CSP, PIN, sırlar, TLS, SSRF
-│   │   ├── services/                # Görev, güç, yapay zekâ, API, denetim ve geçmiş servisleri
-│   │   ├── storage/                 # SQLite depolama ve migrasyonlar
-│   │   └── util/                    # Zamanlayıcılar ve ortak yardımcılar
-│   ├── renderer/                    # Pano arayüzü, mini widget ve i18n istemcisi
-│   ├── vendor/fonts/                # Yerel Material Symbols ve Public Sans
-│   ├── index.html                   # Ana pencere işaretlemesi
-│   └── mini.html                    # Kompakt, her zaman üstte mini widget
-├── tests/                           # Vitest birim testleri ve Playwright Electron E2E testleri
-├── main.js                          # Electron ana süreci, tepsi, pencereler ve IPC
-├── preload.js                       # Context-isolated renderer köprüsü
-├── electron-builder.config.cjs      # İmzalama farkındalıklı electron-builder yapılandırması
-├── tailwind.config.js               # Tailwind derleme yapılandırması
-├── playwright.config.js             # Electron E2E yapılandırması
-├── vitest.config.js                 # Birim ve kapsam yapılandırması
-├── package.json                     # Scriptler, bağımlılıklar ve derleme metaverisi
-└── powerpilot_icon.ico              # Windows uygulama simgesi
-```
-
----
-
-## 🔐 Mimari ve Güvenlik Sınırları
-
-```mermaid
-flowchart TD
-    subgraph UI["Sandbox İçindeki Arayüz"]
-        HTML["index.html / mini.html"]
-        APP["app.js / tasksView.js"]
-        PRE["preload.js (contextBridge)"]
-    end
-
-    subgraph MAIN["Electron Ana Süreci"]
-        IPC["IPC İşleyicileri + SenderGuard"]
-        TASK["TaskManager + TimerRegistry"]
-        SF["SmartFinishEngine"]
-        SAFE["SafetyPolicyEngine + WarningManager"]
-        EXEC["OrderExecutor + PowerService"]
-        API["LocalApiService (HTTPS/mTLS)"]
-        AI["AiService + ModelManager"]
-        AUDIT["AuditLog (HMAC zinciri)"]
-    end
-
-    subgraph LOCAL["Yerel Veri"]
-        DB[("powerpilot.db (SQLite WAL)")]
-        SEC["secrets.v1.json (safeStorage/DPAPI)"]
-        MODELS["Qwen / Whisper modelleri"]
-    end
-
-    OS["Windows güç API'leri / işletim sistemi komutları"]
-    EXT["n8n / Telegram / CLI / Webhook'lar"]
-
-    HTML --> APP --> PRE --> IPC
-    IPC --> TASK
-    TASK --> SF
-    TASK --> SAFE
-    SAFE --> EXEC
-    EXEC --> OS
-    API --> TASK
-    API --> AUDIT
-    EXEC --> AUDIT
-    IPC --> AI
-    AI --> MODELS
-    IPC --> SEC
-    TASK --> DB
-    AUDIT --> DB
-    EXT --> API
-```
-
-**Güvenlik modeli.** Arayüz hiçbir zaman Node.js erişimine sahip olmaz. `sandbox: true` ve `contextIsolation: true` ile, özel `app://powerpilot` protokolü, sıkı Content-Security-Policy ve IPC gönderen allowlist'i arkasında çalışır. Her IPC yükü ana süreçte doğrulanır. Uzaktan erişim isteğe bağlıdır; varsayılan olarak loopback'e bağlanır ve hash'lenmiş API anahtarları, rol kontrolleri, hız sınırları, IP/CIDR izin listeleri, TLS/mTLS ve fail-closed uzaktan kapatma kurallarıyla korunur. İmzalı emirler Ed25519 ve nonce tekrar koruması kullanır; denetim izi HMAC-SHA256 ve günlük checkpoint'lerle zincirlenir. Sırlar Electron `safeStorage`/Windows DPAPI ile saklanır; PIN'ler Argon2id ile hash'lenir ve deneme kilidiyle korunur.
-
----
-
-## 💾 Depolama ve Güvenlik Şeması
-
-| Yol / Sınır | Koruma | İçerik |
-| :--- | :--- | :--- |
-| `%APPDATA%\powerpilot\powerpilot.db` | SQLite WAL, `secure_delete`, `quick_check` | Görevler, geçmiş, ayarlar ve denetim kayıtları |
-| `%APPDATA%\powerpilot\secrets.v1.json` | Electron `safeStorage` / Windows DPAPI | API anahtarları, TLS materyali, webhook sırları |
-| `%APPDATA%\powerpilot\models\` | SHA-256 sabitlenmiş indirmeler | Yerel Qwen LLM ve Whisper STT modelleri |
-| `%APPDATA%\powerpilot\backups\` | Uygulama yönetimli yedekler | Veritabanı ve günlük yedekleri |
-| `%APPDATA%\powerpilot\logs\` | Maskelenmiş tanılama | Çalışma zamanı ve denetim destek günlükleri |
-| Arayüz ↔ ana süreç IPC | `contextIsolation`, `sandbox`, gönderen allowlist'i | Doğrulanmış komutlar ve olaylar |
+### 🎨 28 Tema Paleti, Temaya Duyarlı SVG Logo ve 73 Dil Kataloğu
+- **2 Mod × 14 Renk Teması (28 Palet)**: Açık ve Koyu modlarda `Siyah (Obsidian)`, `Gri`, `Lacivert`, `Mavi`, `Cyan`, `İndigo`, `Mor`, `Pembe`, `Kırmızı`, `Turuncu`, `Sarı`, `Zümrüt Yeşili`, `Çimen Yeşili` ve `Açık Yeşil`.
+- **Temaya Uyumlu Uygulama İçi SVG Logo**: işletim sistemi uygulama ikonu sabit kalırken uygulama içi Power Pilot ve Vellium SVG logoları aktif temaya anında uyum sağlar.
+- **73 Dil Desteği**: 17 tam çevrili dil + 56 planlı dil için otomatik İngilizce yedekleme (fallback) ve 4 RTL dil (`ar`, `he`, `fa`, `ur`) için sağdan-sola arayüz desteği.
 
 ---
 
 ## ⚙️ Kurulum ve Kullanım
 
-### Gereksinimler
-- **Windows 10 (1809+) veya Windows 11** (64-bit)
-- **Node.js 24.18.1+** ve npm
-- **Git**
-- Yerel modüllerin yeniden derlenmesi gerektiğinde **Visual Studio Build Tools** (`npm install` sonrasında `electron-rebuild` çalışır)
+### Son kullanıcı için kurulum (kurulum dosyasından)
 
-### Kaynaktan Çalıştırma
+1. `Power Pilot Setup 1.0.0.exe` (veya taşınabilir `Power Pilot Portable 1.0.0.exe`) dosyasını indirin.
+2. Çalıştırın. **Yönetici (UAC) izni istenmez** — kurulum kullanıcı hesabına (`%LOCALAPPDATA%\Programs\Power Pilot`) yapılır.
+3. Özel Vellium kurulum sihirbazında dilerseniz farklı bir kurulum dizini seçebilirsiniz.
+4. Kurulumdan sonra Başlat menüsünde **Power Pilot** görünür.
+
+**Kaldırma:** Windows Ayarlar → Uygulamalar → Power Pilot → Kaldır. Özel kaldırma yardımcısı `\PowerPilot*` Windows Görev Zamanlayıcı kayıtlarını otomatik temizler ve yerel kullanıcı verilerinizi (`%APPDATA%\powerpilot`) koruma veya kalıcı olarak silme seçeneği sunar.
+
+### Kaynaktan Çalıştırma ve Derleme
 
 ```bash
 git clone https://github.com/emirtdede/Power-Pilot.git
 cd Power-Pilot
 npm install
 npm start
-```
 
-### Testler ve Sürüm Kapıları
+# Test ve Sürüm Kapıları
+npm test
+npm run test:security
+npm run test:e2e
+npm run locales:check
+npm run release:check
 
-```bash
-npm test                 # Vitest birim testleri
-npm run test:security    # Güvenlik kontrolleri
-npm run test:e2e         # Playwright Electron E2E
-npm run coverage         # Kapsam raporu (sürüm kapısı)
-npm run locales:check    # 17 dil anahtar eşliği
-npm run models:verify    # Model manifestleri ve SHA-256
-npm run release:check    # Sürüm tutarlılık kapısı
-```
-
-### Kurulum Dosyalarını Derleme
-
-```bash
-# NSIS kurulum dosyası (dist/Power Pilot Setup 1.1.0.exe)
+# Kurulum ve Taşınabilir Paket Derleme (v1.0.0)
 npm run dist:nsis
-
-# APPX paketi (Windows SDK ve APPX_PUBLISHER gerektirir)
-npm run dist:appx
-
-# Paketlenmemiş uygulama ve paket doğrulama
-npm run pack
-npm run verify:pack
+npm run dist:portable
 ```
-
-### Kod İmzalama
-
-Üretim derlemeleri, konu adıyla seçilen Windows sertifikasıyla imzalanır:
-
-```powershell
-$env:WIN_CERT_SUBJECT = "CN=Vellium, O=Vellium, C=TR"
-# Aynı konu adını paylaşan birden fazla sertifika varsa isteğe bağlı
-$env:WIN_CERT_SHA1 = "<sertifika-parmak-izi>"
-# Yerel zaman damgası uç noktası geçersiz kılma (isteğe bağlı)
-$env:WIN_TIMESTAMP_URL = "http://timestamp.digicert.com"
-
-npm run dist:nsis
-```
-
-`WIN_CERT_SUBJECT` tanımlı değilse paketleme imzasız devam eder; imzasız derlemeler yalnızca yerel test içindir. Ayrıntılar: [`docs/release/RELEASE_SIGNING.md`](docs/release/RELEASE_SIGNING.md) ve [`docs/release/ASAR-INTEGRITY.md`](docs/release/ASAR-INTEGRITY.md).
-
----
-
-## 📦 Dağıtım Paketleri
-
-Derleme çıktıları `dist/` altında üretilir:
-
-- **NSIS kurulum dosyası** — `Power Pilot Setup 1.1.0.exe`
-- **APPX paketi** — `Power Pilot 1.1.0.appx`
-- **Paketlenmemiş derleme** — `npm run pack` ile `dist/win-unpacked/`
-- **SBOM** — `npm run sbom`
-- **İmza doğrulama** — `npm run verify:signature`
-- **Paketli E2E / doğrulama** — `npm run verify:pack` ve `scripts/packaged-e2e.ps1`
-
-Yayınlanan derlemeler ve sürüm notları [GitHub Releases](https://github.com/emirtdede/Power-Pilot/releases) sayfasında bulunur.
 
 ---
 
@@ -668,6 +509,6 @@ Yayınlanan derlemeler ve sürüm notları [GitHub Releases](https://github.com/
 
 **Tescilli ticari yazılım.** Copyright © 2026 Vellium. Tüm hakları saklıdır.
 
-Yazılımı kopyalama, değiştirme, yayınlama, dağıtma, alt lisanslama veya satma hakları; Vellium ile ayrı bir yazılı ticari veya pilot anlaşması olmadıkça verilmez. Pilot kullanımı, anlaşmada belirtilen kuruluş, süre ve cihaz sayısıyla sınırlıdır. Tam koşullar için [`LICENSE`](LICENSE) dosyasına bakın.
+Tam koşullar için [`LICENSE`](LICENSE) dosyasına bakın.
 
-**Resmi Web Sitesi:** [Vellium.dev](https://vellium.dev) • **Yayıncı:** Vellium • **İletişim:** [info@vellium.dev](mailto:info@vellium.dev)
+**Resmi Web Sitesi:** [vellium.dev](https://vellium.dev) &bull; **Yayıncı:** Vellium &bull; **Destek:** [support@vellium.dev](mailto:support@vellium.dev)

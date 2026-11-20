@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createTask: (taskData) => ipcRenderer.invoke('create-task', taskData),
     cancelTask: (taskId, pin) => ipcRenderer.invoke('cancel-task', pin === undefined ? taskId : { taskId, pin }),
     snoozeTask: (args) => ipcRenderer.invoke('snooze-task', args),
+    removeTask: (taskId) => ipcRenderer.invoke('remove-task', taskId),
+    removeTerminalTasks: () => ipcRenderer.invoke('remove-terminal-tasks'),
     // Cancel PIN API (WBS-11.2)
     setCancelPin: (pin, currentPin) => ipcRenderer.invoke('set-cancel-pin', { pin, currentPin }),
     clearCancelPin: (pin) => ipcRenderer.invoke('clear-cancel-pin', pin === undefined ? undefined : { pin }),
@@ -35,6 +37,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getTemplates: () => ipcRenderer.invoke('get-templates'),
     saveTemplate: (tpl) => ipcRenderer.invoke('save-template', tpl),
     deleteTemplate: (templateId) => ipcRenderer.invoke('delete-template', templateId),
+    exportTemplates: () => ipcRenderer.invoke('export-templates'),
+    importTemplates: () => ipcRenderer.invoke('import-templates'),
 
     // AI Assistant API (WBS-7.4)
     aiStatus: () => ipcRenderer.invoke('ai-status'),
@@ -60,6 +64,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // K-01: get-settings artık redakte edilmiş DTO döner (sırlar/PIN özeti yok).
     getSettings: () => ipcRenderer.invoke('get-settings'),
     getPublicSettings: () => ipcRenderer.invoke('get-settings'),
+    getDistribution: () => ipcRenderer.invoke('get-distribution'),
+    getStorageStatus: () => ipcRenderer.invoke('get-storage-status'),
+    // C5: yerel sağlık özeti (telemetri yok; yalnızca cihazdaki kayıtlar).
+    getHealthSummary: () => ipcRenderer.invoke('get-health-summary'),
+    openStartupSettings: () => ipcRenderer.invoke('open-startup-settings'),
+    // PIN kurtarma: uygulamanın gerçek veri klasörünü açar (yol istemciden gelmez).
+    openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
+    deleteAllData: (args) => ipcRenderer.invoke('delete-all-data', args),
     getLocale: (lang) => ipcRenderer.invoke('get-locale', lang),
     reportCspViolation: (data) => ipcRenderer.send('csp-violation', data),
     saveSettings: (newSettings) => ipcRenderer.invoke('save-settings', newSettings),
@@ -87,6 +99,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // WP-08.T3/T2: gerçek yürütme sonucu ve uykudan dönüş.
     onTaskExecuted: (callback) => ipcRenderer.on('task-executed', (event, data) => callback(data)),
     onTaskFailed: (callback) => ipcRenderer.on('task-failed', (event, data) => callback(data)),
+    // A6: kapatma Windows tarafından engellendi (açık uygulamalar onay bekliyor).
+    onShutdownVetoed: (callback) => ipcRenderer.on('shutdown-vetoed', (event, data) => callback(data)),
     onSystemResumed: (callback) => ipcRenderer.on('system-resumed', () => callback()),
     onRequestAutonomyChange: (callback) => ipcRenderer.on('request-autonomy-change', (event, mode) => callback(mode)),
     onRequestTrayPinAction: (callback) => ipcRenderer.on('request-tray-pin-action', (event, reason) => callback(reason)),

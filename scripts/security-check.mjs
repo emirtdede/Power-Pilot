@@ -28,7 +28,9 @@ const RULES = [
     { id: 'UNSAFE_INLINE', re: /unsafe-inline/, message: "CSP 'unsafe-inline' yasak." },
     { id: 'NODE_INTEGRATION', re: /nodeIntegration\s*:\s*true/, message: 'nodeIntegration:true yasak.' },
     // Yalnızca gerçek URL sabitlerini yakala; `'http://'` şema kontrolü istisnadır.
-    { id: 'PLAIN_HTTP_CLIENT', re: /(['"`])http:\/\/(?!127\.0\.0\.1|localhost|\[::1\]|x\b|\$\{)(?!\1)/, message: 'Düz HTTP istemci URL yasak; HTTPS kullanın.' },
+    // `http://schemas.*` bir XML **ad alanı** tanımlayıcısıdır (ağ isteği
+    // değildir); Task Scheduler/manifest XML'lerinde zorunludur.
+    { id: 'PLAIN_HTTP_CLIENT', re: /(['"`])http:\/\/(?!127\.0\.0\.1|localhost|\[::1\]|x\b|\$\{|schemas\.)(?!\1)/, message: 'Düz HTTP istemci URL yasak; HTTPS kullanın.' },
     { id: 'PLAINTEXT_SECRET', re: /(localApiKeyPem|consoleAgentKey|webhookSecret|auditHmacKey|backupAesKey)\s*[:=]\s*(['"`])[^'"`]{8,}\2/i, message: 'Düz metin sır sabiti yasak.' },
     { id: 'VM_RUN', re: /vm\.runIn(Context|NewContext|ThisContext)/, message: 'vm.runIn* yasak; JSON modülü kullanın.' },
     { id: 'EVAL', re: /\beval\s*\(/, message: 'eval() yasak.' }

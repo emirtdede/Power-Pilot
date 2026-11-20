@@ -177,6 +177,8 @@ describe('AiService davranış kapıları (TS-7.3)', () => {
         expect(GRAMMAR_SCHEMA.properties.missing).toBeUndefined();
         expect(GRAMMAR_SCHEMA.properties.question).toBeUndefined();
         expect(GRAMMAR_SCHEMA.properties.condition.properties.type.enum).toContain('network_speed');
+        expect(GRAMMAR_SCHEMA.properties.condition.properties.type.enum).toContain('directory_idle');
+        expect(GRAMMAR_SCHEMA.properties.condition.properties.dirPath).toEqual({ type: 'string' });
         expect(GRAMMAR_SCHEMA.properties.condition.required).toEqual(['type']);
     });
 });

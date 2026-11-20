@@ -104,8 +104,15 @@ function buildClientOptions(settings = {}) {
         rejectUnauthorized: true
     };
     if (ca) options.ca = ca;
-    if (pfx) options.pfx = pfx;
-    else if (cert && key) { options.cert = cert; options.key = key; }
+    if (pfx) {
+        options.pfx = pfx;
+        if (typeof settings.consoleClientPfxPassphrase === 'string' && settings.consoleClientPfxPassphrase.length > 0) {
+            options.passphrase = settings.consoleClientPfxPassphrase;
+        }
+    } else if (cert && key) {
+        options.cert = cert;
+        options.key = key;
+    }
     return options;
 }
 

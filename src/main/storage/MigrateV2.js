@@ -18,6 +18,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Db, StorageError, sha256 } = require('./Database');
+// Tek kaynak: src/main/util/stableStringify.js (ConsoleStore + MigrateV2 ortak).
+const { stableStringify } = require('../util/stableStringify');
 
 const LEGACY_FILE = 'powerpilot_data.json';
 const MIGRATION_MARK = '.migrated';
@@ -35,13 +37,6 @@ function fileSha256(filePath) {
 function contentChecksum(value) {
     // Deterministik anahtar sıralı JSON — doğrulama için yeterli.
     return sha256(stableStringify(value));
-}
-
-function stableStringify(value) {
-    if (value === null || typeof value !== 'object') return JSON.stringify(value);
-    if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-    const keys = Object.keys(value).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`;
 }
 
 /**

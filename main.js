@@ -6,6 +6,9 @@ const fs = require('fs');
 
 // Import modular services
 const { PowerService } = require('./src/main/services/PowerService');
+const { summarize: summarizeHealth } = require('./src/main/services/HealthMetrics');
+const miniPlacement = require('./src/main/services/MiniWindowPlacement');
+const miniWidgetState = require('./src/main/services/MiniWidgetState');
 const log = require('./src/main/logger');
 const {
     validateScheduleAction, validateTaskId, validateTaskData,
@@ -20,13 +23,22 @@ const { SecretStore, SECRET_SETTING_FIELDS } = require('./src/main/security/Secr
 const { runBackup } = require('./src/main/storage/DbWorker');
 const { translate, actionLabel, taskName, loadLocale, normalizeLanguage } = require('./src/main/i18n');
 const { registerAppScheme, installAppProtocol, isAllowedAppUrl } = require('./src/main/security/AppProtocol');
+const Acl = require('./src/main/security/Acl');
+const Permissions = require('./src/main/security/Permissions');
 const { openExternalSafely } = require('./src/main/config/externalLinks');
+const distribution = require('./src/main/config/distribution');
 
 // WP-10.T2: meta etiketiyle aynı politika HTTP başlığı olarak da uygulanır.
 const APP_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; worker-src 'none'";
 const { guardIpcHandler } = require('./src/main/ipc/SenderGuard');
 const { normalizeAiInput } = require('./src/main/ai/input');
 const { TimerRegistry } = require('./src/main/util/TimerRegistry');
+const { installCrashGuard } = require('./src/main/util/CrashGuard');
+const Portable = require('./src/main/util/Portable');
+
+// Yayın dayanıklılığı: ana süreçteki yakalanmamış hata artık sessizce
+// uygulamayı kapatmaz; redakte edilmiş log satırı bırakır ve süreç ayakta kalır.
+installCrashGuard({ processRef: process, logger: log });
 
 // WP-10.T1: renderer yalnızca app://powerpilot origin'inden yüklenir.
 registerAppScheme();
@@ -43,7 +55,7 @@ const timers = new TimerRegistry();
 
 // WP-04.T5: headless servis modu. `PowerPilot.exe --headless --user-data-dir=<dir>`
 // ile UI açılmadan ajan yığını çalışır; SecretStore/DPAPI aynı süreçte kullanılır.
-const HEADLESS_MODE = process.argv.includes('--headless');
+const HEADLESS_MODE = process.argv.includes('--headless') && distribution.isFeatureEnabled('headless');
 
 function parseUserDataDir(argv) {
     for (let i = 0; i < argv.length; i++) {
@@ -68,13 +80,29 @@ if (userDataDirOverride) {
     // Chromium anahtarı tek başına app.getPath('userData')'yı değiştirmez;
     // açıkça ayarlanır ki depolama ve sır dosyası aynı dizinde olsun.
     app.setPath('userData', resolvedUserData);
+} else {
+    // Taşınabilir sürüm: veri SFX'in yanında durur, aksi hâlde USB'ye
+    // kopyalanan uygulama ayarlarını %APPDATA%'da bırakır ("portable" yalanı).
+    const portableDir = Portable.portableDataDir(process.env);
+    if (portableDir) {
+        try {
+            fs.mkdirSync(portableDir, { recursive: true });
+            app.setPath('userData', portableDir);
+            log.info(`[Portable] veri klasörü: ${portableDir}`);
+        } catch (err) {
+            // Salt okunur medya / kilitli klasör: açılmamak yerine normal yola dön.
+            log.warn(`[Portable] veri klasörü kullanılamadı (${err && err.code}); varsayılan kullanılacak.`);
+        }
+    }
 }
 
 function currentLanguage() {
     try {
-        return (storageService && storageService.getSettings().language) || 'tr';
+        // null = "kullanıcı henüz seçmedi" → sistem diline bırak; renderer
+        // ilk çalıştırmada algılayıp geri yazar.
+        return (storageService && storageService.getSettings().language) || 'en';
     } catch (_) {
-        return 'tr';
+        return 'en';
     }
 }
 
@@ -211,6 +239,19 @@ const TaskManager = require('./src/main/services/TaskManager');
 const WebhookService = require('./src/main/services/WebhookService');
 const LocalApiService = require('./src/main/services/LocalApiService');
 const TemplateService = require('./src/main/services/TemplateService');
+const TemplateTransfer = require('./src/main/services/TemplateTransfer');
+const DataWipe = require('./src/main/services/DataWipe');
+
+/**
+ * "Tüm verileri sil" işaret dosyası — userData'nın DIŞINDA (geçici dizin).
+ * Kilitli kalan girdiler bir sonraki açılışta, hiçbir veri gösterilmeden önce
+ * silinir. Aynı makinede farklı profiller karışmasın diye userData yolu
+ * işaretin içinde saklanır ve yalnızca eşleşirse uygulanır.
+ */
+function pendingWipeMarkerPath() {
+    return path.join(app.getPath('temp'), DataWipe.PENDING_MARKER_NAME);
+}
+
 const EnergyEstimateService = require('./src/main/services/EnergyEstimateService');
 const DeviceProfileService = require('./src/main/services/DeviceProfileService');
 const TaskSchedulerBridge = require('./src/main/services/TaskSchedulerBridge');
@@ -238,7 +279,7 @@ let trayUpdateTimer = null;
 let lastTraySignature = '';
 let trayUpdater = null;
 
-function scheduleTrayUpdate () {
+function scheduleTrayUpdate() {
     if (!trayUpdater) return;
     if (trayUpdateTimer) clearTimeout(trayUpdateTimer);
     trayUpdateTimer = timers.setTimeout(() => {
@@ -258,10 +299,13 @@ let inventoryService, exemptionService, orderQueue, auditLog, consoleClient, ord
 let consoleSyncTimer = null;
 let headlessHandle = null;
 
+function getAppVersion() {
+    try { return require('./package.json').version || '1.0.0'; } catch (_) { return '1.0.0'; }
+}
+
 async function startHeadless() {
     const { bootAgent } = require('./src/agent/headless');
-    let appVersion = '1.1.0';
-    try { appVersion = require('./package.json').version || appVersion; } catch (_) {}
+    const appVersion = getAppVersion();
     const syncMs = Number(process.env.PP_SYNC_MS) || 60000;
     headlessHandle = await bootAgent({
         userDataPath: app.getPath('userData'),
@@ -458,6 +502,32 @@ function splitSecretPatch(patch) {
 }
 
 async function initServices() {
+    // P0 ONARIM KAPISI: v1.1.0 ve öncesi, Windows ACL sıkılaştırmasını
+    // `/T` + `(OI)(CI)F` ile uyguluyordu. Bu kombinasyon dosyaların kendisine
+    // hiç ACE yazmadığı için powerpilot.db / secrets.v1.json sahibi için bile
+    // erişilemez hale geliyor, sonraki açılışta DB açılamıyor ve kullanıcının
+    // tüm görev ve ayarları kayboluyordu. Depo açılmadan ÖNCE onarılır.
+    try {
+        const repair = Acl.repairInheritedAccess(app.getPath('userData'));
+        if (repair.repaired) {
+            log.warn(`[Init] Veri dizini ACL'i onarıldı (önceki sürüm hatası): ${(repair.items || []).join(', ')}`);
+        } else if (repair.reason && !['HEALTHY', 'UNSUPPORTED_PLATFORM'].includes(repair.reason)) {
+            log.warn(`[Init] ACL onarımı tamamlanamadı (${repair.reason}): ${(repair.items || []).join(', ')}`);
+        }
+    } catch (err) {
+        log.warn('[Init] ACL onarım kapısı hata verdi:', err && err.message);
+    }
+    // "Tüm verileri sil" sırasında kilitli kalan girdiler (Chromium klasörleri)
+    // burada, depo açılmadan ÖNCE silinir: kullanıcı hiçbir eski veri görmez.
+    try {
+        const marker = pendingWipeMarkerPath();
+        if (fs.existsSync(marker)) {
+            const st = DataWipe.applyPendingWipe(marker);
+            log.info(`[Init] bekleyen veri silme tamamlandı: ${st.removed} girdi, ${st.remaining.length} kaldı`);
+        }
+    } catch (err) {
+        log.warn('[Init] bekleyen veri silme uygulanamadı:', err && err.message);
+    }
     storageService = new StorageService();
     await initSecrets();
     // WP-11.T7: kurcalanmış audit / bakım modu → yıkıcı eylem yok.
@@ -490,14 +560,49 @@ async function initServices() {
         mainWindow.webContents.send(payload.success ? 'task-executed' : 'task-failed', payload);
     });
     taskManager.setChangeListener(scheduleTrayUpdate);
-    // WBS-2.2: Scheduler yedeği takılır (Store sandbox'unda isSupported()=false → atlanır).
-    taskManager.schedulerBridge = new TaskSchedulerBridge({
-        exePath: app.getPath('exe'),
-        isStoreApp: !!process.windowsStore
+    // A6: kapatma/yeniden başlatma Windows tarafından veto edildiğinde
+    // (açık uygulamalar onay bekliyor) kullanıcıya açık rapor gönderilir.
+    taskManager.setVetoListener((payload) => {
+        const res = {
+            ...payload,
+            message: t('shutdownVetoedDetail')
+        };
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('shutdown-vetoed', res);
+        }
+        if (tray && !tray.isDestroyed() && typeof tray.displayBalloon === 'function') {
+            try {
+                tray.displayBalloon({
+                    title: t('shutdownVetoedTitle'),
+                    content: t('shutdownVetoedDetail'),
+                    iconType: 'warning'
+                });
+            } catch (_) { /* balon desteklenmiyorsa sessiz geç */ }
+        }
     });
+    // WBS-2.2: Scheduler yedeği takılır (Store sandbox'unda isSupported()=false → atlanır).
+    // Store kapsamı: schtasks yedeği hiç yapılandırılmaz (politika 10.2.4/10.2.8).
+    taskManager.schedulerBridge = new TaskSchedulerBridge({
+        // Taşınabilir sürümde `app.getPath('exe')` geçici çıkarma dizinini
+        // gösterir; oraya kayıt yazmak, uygulama kapandıktan sonra silinmiş bir
+        // yolu tetiklemek olur. Kayıt SFX'in kendisine yönlendirilir.
+        exePath: Portable.portableExePath(process.env, fs.existsSync) || app.getPath('exe'),
+        isStoreApp: !distribution.isFeatureEnabled('taskScheduler')
+    });
+    // Bozuk DB karantinaya alındıysa görev listesi boşalmıştır; Windows Görev
+    // Zamanlayıcı'daki eski kayıtlar artık var olmayan görevleri tetikler ve
+    // uygulamayı kendi kendine açardı. Temiz depo ile birlikte temizlenir.
+    if (storageService && storageService.recoveredFrom) {
+        Promise.resolve(taskManager.schedulerBridge.removeAllTasks())
+            .then((r) => {
+                if (r && (r.removed || r.failed)) {
+                    log.info(`[SchedulerBridge] kurtarma sonrası temizlik: ${r.removed} silindi, ${r.failed} başarısız`);
+                }
+            })
+            .catch((err) => log.warn('[SchedulerBridge] kurtarma temizliği atlandı:', err && err.message));
+    }
     // FAZ B: kurumsal pilot — LocalApiService deps'i için ÖNCE kurulur.
-    let appVersion = '1.1.0';
-    try { appVersion = require('./package.json').version || appVersion; } catch (_) {}
+    const appVersion = getAppVersion();
     // FAZ D: UPS izleyici (ayar kapalıysa sorgulanmaz).
     upsMonitor = null;
     try {
@@ -513,7 +618,9 @@ async function initServices() {
         exemptions: exemptionService,
         queue: orderQueue,
         audit: auditLog,
-        powerMonitor
+        powerMonitor,
+        // Store sürümünde LAN/ağ maruziyeti yok: yalnızca loopback.
+        allowLan: distribution.isFeatureEnabled('lanApi')
     });
     templateService = new TemplateService(storageService);
     energyService = new EnergyEstimateService(storageService);
@@ -541,14 +648,17 @@ async function initServices() {
     agentOrchestrator = new AgentOrchestrator({ aiService, storage: storageService, history: historyService });
 
     // FAZ B: konsol istemcisi + emir icracısı (deviceService yukarıda kuruldu).
-    consoleClient = new ConsoleClient({
-        storage: storageService,
-        inventoryService,
-        orderQueue,
-        audit: auditLog
-    });
+    // Store kapsamı: konsol ajanı/senkronu yok (politika 10.2.4).
+    consoleClient = distribution.isFeatureEnabled('consoleAgent')
+        ? new ConsoleClient({
+            storage: storageService,
+            inventoryService,
+            orderQueue,
+            audit: auditLog
+        })
+        : null;
     orderExecutor = new OrderExecutor({ taskManager, deviceService, audit: auditLog });
-    startConsoleSync();
+    if (consoleClient) startConsoleSync();
     startBackupSchedule();
     // WP-11.T10: süresi geçen nonce'lar periyodik temizlenir.
     maintenanceTimer = timers.setInterval(() => {
@@ -594,7 +704,51 @@ async function initServices() {
             mainWindow.webContents.send(channel, data);
         }
     };
-    warningManager.on('warning-started', forwardWarning('warning-started'));
+    /**
+     * Kapatma uyarısı kullanıcıya GÖRÜNMELİ.
+     *
+     * Ölçülen kusur: kullanıcı "1 saat sonra kapat" der ve pencereyi kapatır
+     * (uygulama tepside çalışmaya devam eder). Süre dolunca uyarı yalnızca
+     * gizli pencerenin DOM'una yazılıyordu; `full` modda süre dolunca
+     * `proceed:true` olduğu için makine, kullanıcı hiçbir şey görmeden
+     * kapanıyordu. Uyarı başlarken pencere öne getirilir.
+     */
+    warningManager.on('warning-started', (data) => {
+        forwardWarning('warning-started')(data);
+        try {
+            if (mainWindow && !mainWindow.isDestroyed() && !isQuitting) {
+                if (!mainWindow.isVisible()) mainWindow.show();
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                mainWindow.setAlwaysOnTop(true);
+                mainWindow.focus();
+                // Uyarı bannerı kapatıldığında (veya süre dolduğunda) üstte
+                // kalma bırakılır; kalıcı always-on-top kullanıcıyı hapsederdi.
+                const release = () => {
+                    warningManager.removeListener('warning-finished', release);
+                    warningManager.removeListener('warning-cancelled', release);
+                    warningManager.removeListener('warning-snoozed', release);
+                    try {
+                        if (mainWindow && !mainWindow.isDestroyed()) {
+                            mainWindow.setAlwaysOnTop(false);
+                        }
+                    } catch (_) { /* pencere kapanmış */ }
+                };
+                warningManager.once('warning-finished', release);
+                warningManager.once('warning-cancelled', release);
+                warningManager.once('warning-snoozed', release);
+            }
+        } catch (err) {
+            log.warn('[Warning] pencere öne getirilemedi:', err && err.message);
+        }
+        if (tray) {
+            try {
+                tray.displayBalloon({
+                    title: 'Power Pilot',
+                    content: t('trayWarningRunning')
+                });
+            } catch (_) { /* balon desteklenmiyor */ }
+        }
+    });
     warningManager.on('warning-tick', forwardWarning('warning-tick'));
     // WBS-9.4: Banner'ın kapanması için terminal olayları da iletilir.
     warningManager.on('warning-cancelled', forwardWarning('warning-cancelled'));
@@ -630,7 +784,7 @@ function startConsoleSync() {
     timers.setTimeout(tick, 20000);
 }
 
-function hardenWebContents (contents) {
+function hardenWebContents(contents) {
     // WP-10.T2: dış gezinme ve yeni pencere yok; yalnızca https dış tarayıcıda açılır.
     contents.on('will-navigate', (event, url) => {
         if (!isAllowedAppUrl(url)) {
@@ -652,12 +806,18 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1400,
         height: 840,
-        // Responsive iskelet: 720px'e kadar daraltılabilir (drawer modu).
+        // Responsive iskelet: 720x520'ye kadar daraltilabilir (drawer modu).
+        // PPX-013: 640x480 desteklenmez; istenirse 720x520'ye kenetlenir.
         minWidth: 720,
         minHeight: 520,
         resizable: true,
         frame: false,
         titleBarStyle: 'hidden',
+        // A2: Pencere hazır olmadan gösterilmez; aksi halde açılışta kısa bir
+        // beyaz parlama görünür ("yarım açılmış" izlenimi). Arka plan rengi
+        // koyu tema iskeletiyle eşleşir.
+        show: false,
+        backgroundColor: '#0b1120',
         icon: path.join(__dirname, 'powerpilot_icon.ico'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -671,6 +831,15 @@ function createWindow() {
 
     hardenWebContents(mainWindow.webContents);
     mainWindow.loadURL('app://powerpilot/index.html');
+
+    // `show: false` ile açılan pencere, ilk kare hazır olunca gösterilir;
+    // böylece beyaz parlama olmaz ve kullanıcı doğrudan arayüzü görür.
+    mainWindow.once('ready-to-show', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
 
     mainWindow.on('close', (event) => {
         const hasActive = taskManager && taskManager.getActiveTasks().length > 0;
@@ -740,19 +909,34 @@ function updateMiniWindowVisibility() {
 function createMiniWindow() {
     if (miniWindow && !miniWindow.isDestroyed()) return;
 
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { x, y, width, height } = primaryDisplay.workArea;
+    // B5: Mini widget, ana pencerenin bulunduğu ekrana (yoksa imlecin
+    // bulunduğu ekrana, yoksa birincil ekrana) yerleşir; böylece çoklu
+    // monitör/DPI kurulumlarında yanlış ekranda belirmez.
+    const anchorBounds = mainWindow && !mainWindow.isDestroyed()
+        ? mainWindow.getBounds()
+        : null;
+    let cursorPoint = null;
+    try {
+        cursorPoint = screen.getCursorScreenPoint();
+    } catch (_) {
+        cursorPoint = null;
+    }
 
-    const winWidth = 280;
-    const winHeight = 76;
-    const posX = x + width - winWidth - 20;
-    const posY = y + height - winHeight - 20;
+    const placement = miniPlacement.computePlacement({
+        displays: screen.getAllDisplays(),
+        primaryDisplay: screen.getPrimaryDisplay(),
+        anchorBounds,
+        cursorPoint
+    });
 
     miniWindow = new BrowserWindow({
-        width: winWidth,
-        height: winHeight,
-        x: posX,
-        y: posY,
+        width: placement.width,
+        height: placement.height,
+        x: placement.x,
+        y: placement.y,
+        // PPX-014: pencere sabit boyutlu; yine de savunma amaçlı alt sınır.
+        minWidth: 160,
+        minHeight: 48,
         frame: false,
         transparent: true,
         resizable: false,
@@ -782,6 +966,88 @@ function createMiniWindow() {
     miniWindow.on('closed', () => {
         miniWindow = null;
     });
+
+    // B5: Ekran yapılandırması değişirse (monitör sökülür/eklenir, DPI veya
+    // çözünürlük değişir) mini widget görünmez koordinatta kalmasın; yeni
+    // yerleşime taşınır.
+    const repositionMini = () => {
+        if (!miniWindow || miniWindow.isDestroyed()) return;
+        const anchor = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
+        let cursor = null;
+        try {
+            cursor = screen.getCursorScreenPoint();
+        } catch (_) {
+            cursor = null;
+        }
+        const placement = miniPlacement.computePlacement({
+            displays: screen.getAllDisplays(),
+            primaryDisplay: screen.getPrimaryDisplay(),
+            anchorBounds: anchor,
+            cursorPoint: cursor
+        });
+        miniWindow.setBounds(placement);
+    };
+    screen.on('display-removed', repositionMini);
+    screen.on('display-added', repositionMini);
+    screen.on('display-metrics-changed', repositionMini);
+    miniWindow.on('closed', () => {
+        screen.removeListener('display-removed', repositionMini);
+        screen.removeListener('display-added', repositionMini);
+        screen.removeListener('display-metrics-changed', repositionMini);
+        stopMiniSync();
+    });
+
+    // Sayaç beslemesi: mini pencere HER aktif görevde açılır, ama tick
+    // verisini yalnızca hızlı zamanlayıcı renderer'ı gönderiyordu. Diğer
+    // görevlerde widget "--" / "00:00" ile boş kalıyordu. Tek doğruluk
+    // kaynağı TaskManager'dan beslenir.
+    startMiniSync();
+}
+
+// Mini widget sayaç senkronizasyonu (1 sn). Tek doğruluk kaynağı TaskManager.
+let miniSyncTimer = null;
+let miniWidgetTaskId = null;
+
+function pushMiniTimerState() {
+    if (!miniWindow || miniWindow.isDestroyed()) return;
+    if (!taskManager) return;
+    let state = null;
+    try {
+        state = miniWidgetState.computeState({
+            tasks: taskManager.getActiveTasks().map((task) => (
+                typeof task.toJSON === 'function' ? task.toJSON() : task
+            )),
+            now: Date.now(),
+            t: (key) => t(key),
+            actionLabel: (action) => actionLabel(currentLanguage(), action),
+            taskDisplayName: (task) => taskName(currentLanguage(), task),
+            daySuffix: translate(currentLanguage(), 'timeFormatDays')
+        });
+    } catch (err) {
+        log.warn('[Mini] durum hesaplanamadı:', err && err.message);
+        return;
+    }
+    if (!state) return;
+    miniWidgetTaskId = state.taskId || null;
+    try {
+        miniWindow.webContents.send('timer-tick', state);
+    } catch (_) { /* pencere kapanıyor olabilir */ }
+}
+
+function startMiniSync() {
+    stopMiniSync();
+    pushMiniTimerState();
+    if (miniWindow && !miniWindow.isDestroyed()) {
+        miniSyncTimer = timers.setInterval(pushMiniTimerState, 1000);
+    }
+}
+
+function stopMiniSync() {
+    if (miniSyncTimer) {
+        timers.clear(miniSyncTimer);
+        miniSyncTimer = null;
+    }
+    miniWidgetTaskId = null;
 }
 
 function showMainWindowForPin(reason) {
@@ -826,14 +1092,16 @@ function createTray() {
             { label: statusLabel, enabled: false },
             { label: modeLabel, enabled: false },
             { type: 'separator' },
-            { label: t('trayTogglePause'), click: () => {
-                // Y-02: PIN kuruluysa tray'den PIN'siz duraklatma yok.
-                if (settings.cancelPinHash) return showMainWindowForPin('pause');
-                try { if (taskManager) taskManager.togglePauseAll(); } catch (err) {
-                    log.error('[Tray] duraklatma kalıcılaştırılamadı:', err && err.message);
+            {
+                label: t('trayTogglePause'), click: () => {
+                    // Y-02: PIN kuruluysa tray'den PIN'siz duraklatma yok.
+                    if (settings.cancelPinHash) return showMainWindowForPin('pause');
+                    try { if (taskManager) taskManager.togglePauseAll(); } catch (err) {
+                        log.error('[Tray] duraklatma kalıcılaştırılamadı:', err && err.message);
+                    }
+                    scheduleTrayUpdate();
                 }
-                scheduleTrayUpdate();
-            } },
+            },
             {
                 label: mode === 'full' ? t('traySwitchClassic') : t('traySwitchFull'),
                 click: () => {
@@ -854,42 +1122,46 @@ function createTray() {
                     if (mainWindow && !mainWindow.isDestroyed()) {
                         mainWindow.webContents.send('request-ai-silence', until);
                     } else {
-                        setAiSilencedUntil(until).then(scheduleTrayUpdate).catch(() => {});
+                        setAiSilencedUntil(until).then(scheduleTrayUpdate).catch(() => { });
                     }
                     scheduleTrayUpdate();
                 }
             },
-            { label: t('trayCancelNearest'), click: () => {
-                if (!nextTask) return;
-                // WBS-11.2: PIN kuruluysa tray'den sessiz iptal yok — pencere açılır.
-                if (settings.cancelPinHash) {
-                    if (mainWindow) {
-                        mainWindow.show();
-                        if (mainWindow.isMinimized()) mainWindow.restore();
-                        mainWindow.focus();
+            {
+                label: t('trayCancelNearest'), click: () => {
+                    if (!nextTask) return;
+                    // WBS-11.2: PIN kuruluysa tray'den sessiz iptal yok — pencere açılır.
+                    if (settings.cancelPinHash) {
+                        if (mainWindow) {
+                            mainWindow.show();
+                            if (mainWindow.isMinimized()) mainWindow.restore();
+                            mainWindow.focus();
+                        }
+                        if (tray) {
+                            tray.displayBalloon({
+                                title: 'Power Pilot',
+                                content: t('trayPinProtected')
+                            });
+                        }
+                        return;
                     }
-                    if (tray) {
-                        tray.displayBalloon({
-                            title: 'Power Pilot',
-                            content: t('trayPinProtected')
-                        });
+                    taskManager.cancelTask(nextTask.id);
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('timer-cancelled-from-tray');
                     }
-                    return;
+                    scheduleTrayUpdate();
                 }
-                taskManager.cancelTask(nextTask.id);
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('timer-cancelled-from-tray');
-                }
-                scheduleTrayUpdate();
-            } },
+            },
             { type: 'separator' },
-            { label: t('trayQuit'), click: () => {
-                // Y-02: PIN kuruluysa çıkış PIN'li renderer akışına yönlendirilir;
-                // tray, PIN korumalı iptalin arka kapısı olamaz.
-                if (settings.cancelPinHash) return showMainWindowForPin('quit');
-                isQuitting = true;
-                app.quit();
-            } }
+            {
+                label: t('trayQuit'), click: () => {
+                    // Y-02: PIN kuruluysa çıkış PIN'li renderer akışına yönlendirilir;
+                    // tray, PIN korumalı iptalin arka kapısı olamaz.
+                    if (settings.cancelPinHash) return showMainWindowForPin('quit');
+                    isQuitting = true;
+                    app.quit();
+                }
+            }
         ]);
         tray.setToolTip(t('trayTooltip'));
         tray.setContextMenu(contextMenu);
@@ -930,10 +1202,16 @@ if (!gotTheLock) {
     app.whenReady().then(async () => {
         // WP-10.T1: file:// yerine app:// — protokol handler'ı pencere açılmadan hazır.
         installAppProtocol(path.join(__dirname, 'src'));
-        // WP-10.T2/T6: yalnızca bildirim izni; kamera/mikrofon/konum reddedilir.
-        const allowPermission = (permission) => permission === 'notifications';
-        session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowPermission(permission)));
-        session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowPermission(permission));
+        // WP-10.T2/T6: yalnızca bildirim ve (sesli komut için) mikrofon;
+        // kamera/konum/genel medya reddedilir. Mikrofon `getUserMedia` ile
+        // kullanılıyor ("sesli komut"); burada izin verilmezse düğme her
+        // seferinde "mikrofon izni yok" hatası veriyordu.
+        session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+            callback(Permissions.allowRequest(permission, details));
+        });
+        session.defaultSession.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
+            return Permissions.allowCheck(permission, details, requestingOrigin);
+        });
         session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
             if (!String(details.url || '').startsWith('app://powerpilot/')) {
                 callback({ responseHeaders: details.responseHeaders });
@@ -974,9 +1252,29 @@ if (!gotTheLock) {
         createWindow();
         createTray();
         // WP-08.T2: uykudan dönüşte sayaç hedef zamandan yeniden senkronlanır.
+        // Faz 2: kaçırılan görevler kullanıcı politikasına göre çalıştırılır ya
+        // da gerekçesiyle atlanır (varsayılan: 10 dk tolerans içindeyse çalıştır).
         powerMonitor.on('resume', () => {
             if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('system-resumed');
             if (miniWindow && !miniWindow.isDestroyed()) miniWindow.webContents.send('system-resumed');
+            // Metrikler/saat otursun diye kısa gecikme; kullanıcı uyanır uyanmaz
+            // görev ateşlenmez.
+            timers.setTimeout(() => {
+                if (!taskManager) return;
+                const s = storageService ? storageService.getSettings() : {};
+                const result = taskManager.resyncAfterResume({
+                    mode: s.wakeMode === 'skip' ? 'skip' : 'run',
+                    toleranceMinutes: Number.isInteger(s.wakeToleranceMinutes) ? s.wakeToleranceMinutes : 10
+                });
+                if (tray && (result.ran > 0 || result.skipped > 0)) {
+                    tray.displayBalloon({
+                        title: 'Power Pilot',
+                        content: result.ran > 0
+                            ? t('wakeRanBalloon', { count: result.ran })
+                            : t('wakeSkippedBalloon', { count: result.skipped })
+                    });
+                }
+            }, 5000);
         });
 
         // WBS-2.2: Scheduler yedeğiyle uyandırma (--run-task=<id>).
@@ -1011,8 +1309,8 @@ if (!gotTheLock) {
                             content: t('balloonMeasured', { watt: r.wattW })
                         });
                     }
-                }).catch(() => {});
-            } catch (_) {}
+                }).catch(() => { });
+            } catch (_) { }
         }, 30000);
     });
 }
@@ -1029,25 +1327,25 @@ app.on('before-quit', (event) => {
     shutdownStarted = true;
     event.preventDefault();
     isQuitting = true;
-    try { if (consoleSyncTimer) clearInterval(consoleSyncTimer); } catch (_) {}
-    try { if (trayUpdateTimer) clearTimeout(trayUpdateTimer); } catch (_) {}
+    try { if (consoleSyncTimer) clearInterval(consoleSyncTimer); } catch (_) { }
+    try { if (trayUpdateTimer) clearTimeout(trayUpdateTimer); } catch (_) { }
     trayUpdater = null;
-    try { if (backupTimer) clearInterval(backupTimer); } catch (_) {}
-    try { if (initialBackupTimer) clearTimeout(initialBackupTimer); } catch (_) {}
-    try { if (maintenanceTimer) clearInterval(maintenanceTimer); } catch (_) {}
-    try { if (taskManager && taskManager.loopInterval) clearInterval(taskManager.loopInterval); } catch (_) {}
-    try { if (metricCollector && typeof metricCollector.stopSampling === 'function') metricCollector.stopSampling(); } catch (_) {}
-    try { if (aiBackend && typeof aiBackend.close === 'function') aiBackend.close().catch(() => {}); } catch (_) {}
+    try { if (backupTimer) clearInterval(backupTimer); } catch (_) { }
+    try { if (initialBackupTimer) clearTimeout(initialBackupTimer); } catch (_) { }
+    try { if (maintenanceTimer) clearInterval(maintenanceTimer); } catch (_) { }
+    try { if (taskManager && taskManager.loopInterval) clearInterval(taskManager.loopInterval); } catch (_) { }
+    try { if (metricCollector && typeof metricCollector.stopSampling === 'function') metricCollector.stopSampling(); } catch (_) { }
+    try { if (aiBackend && typeof aiBackend.close === 'function') aiBackend.close().catch(() => { }); } catch (_) { }
 
     const stops = [];
     try {
         if (headlessHandle && typeof headlessHandle.stop === 'function') {
-            stops.push(Promise.resolve(headlessHandle.stop()).catch(() => {}));
+            stops.push(Promise.resolve(headlessHandle.stop()).catch(() => { }));
         }
     } catch (_) { /* yut */ }
     try {
         if (localApiService && typeof localApiService.stop === 'function') {
-            stops.push(Promise.resolve(localApiService.stop()).catch(() => {}));
+            stops.push(Promise.resolve(localApiService.stop()).catch(() => { }));
         }
     } catch (_) { /* yut */ }
 
@@ -1057,8 +1355,8 @@ app.on('before-quit', (event) => {
                 storageService.auditCheckpoint.write(storageService.getAuditLog(), { eventLog: false });
             }
         } catch (_) { /* checkpoint best-effort; quit'i engellemez */ }
-        try { if (storageService && typeof storageService.close === 'function') storageService.close(); } catch (_) {}
-        try { timers.clearAll(); } catch (_) {}
+        try { if (storageService && typeof storageService.close === 'function') storageService.close(); } catch (_) { }
+        try { timers.clearAll(); } catch (_) { }
         app.quit();
     };
     const timeout = new Promise((resolve) => {
@@ -1122,7 +1420,10 @@ ipcHandle('schedule-action', async (event, args) => {
             trigger: { type: 'duration', durationMs: durationMs }
         });
     } catch (err) {
-        return { success: false, message: err.message || t('errorTaskCreationFailed') };
+        // Teknik mesaj logda kalır; kullanıcıya çevrilmiş metin gider
+        // (ham hata metni başka dilde arayüzde görünmesin).
+        log.warn('[IPC] schedule-action görev oluşturamadı:', err && err.message);
+        return { success: false, message: t('errorTaskCreationFailed') };
     }
     quickTimerTaskId = task.id;
 
@@ -1145,6 +1446,17 @@ ipcHandle('cancel-action', async (event, args) => {
     if (taskManager && typeof taskManager.cancelActiveTask === 'function') {
         activeResult = taskManager.cancelActiveTask();
     }
+    // Mini widget, hızlı zamanlayıcı dışındaki görevleri de gösteriyor; "X"
+    // düğmesi o görevi iptal edebilmeli. Aksi halde widget'ta dolu sayaç
+    // görünürken iptal hiçbir şey yapmazdı (yalnızca ana pencere açılırdı).
+    if (!activeResult.ok && miniWidgetTaskId && taskManager) {
+        const miniResult = taskManager.cancelTask(miniWidgetTaskId);
+        if (miniResult && miniResult.ok) {
+            activeResult = { ok: true, code: miniResult.code };
+        } else if (miniResult && miniResult.code === 'CANCEL_TOO_LATE') {
+            activeResult = miniResult;
+        }
+    }
     cancelQuickTimer();
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
@@ -1161,11 +1473,12 @@ ipcHandle('cancel-action', async (event, args) => {
     return { success: true, code: activeResult.code || 'NO_ACTIVE_WARNING', message: t('toastActionCancelled') };
 });
 
-ipcOn('update-mini-timer', (event, data) => {
-    if (miniWindow && !miniWindow.isDestroyed()) {
-        miniWindow.webContents.send('timer-tick', data);
-    }
-});
+// NOT: mini widget sayaç beslemesi artık TEK kaynaktan gelir — `pushMiniTimerState`
+// (TaskManager aktif görevleri, 1 sn). Önceden renderer'ın `updateMiniTimer`
+// çağrısı burada mini pencereye köprüleniyordu; iki kaynak aynı kanala yazınca
+// sayaç titriyor ve hızlı zamanlayıcı dışındaki görevlerde widget boş kalıyordu.
+// Renderer yüzeyi geriye uyum için korunur ama veri yolu yok sayılır.
+ipcOn('update-mini-timer', () => { /* yoksayıldı: tek doğruluk kaynağı ana süreç */ });
 
 // D-03: mini pencere tooltip'leri renderer'a hardcoded gitmez.
 ipcHandle('get-mini-labels', () => ({
@@ -1214,7 +1527,9 @@ ipcHandle('create-task', (event, data) => {
     try {
         return { success: true, task: taskManager.createTask(data).toJSON() };
     } catch (err) {
-        return { success: false, code: err.code || 'TASK_CREATION_FAILED', message: err.message };
+        // Aynı gerekçe: ham hata metni renderer'a sızmaz.
+        log.warn('[IPC] create-task oluşturamadı:', err && err.message);
+        return { success: false, code: err.code || 'TASK_CREATION_FAILED', message: t('errorTaskCreationFailed') };
     }
 });
 ipcHandle('cancel-task', async (event, payload) => {
@@ -1237,6 +1552,24 @@ ipcHandle('snooze-task', async (event, payload) => {
     const result = taskManager.snoozeTask(payload.taskId, check.minutes);
     if (!result.ok) return { success: false, code: result.code || 'SNOOZE_FAILED', message: t('taskSnoozeFailed') };
     return { success: true, code: result.code, minutes: result.minutes };
+});
+// Biten görevleri listeden kaldırma. Çalışan görev silinemez (önce iptal).
+ipcHandle('remove-task', (event, taskId) => {
+    const check = validateTaskId(taskId);
+    if (!check.ok) return { success: false, code: check.code, message: t('errorInvalidRequest') };
+    const result = taskManager.removeTask(taskId);
+    if (!result.ok) {
+        const message = result.code === 'TASK_NOT_TERMINAL'
+            ? t('taskRemoveNotFinished')
+            : t('taskRemoveFailed');
+        return { success: false, code: result.code || 'REMOVE_FAILED', message };
+    }
+    return { success: true, code: result.code };
+});
+// Terminal durumdaki tüm görevleri temizle.
+ipcHandle('remove-terminal-tasks', () => {
+    const result = taskManager.removeTerminalTasks();
+    return { success: true, removed: result.removed };
 });
 // WBS-11.2: PIN yönetimi.
 // K-01: PIN zaten kuruluysa değiştirme/silme mevcut PIN doğrulaması ister.
@@ -1297,6 +1630,21 @@ ipcHandle('quit-app', async (event, args) => {
 ipcHandle('get-history', (event, filter) => historyService.getHistory(filter));
 ipcHandle('clear-history', () => historyService.clear());
 ipcHandle('get-statistics', () => energyService.getStatistics());
+// C5: yerel sağlık özeti — hiçbir veri dışarı çıkmaz, yalnızca cihazdaki
+// kayıtlar özetlenir (ürünün "telemetri yok" vaadi korunur).
+ipcHandle('get-health-summary', () => {
+    let installedAtMs = null;
+    try {
+        const created = storageService.getMeta('created_at');
+        const parsed = created ? Date.parse(created) : NaN;
+        if (Number.isFinite(parsed)) installedAtMs = parsed;
+    } catch (_) { /* meta okunamazsa kurulum yaşı gizlenir */ }
+    let history = [];
+    try {
+        history = historyService.getHistory() || [];
+    } catch (_) { history = []; }
+    return summarizeHealth({ history, installedAtMs, nowMs: Date.now() });
+});
 ipcHandle('get-templates', () => templateService.getTemplates());
 ipcHandle('save-template', (event, tpl) => {
     // WBS-6.4: Kullanıcı şablonu — şema + koşul geçerliliği zorunlu.
@@ -1309,9 +1657,10 @@ ipcHandle('save-template', (event, tpl) => {
         log.warn(`[IPC] save-template reddedildi: ${check.error}`);
         return { success: false, code: check.code, message: t('errorInvalidRequest') };
     }
-    if (!TemplateService.isValidTemplate(tpl)) {
-        return { success: false, code: 'INVALID_TEMPLATE', message: t('errorInvalidTemplate') };
-    }
+    // NOT: id istemciden gelmez (renderer {name, action, ...} gönderir); sunucu
+    // üretir. Bu yüzden doğrulama NORMALEŞTİRİLMİŞ kayıt üzerinde yapılmalı —
+    // aksi halde isValidTemplate `typeof tpl.id !== 'string'` kontrolünde
+    // takılır ve UI'daki "Şablonu Kaydet" her zaman INVALID_TEMPLATE dönerdi.
     const record = {
         id: typeof tpl.id === 'string' && tpl.id ? tpl.id : `user_tpl_${Date.now()}`,
         name: String(tpl.name || '').slice(0, 80),
@@ -1323,6 +1672,9 @@ ipcHandle('save-template', (event, tpl) => {
         ...(tpl.defaultConditionGroup ? { defaultConditionGroup: tpl.defaultConditionGroup } : {}),
         ...(tpl.schedule ? { schedule: tpl.schedule } : {})
     };
+    if (!TemplateService.isValidTemplate(record)) {
+        return { success: false, code: 'INVALID_TEMPLATE', message: t('errorInvalidTemplate') };
+    }
     const list = storageService.getTemplates().filter(t => t.id !== record.id);
     list.push(record);
     storageService.saveTemplates(list);
@@ -1337,6 +1689,66 @@ ipcHandle('delete-template', (event, templateId) => {
     }
     storageService.saveTemplates(storageService.getTemplates().filter(t => t.id !== templateId));
     return { success: true };
+});
+
+// Faz 3: profil/şablon içe-dışa aktarma (sürümlü JSON).
+// Kullanıcı şablonları taşınabilir; hazır şablonlar yalnızca dışa aktarımda
+// referans olarak yazılır, içe aktarımda yeniden üretilmez (id çakışması yok).
+// Kurallar TemplateTransfer'de saf fonksiyonlar hâlinde tutulur (test edilebilir).
+ipcHandle('export-templates', async () => {
+    const payload = TemplateTransfer.collectExportable(storageService.getTemplates());
+    if (!payload) {
+        return { success: false, code: 'NO_CUSTOM_TEMPLATES', message: t('errorNoCustomTemplates') };
+    }
+    const target = await dialog.showSaveDialog(mainWindow || undefined, {
+        title: t('templatesExportDialog'),
+        defaultPath: 'powerpilot-templates.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (target.canceled || !target.filePath) return { success: false, code: 'CANCELLED' };
+    try {
+        await fs.promises.writeFile(target.filePath, JSON.stringify(payload, null, 2), 'utf8');
+        auditLog?.append?.({ actor: 'user', action: 'template_export', target: 'templates', detail: String(payload.templates.length) });
+        return { success: true, count: payload.templates.length, filePath: target.filePath };
+    } catch (err) {
+        log.warn(`[IPC] export-templates yazılamadı: ${err.message}`);
+        return { success: false, code: 'IO_ERROR', message: t('errorTemplateExport') };
+    }
+});
+ipcHandle('import-templates', async () => {
+    const selection = await dialog.showOpenDialog(mainWindow || undefined, {
+        title: t('templatesImportDialog'),
+        properties: ['openFile'],
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (selection.canceled || !selection.filePaths || selection.filePaths.length === 0) {
+        return { success: false, code: 'CANCELLED' };
+    }
+    let raw;
+    try {
+        raw = await fs.promises.readFile(selection.filePaths[0], 'utf8');
+    } catch (err) {
+        log.warn(`[IPC] import-templates okunamadı: ${err.message}`);
+        return { success: false, code: 'IO_READ_ERROR', message: t('errorTemplateImport') };
+    }
+    const parsed = TemplateTransfer.parseImportPayload(raw);
+    if (!parsed.ok) {
+        log.warn(`[IPC] import-templates geçersiz: ${parsed.code}`);
+        const message = parsed.code === 'FILE_TOO_LARGE' ? t('errorTemplateTooLarge') : t('errorTemplateImport');
+        return { success: false, code: parsed.code, message };
+    }
+    const merged = TemplateTransfer.mergeImportedTemplates(parsed.templates, storageService.getTemplates());
+    if (merged.added.length === 0) {
+        return {
+            success: false,
+            code: 'NO_VALID_TEMPLATES',
+            rejected: merged.rejected,
+            message: t('errorTemplateImport')
+        };
+    }
+    storageService.saveTemplates(merged.templates);
+    auditLog?.append?.({ actor: 'user', action: 'template_import', target: 'templates', detail: String(merged.added.length) });
+    return { success: true, count: merged.added.length, rejected: merged.rejected };
 });
 
 // WBS-7.4: AI IPC — durum (RAM kapısı dahil) + komut ayrıştırma.
@@ -1500,7 +1912,7 @@ ipcHandle('get-settings', () => toRendererSettings(storageService.getSettings())
 // WP-14.T2: renderer yalnızca aktif dil sözlüğünü alır.
 ipcHandle('get-locale', (_event, language) => {
     try {
-        const lang = normalizeLanguage(typeof language === 'string' ? language.slice(0, 16) : 'tr');
+        const lang = normalizeLanguage(typeof language === 'string' ? language.slice(0, 16) : '');
         return { ok: true, lang, rtl: lang === 'ar', dictionary: loadLocale(lang) };
     } catch (err) {
         log.warn('[IPC] locale yüklenemedi:', err && err.message);
@@ -1677,6 +2089,9 @@ ipcHandle('save-settings-atomic', async (event, payload) => {
         }
     }
     if (Object.keys(securityPatch).length > 0) {
+        if (!distribution.isFeatureEnabled('lanApi') && securityPatch.lanModeEnabled === true) {
+            return { success: false, code: 'STORE_LAN_UNAVAILABLE', message: t('storeLanUnavailable') };
+        }
         const check = validateSecuritySettings(securityPatch, current);
         if (!check.ok) {
             log.warn(`[IPC] save-settings-atomic reddedildi: ${check.error}`);
@@ -1700,6 +2115,9 @@ ipcHandle('security-settings-update', async (event, payload) => {
     if (unknown.length > 0) {
         log.warn(`[IPC] security-settings-update bilinmeyen alan: ${unknown.join(',')}`);
         return { success: false, code: 'UNKNOWN_SETTING', message: t('errorInvalidRequest') };
+    }
+    if (!distribution.isFeatureEnabled('lanApi') && patch.lanModeEnabled === true) {
+        return { success: false, code: 'STORE_LAN_UNAVAILABLE', message: t('storeLanUnavailable') };
     }
     const check = validateSecuritySettings(patch, current);
     if (!check.ok) {
@@ -1763,6 +2181,19 @@ ipcHandle('get-security-status', () => {
         powerRequestCheck: { available: cap.available, code: cap.code, checkedAt: cap.checkedAt }
     };
 });
+/**
+ * Depo durumu — bakım modu görünür olmalı.
+ * Aksi halde DB açılamadığında her kayıt sessizce reddedilirken arayüz
+ * normal görünür ve kullanıcı görevlerinin kaydedildiğini sanır.
+ */
+ipcHandle('get-storage-status', () => ({
+    maintenanceMode: storageService.isMaintenanceMode(),
+    auditTampered: !!storageService.auditTampered,
+    reason: storageService.getMaintenanceReason(),
+    // Bozuk veri karantinaya alınıp temiz depoyla devam edildiyse dolu.
+    // Sessiz sıfırlama kabul edilemez: kullanıcı ne olduğunu görmeli.
+    recoveredFrom: storageService.recoveredFrom || null
+}));
 ipcHandle('get-audit', (event, args = {}) => {
     // O-06: UI yalnızca görünen sayfayı ister; doğrulama ayrı çağrıyla yapılır.
     const limit = Math.min(500, Math.max(1, Number(args && args.limit) || 100));
@@ -1772,6 +2203,9 @@ ipcHandle('get-audit', (event, args = {}) => {
     return out;
 });
 ipcHandle('console-sync', async () => {
+    if (!distribution.isFeatureEnabled('consoleAgent') || !consoleClient) {
+        return { ok: false, code: 'STORE_FEATURE_UNAVAILABLE', message: t('storeEnterpriseOnly') };
+    }
     if (!consoleClient.isConfigured()) {
         return { ok: false, code: 'NOT_CONFIGURED', message: t('errorConsoleNotConfigured') };
     }
@@ -1859,8 +2293,142 @@ ipcOn('setting-autostart', (event, enable) => {
         log.warn('[IPC] setting-autostart reddedildi: boolean bekleniyor.');
         return;
     }
-    app.setLoginItemSettings({ openAtLogin: enable, path: app.getPath('exe') });
+    if (distribution.isFeatureEnabled('startupViaWindowsSettings')) {
+        // MSIX: Run anahtarı yazılamaz; kullanıcı Windows Başlangıç ayarlarından yönetir.
+        shell.openExternal('ms-settings:startupapps').catch(() => { });
+        return;
+    }
+    const exePath = Portable.portableExePath(process.env, fs.existsSync) || app.getPath('exe');
+    app.setLoginItemSettings({ openAtLogin: enable, path: exePath });
 });
+
+ipcHandle('open-startup-settings', () => {
+    shell.openExternal('ms-settings:startupapps').catch(() => { });
+    return { ok: true };
+});
+
+/**
+ * PIN kurtarma: veri klasörünü aç.
+ *
+ * PIN unutulduğunda uygulama içi sıfırlama yolu YOKTUR (plan D15: arka kapı
+ * yasak). Kurtarma = kullanıcı Power Pilot'u kapatıp profil klasörünü siler.
+ * Yolu sabit metin olarak vermek MSIX'te yanıltıcı olur (paket verisi
+ * sanallaştırılır), bu yüzden platforma doğru klasörü kendimiz açıyoruz.
+ * Güvenlik: istemciden yol alınmaz; yalnızca app.getPath('userData') açılır.
+ */
+ipcHandle('open-data-folder', async () => {
+    try {
+        const dir = app.getPath('userData');
+        const err = await shell.openPath(dir);
+        if (err) {
+            log.warn(`[DataFolder] açılamadı: ${err}`);
+            return { success: false, code: 'OPEN_FAILED', message: t('errorInvalidRequest') };
+        }
+        return { success: true, path: dir };
+    } catch (err) {
+        log.warn('[DataFolder] beklenmeyen hata:', err && err.message);
+        return { success: false, code: 'OPEN_FAILED', message: t('errorInvalidRequest') };
+    }
+});
+
+/**
+ * Store politikası 10.2.7 — "verilerimi sil".
+ * Tüm yerel kullanıcı verisini (görevler, ayarlar, geçmiş, anahtarlar,
+ * yedekler, modeller, loglar) kalıcı olarak siler ve uygulamayı kapatır.
+ * Güvenlik: PIN varsa zorunlu; onay metni istemciden gelse de sunucu
+ * `confirm: true` olmadan asla silmez.
+ */
+ipcHandle('delete-all-data', async (event, args) => {
+    const payload = args && typeof args === 'object' ? args : {};
+    if (payload.confirm !== true) {
+        return { success: false, code: 'CONFIRM_REQUIRED', message: t('errorInvalidRequest') };
+    }
+    if (storageService.getSettings().cancelPinHash) {
+        const pinCheck = await requireCancelPin(payload.pin);
+        if (pinCheck) return pinCheck;
+    }
+    try {
+        isQuitting = true;
+        // Chromium kendi dosyalarını (Local Storage, GPUCache, Network, …) açık
+        // tutar ve silinen klasörleri anında yeniden oluşturur; bu yüzden
+        // silme EBUSY/ENOENT ile yarıda kalabiliyordu (ölçüldü: WIPE_PARTIAL,
+        // 20 kalıntı). Pencere yok EDİLMEZ (window-all-closed uygulamayı
+        // kapatır ve silme yarıda kalır); oturum verisi bırakılır, silinemeyen
+        // girdiler bir sonraki açılışta tamamlanmak üzere işaretlenir.
+        try {
+            if (session && session.defaultSession) {
+                // Sınırlı bekleme: Chromium yanıt vermezse silme yine de
+                // sürsün (kilitli girdiler zaten işaretlenip sonraki açılışta
+                // tamamlanıyor). Aksi hâlde kullanıcı "siliyorum" ekranında
+                // dakikalarca bekliyordu.
+                const withTimeout = (p, ms) => Promise.race([
+                    p.catch(() => { }),
+                    new Promise((resolve) => timers.setTimeout(resolve, ms))
+                ]);
+                await withTimeout(session.defaultSession.clearStorageData(), 4000);
+                await withTimeout(session.defaultSession.clearCache(), 4000);
+            }
+        } catch (err) {
+            log.warn('[DataWipe] oturum verisi bırakılamadı:', err && err.message);
+        }
+        // Windows Görev Zamanlayıcı kayıtları veri klasörünün dışındadır; wipe
+        // onları silmez. Silinmiş görevlerin kayıtları kalırsa tetikleme
+        // saatinde Windows uygulamayı yeniden açar ("verilerimi sildim ama
+        // uygulama kendi kendine açıldı"). Veri silinmeden ÖNCE temizlenir.
+        if (taskManager && taskManager.schedulerBridge
+            && typeof taskManager.schedulerBridge.removeAllTasks === 'function') {
+            try {
+                const cleaned = await taskManager.schedulerBridge.removeAllTasks();
+                if (cleaned && cleaned.failed > 0) {
+                    log.warn(`[DataWipe] ${cleaned.failed} zamanlayıcı kaydı silinemedi.`);
+                }
+            } catch (err) {
+                log.warn('[DataWipe] zamanlayıcı temizliği atlandı:', err && err.message);
+            }
+        }
+        const result = DataWipe.performWipe(app.getPath('userData'), {
+            // Kökteki her girdi hedeflenir (Chromium klasörleri sürümle değişir).
+            readdir: (dir) => require('fs').readdirSync(dir),
+            onBefore: () => {
+                try {
+                    if (taskManager && taskManager.loopInterval) clearInterval(taskManager.loopInterval);
+                    taskManager.loopInterval = null;
+                } catch (_) { /* döngü zaten kapalı */ }
+                try { storageService.close(); } catch (_) { /* db kapalı */ }
+            }
+        });
+        if (!result.ok) {
+            // Temel kullanıcı verisi silinemedi (gerçek hata): sonraki açılışta
+            // yeniden denenir. Chromium önbellek klasörleri buraya düşmez.
+            const marker = pendingWipeMarkerPath();
+            const queued = DataWipe.writePendingWipe(marker, {
+                root: result.root,
+                paths: result.failed.map((f) => f.path)
+            });
+            log.warn(`[DataWipe] ${result.failed.length} temel girdi kilitli`
+                + ` (${result.failed.map(f => f.error).join(',')});`
+                + ` sonraki açılışta silinecek: ${queued}`);
+            if (!queued) {
+                return { success: false, code: 'WIPE_PARTIAL', message: t('errorSaveFailed') };
+            }
+        }
+        if (result.optionalFailed && result.optionalFailed.length > 0) {
+            // Chromium çalışma klasörleri; içerikleri clearStorageData ile
+            // boşaltıldı, klasörler yeniden oluşturulur. Hata değildir.
+            log.info(`[DataWipe] ${result.optionalFailed.length} önbellek klasörü kilitliydi (zararsız).`);
+        }
+        log.info(`[DataWipe] kullanıcı verisi silindi (${result.removed.length} girdi).`);
+        // Silme tamamlandıktan sonra uygulamayı kapat: açık DB/log tutamağı
+        // kalmasın, yeniden açılışta temiz ilk kurulum deneyimi olsun.
+        setImmediate(() => app.quit());
+        return { success: true, removed: result.removed.length };
+    } catch (err) {
+        log.error('[DataWipe] başarısız:', err && err.message);
+        return { success: false, code: (err && err.code) || 'WIPE_FAILED', message: t('errorSaveFailed') };
+    }
+});
+
+ipcHandle('get-distribution', () => distribution.publicInfo());
 
 ipcOn('open-external-link', (event, url) => {
     // WP-10.T6: yalnızca allowlist'teki https host'lar dış tarayıcıda açılır.

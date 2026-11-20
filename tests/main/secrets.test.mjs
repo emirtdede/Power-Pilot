@@ -230,6 +230,39 @@ describe('SecretStore (WP-04)', () => {
         expect(onDisk.entries.consoleAgentKey.cipher).not.toBe(cipher);
     });
 
+    it('T-SEC-07b: Electron 43 decryptStringAsync { result, shouldReEncrypt } nesnesi doğru çözülür', async () => {
+        const dir = freshDir();
+        let reEncryptFlag = false;
+        const e43Backend = {
+            isAsyncEncryptionAvailable: async () => true,
+            encryptStringAsync: async (plain) => {
+                const nonce = crypto.randomBytes(8).toString('hex');
+                return Buffer.from(`enc:${nonce}:${Buffer.from(plain, 'utf8').toString('base64')}`, 'utf8');
+            },
+            decryptStringAsync: async (buf) => {
+                const parts = Buffer.from(buf).toString('utf8').split(':');
+                return {
+                    result: Buffer.from(parts[2], 'base64').toString('utf8'),
+                    shouldReEncrypt: reEncryptFlag
+                };
+            }
+        };
+        const store = newStore(dir, e43Backend);
+        const keyHex = 'a1b2c3d4'.repeat(8);
+        await store.setSecret('auditHmacKey', keyHex);
+        const initialCipher = store.data.entries.auditHmacKey.cipher;
+
+        // shouldReEncrypt: false -> değer düz metin olarak çözülür, yeniden şifreleme yapılmaz.
+        await expect(store.getSecret('auditHmacKey')).resolves.toBe(keyHex);
+        expect(store.data.entries.auditHmacKey.cipher).toBe(initialCipher);
+
+        // shouldReEncrypt: true -> değer çözülür ve yeni cipher atomik yazılır.
+        reEncryptFlag = true;
+        await expect(store.getSecret('auditHmacKey')).resolves.toBe(keyHex);
+        const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'secrets.v1.json'), 'utf8'));
+        expect(onDisk.entries.auditHmacKey.cipher).not.toBe(initialCipher);
+    });
+
     it('T-SEC-08: headless ajan safeStorage ile migrasyon yapar, düz metin bırakmaz', async () => {
         const dir = freshDir();
         // Düz metin sırlı başlangıç DB'si üret (eski sürüm davranışı).

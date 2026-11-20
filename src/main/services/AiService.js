@@ -34,14 +34,16 @@ const PARSE_SCHEMA = {
         condition: {
             type: 'object',
             properties: {
-                type: { enum: ['process_running', 'cpu_usage', 'user_idle', 'file_stable', 'network_speed', 'disk_activity', 'battery_level'] },
+                type: { enum: ['process_running', 'cpu_usage', 'user_idle', 'file_stable', 'directory_idle', 'network_speed', 'disk_activity', 'battery_level'] },
                 processName: { type: 'string' },
                 triggerOnClose: { type: 'boolean' },
                 thresholdKbps: { type: 'integer' },
                 thresholdPercent: { type: 'integer' },
                 belowPercent: { type: 'integer' },
+                abovePercent: { type: 'integer' },
                 idleSeconds: { type: 'integer' },
                 filePath: { type: 'string' },
+                dirPath: { type: 'string' },
                 stableSeconds: { type: 'integer' }
             },
             required: ['type'],

@@ -4,6 +4,7 @@
  * Gerçek schtasks ASLA çalışmaz (sahte exec enjeksiyonu).
  */
 import { describe, it, expect, vi } from 'vitest';
+import fs from 'node:fs';
 import TaskSchedulerBridge from '../../src/main/services/TaskSchedulerBridge.js';
 import TaskManager from '../../src/main/services/TaskManager.js';
 import SmartFinishEngine from '../../src/main/services/SmartFinishEngine.js';
@@ -36,6 +37,49 @@ function timedTask(overrides = {}) {
     }, overrides);
 }
 
+describe('removeAllTasks — sahipsiz kayıt temizliği (P1)', () => {
+    it('yalnızca \\PowerPilot klasöründeki görevleri siler, başkalarına dokunmaz', async () => {
+        const calls = [];
+        const queryOutput = [
+            '"\\PowerPilot\\task_aaa","19.11.2026 09:00:00","Ready"',
+            '"\\PowerPilot\\task_bbb","19.11.2026 09:05:00","Ready"',
+            '"\\Microsoft\\Windows\\Defrag\\ScheduledDefrag","N/A","Ready"',
+            '"" ,"N/A","Ready"'
+        ].join('\r\n');
+        const bridge = new TaskSchedulerBridge({
+            exePath: 'C:\\App\\Power Pilot.exe',
+            isStoreApp: false,
+            execFileFn: vi.fn((file, args, options, cb) => {
+                calls.push(args);
+                if (args[0] === '/query') cb(null, queryOutput, '');
+                else cb(null, 'SUCCESS', '');
+            })
+        });
+        const result = await bridge.removeAllTasks();
+        expect(result).toEqual({ removed: 2, failed: 0 });
+        const deletes = calls.filter((a) => a[0] === '/delete');
+        expect(deletes).toHaveLength(2);
+        expect(deletes.map((a) => a[2])).toEqual(['\\PowerPilot\\task_aaa', '\\PowerPilot\\task_bbb']);
+    });
+
+    it('Store sürümünde schtasks hiç çağrılmaz', async () => {
+        const calls = [];
+        const bridge = bridgeWith(calls, { isStoreApp: true });
+        expect(await bridge.removeAllTasks()).toEqual({ removed: 0, failed: 0 });
+        expect(calls).toHaveLength(0);
+    });
+
+    it('sorgu başarısızsa sessizce boş döner (uygulama hattı durmaz)', async () => {
+        const calls = [];
+        const bridge = new TaskSchedulerBridge({
+            exePath: 'C:\\App\\Power Pilot.exe',
+            isStoreApp: false,
+            execFileFn: fakeExecFileImpl(calls, { fail: true })
+        });
+        expect(await bridge.removeAllTasks()).toEqual({ removed: 0, failed: 0 });
+    });
+});
+
 describe('TaskSchedulerBridge statik yardımcılar', () => {
     it('parseRunTaskArgv bayrağı çözer', () => {
         expect(TaskSchedulerBridge.parseRunTaskArgv(['app.exe', '--run-task=task_1'])).toBe('task_1');
@@ -48,11 +92,16 @@ describe('TaskSchedulerBridge statik yardımcılar', () => {
         expect(TaskSchedulerBridge.taskName('task_1')).toBe('PowerPilot\\task_1');
     });
 
-    it('formatTriggerDate yerel MM/DD/YYYY + HH:mm üretir', () => {
+    it('formatTriggerDate yerel ISO 8601 + HH:mm üretir (yerel ayardan bağımsız)', () => {
         const target = new Date(2026, 5, 9, 8, 5).getTime(); // 9 Haz 2026 08:05 yerel
-        const { date, time } = TaskSchedulerBridge.formatTriggerDate(target);
-        expect(date).toBe('06/09/2026');
+        const { iso, time } = TaskSchedulerBridge.formatTriggerDate(target);
+        expect(iso).toBe('2026-06-09T08:05:00');
         expect(time).toBe('08:05');
+    });
+
+    it('formatTriggerDate saniyeleri bir sonraki dakikaya yuvarlar (O-13)', () => {
+        const target = new Date(2026, 5, 9, 8, 5, 30).getTime();
+        expect(TaskSchedulerBridge.formatTriggerDate(target).iso).toBe('2026-06-09T08:06:00');
     });
 });
 
@@ -67,14 +116,19 @@ describe('TaskSchedulerBridge kayıt/silme', () => {
         expect(file).toBe('schtasks.exe');
         expect(Array.isArray(args)).toBe(true);
         expect(args.slice(0, 3)).toEqual(['/create', '/tn', 'PowerPilot\\task_abc123']);
-        expect(args.slice(3, 5)).toEqual(['/tr', '"C:\\App\\Power Pilot.exe" --run-task=task_abc123']);
-        expect(args.slice(5, 7)).toEqual(['/sc', 'ONCE']);
+        expect(args[3]).toBe('/xml');
+        expect(String(args[4])).toMatch(/pp-task-task_abc123-.*\.xml$/);
         expect(args).toContain('/f');
-        expect(args[args.indexOf('/rl') + 1]).toBe('LIMITED');
         expect(options.windowsHide).toBe(true);
         expect(options.shell).toBeUndefined();
         expect(typeof options.timeout).toBe('number');
         expect(options.timeout).toBeGreaterThan(0);
+        // Yerel ayara bağımlı /sd, /st, /tr, /sc, /rl bayrakları artık yok.
+        expect(args).not.toContain('/sd');
+        expect(args).not.toContain('/st');
+        expect(args).not.toContain('/tr');
+        // Geçici tanım dosyası iş bitince silinir.
+        expect(fs.existsSync(args[4])).toBe(false);
     });
 
     it('Store uygulamasında kayıt yapılmaz', async () => {
@@ -137,15 +191,42 @@ describe('WP-05 güvenlik kabul testleri (T-SCH-01..04)', () => {
     it('T-SCH-02 geçerli görev args dizisini birebir üretir', () => {
         const bridge = bridgeWith([]);
         const target = new Date(2026, 5, 9, 8, 5).getTime();
-        const args = bridge.buildCreateArgs(timedTask({ trigger: { type: 'duration', targetTime: target } }));
+        const args = bridge.buildCreateArgs(
+            timedTask({ trigger: { type: 'duration', targetTime: target } }),
+            'C:\\Temp\\pp-task.xml'
+        );
         expect(args).toEqual([
             '/create', '/tn', 'PowerPilot\\task_abc123',
-            '/tr', '"C:\\App\\Power Pilot.exe" --run-task=task_abc123',
-            '/sc', 'ONCE', '/sd', '06/09/2026', '/st', '08:05',
-            '/rl', 'LIMITED', '/f'
+            '/xml', 'C:\\Temp\\pp-task.xml',
+            '/f'
         ]);
         // Kabuk yorumlanabilecek tek birleşik komut string'i yoktur.
         expect(args.every(a => typeof a === 'string')).toBe(true);
+    });
+
+    it('buildXml yerel ayardan bağımsız ISO 8601 + pil/uyku politikası içerir', () => {
+        const bridge = bridgeWith([]);
+        const target = new Date(2026, 5, 9, 8, 5).getTime();
+        const xml = TaskSchedulerBridge.buildXml(
+            timedTask({ trigger: { type: 'duration', targetTime: target } }),
+            'C:\\Program Files\\Power Pilot\\Power Pilot.exe'
+        );
+        expect(xml).toContain('<StartBoundary>2026-06-09T08:05:00</StartBoundary>');
+        expect(xml).not.toMatch(/\d{2}\/\d{2}\/\d{4}/); // eski yerel tarih biçimi yok
+        expect(xml).toContain('<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>');
+        expect(xml).toContain('<StartWhenAvailable>true</StartWhenAvailable>');
+        expect(xml).toContain('--run-task=task_abc123');
+        expect(xml).toContain('C:\\Program Files\\Power Pilot\\Power Pilot.exe');
+    });
+
+    it('buildXml XML özel karakterlerini kaçırır', () => {
+        const bridge = new TaskSchedulerBridge({
+            execFileFn: fakeExecFileImpl([]),
+            exePath: 'C:\\A & B\\<app>.exe',
+            isStoreApp: false
+        });
+        const xml = TaskSchedulerBridge.buildXml(timedTask(), bridge.exePath);
+        expect(xml).toContain('C:\\A &amp; B\\&lt;app&gt;.exe');
     });
 
     it('T-SCH-03 65 karakter, boşluk ve Unicode kimlikler reddedilir', async () => {

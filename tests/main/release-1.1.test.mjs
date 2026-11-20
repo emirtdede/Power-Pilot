@@ -106,9 +106,11 @@ describe('WP-15.T4 — yük/soak testi', () => {
 });
 
 describe('WP-15.T7/T8 — sürüm, SBOM, yayın manifesti', () => {
-    it('sürüm 1.1.0 ve changelog güncel', () => {
-        expect(pkg.version).toBe('1.1.0');
+    it('sürüm 1.0.0 ve changelog güncel', () => {
+        expect(pkg.version).toBe('1.0.0');
         const changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
+        expect(changelog).toContain('## [1.0.0]');
+        expect(changelog).toContain('## [1.3.1]');
         expect(changelog).toContain('## [1.1.0]');
         expect(changelog).toMatch(/SBOM/);
     });

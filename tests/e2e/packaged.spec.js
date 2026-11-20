@@ -143,7 +143,7 @@ test.describe('paketlenmiş uygulama (WP-15.T3)', () => {
             expect(state.title).toMatch(/Power Pilot/i);
             expect(state.locale).toBe('function');
             expect(state.security).toBe('function');
-            expect(state.version.trim()).toMatch(/^v1\.1\.0$/);
+            expect(state.version.trim()).toMatch(/^v1\.0\.0$/);
 
             const locale = await cdp.evaluate("window.electronAPI.getLocale('tr')");
             expect(locale && locale.ok).toBe(true);

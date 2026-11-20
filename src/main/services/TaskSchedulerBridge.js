@@ -18,6 +18,9 @@
 
 const { execFile } = require('child_process');
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const log = require('../logger');
 const { FLAGS } = require('../config/flags');
 
@@ -44,12 +47,14 @@ class TaskSchedulerBridge {
      * @param {string} [opts.exePath]
      * @param {boolean} [opts.isStoreApp]
      * @param {Function} [opts.nowFn]
+     * @param {string} [opts.tempDir] XML tanım dosyaları için dizin (varsayılan os.tmpdir())
      */
-    constructor({ execFileFn = null, exePath = '', isStoreApp = false, nowFn = null } = {}) {
+    constructor({ execFileFn = null, exePath = '', isStoreApp = false, nowFn = null, tempDir = '' } = {}) {
         this.execFileFn = execFileFn || execFile;
         this.exePath = exePath;
         this.isStoreApp = isStoreApp === true;
         this.nowFn = nowFn || (() => Date.now());
+        this.tempDir = tempDir;
     }
 
     /** ADR-08: istemci kimliği kabul edilmez; sunucu üretir. */
@@ -70,7 +75,16 @@ class TaskSchedulerBridge {
         return `${TASK_NAME_PREFIX}\\${TaskSchedulerBridge.sanitizeTaskId(taskId)}`;
     }
 
-    // schtasks /sd MM/DD/YYYY + /st HH:mm (yerel saat) biçimine çevirir.
+    /**
+     * Tetikleyici zamanını yerel saatle ISO 8601'e çevirir.
+     *
+     * P0 REGRESYON: eskiden `schtasks /sd MM/DD/YYYY` kullanılıyordu. `schtasks`,
+     * `/sd` tarihini **sistem yereline** göre ayrıştırır; tr-TR gibi
+     * gün.ay.yıl kullanan sistemlerde "11/17/2026" reddediliyor ve yedek görev
+     * hiç oluşturulmuyordu ("ERROR: Incorrect Start Date"). Yani Türkçe
+     * kullanıcıda uygulama kapalıyken görev çalışmıyordu. Artık görev
+     * tanımı XML ile (ISO 8601, yerelden bağımsız) verilir.
+     */
     static formatTriggerDate(targetTime) {
         const d = new Date(targetTime);
         // O-13: schtasks saniye taşımaz. Erken tetikleme yerine bir sonraki
@@ -80,9 +94,61 @@ class TaskSchedulerBridge {
         }
         const pad = (n) => String(n).padStart(2, '0');
         return {
-            date: `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`,
+            iso: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+                + `T${pad(d.getHours())}:${pad(d.getMinutes())}:00`,
             time: `${pad(d.getHours())}:${pad(d.getMinutes())}`
         };
+    }
+
+    static xmlEscape(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+    }
+
+    /**
+     * Windows Görev Zamanlayıcı XML tanımı.
+     * - StartBoundary: yerel saat, ISO 8601 → yerel ayardan bağımsız.
+     * - DisallowStartIfOnBatteries=false: dizüstü pille çalışırken de tetiklenir
+     *   (aksi halde yedek görev sessizce atlanıyordu).
+     * - StartWhenAvailable=true: makine uykuda/kapalıydıysa açılınca çalışır.
+     * - MultipleInstancesPolicy=IgnoreNew: çift tetikleme güvenli.
+     * @returns {string} XML
+     */
+    static buildXml(task, exePath) {
+        if (!task || !TaskSchedulerBridge.isValidTaskId(task.id)) {
+            const err = new Error('Geçersiz görev kimliği.');
+            err.code = 'INVALID_TASK_ID';
+            throw err;
+        }
+        const { iso } = TaskSchedulerBridge.formatTriggerDate(task.trigger.targetTime);
+        const command = TaskSchedulerBridge.xmlEscape(exePath);
+        const args = TaskSchedulerBridge.xmlEscape(`--run-task=${task.id}`);
+        return '<?xml version="1.0" encoding="UTF-16"?>\n'
+            + '<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">\n'
+            + '  <RegistrationInfo><Description>Power Pilot - uygulama kapaliyken yedek tetikleyici</Description></RegistrationInfo>\n'
+            + '  <Triggers>\n'
+            + `    <TimeTrigger><StartBoundary>${iso}</StartBoundary><Enabled>true</Enabled></TimeTrigger>\n`
+            + '  </Triggers>\n'
+            + '  <Principals>\n'
+            + '    <Principal id="Author"><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal>\n'
+            + '  </Principals>\n'
+            + '  <Settings>\n'
+            + '    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\n'
+            + '    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\n'
+            + '    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\n'
+            + '    <StartWhenAvailable>true</StartWhenAvailable>\n'
+            + '    <WakeToRun>false</WakeToRun>\n'
+            + '    <Enabled>true</Enabled>\n'
+            + '    <ExecutionTimeLimit>PT2H</ExecutionTimeLimit>\n'
+            + '  </Settings>\n'
+            + '  <Actions Context="Author">\n'
+            + `    <Exec><Command>${command}</Command><Arguments>${args}</Arguments></Exec>\n`
+            + '  </Actions>\n'
+            + '</Task>\n';
     }
 
     // process.argv içinden --run-task=<id> bayrağını çözer.
@@ -133,26 +199,41 @@ class TaskSchedulerBridge {
         return true;
     }
 
-    /** ADR-08: argüman dizisi — kabuk yorumlaması yok. */
-    buildCreateArgs(task) {
+    /**
+     * ADR-08: argüman dizisi — kabuk yorumlaması yok.
+     * Görev tanımı XML dosyasından verilir; `/sd` tarih biçimi (yerel ayara
+     * bağımlı) artık kullanılmıyor.
+     */
+    buildCreateArgs(task, xmlPath) {
         if (!task || !TaskSchedulerBridge.isValidTaskId(task.id)) {
             const err = new Error('Geçersiz görev kimliği.');
             err.code = 'INVALID_TASK_ID';
             throw err;
         }
-        const name = TaskSchedulerBridge.taskName(task.id);
-        const { date, time } = TaskSchedulerBridge.formatTriggerDate(task.trigger.targetTime);
-        const runArg = `"${String(this.exePath).replace(/"/g, '')}" --run-task=${task.id}`;
+        if (typeof xmlPath !== 'string' || xmlPath.length === 0) {
+            const err = new Error('Görev tanımı dosyası yok.');
+            err.code = 'INVALID_XML_PATH';
+            throw err;
+        }
         return [
             '/create',
-            '/tn', name,
-            '/tr', runArg,
-            '/sc', 'ONCE',
-            '/sd', date,
-            '/st', time,
-            '/rl', 'LIMITED',
+            '/tn', TaskSchedulerBridge.taskName(task.id),
+            '/xml', xmlPath,
             '/f'
         ];
+    }
+
+    /**
+     * XML tanımını geçici dosyaya yazar (UTF-16LE + BOM; schtasks beklediği
+     * biçim). Çağıran taraf işi bitince silmelidir.
+     * @returns {string} dosya yolu
+     */
+    writeTaskXml(task) {
+        const xml = TaskSchedulerBridge.buildXml(task, this.exePath);
+        const dir = this.tempDir || os.tmpdir();
+        const file = path.join(dir, `pp-task-${TaskSchedulerBridge.sanitizeTaskId(task.id)}-${process.pid}.xml`);
+        fs.writeFileSync(file, Buffer.from('\uFEFF' + xml, 'utf16le'));
+        return file;
     }
 
     buildDeleteArgs(taskId) {
@@ -205,14 +286,22 @@ class TaskSchedulerBridge {
 
     async syncTask(task) {
         let args;
+        let xmlFile = null;
         try {
             if (!this.shouldSync(task)) return false;
-            args = this.buildCreateArgs(task);
+            xmlFile = this.writeTaskXml(task);
+            args = this.buildCreateArgs(task, xmlFile);
         } catch (err) {
+            if (xmlFile) {
+                try { fs.unlinkSync(xmlFile); } catch (_) { /* geçici dosya */ }
+            }
             log.warn(`[SchedulerBridge] görev yazılmadı: ${err.code || err.message}`);
             return false;
         }
         const result = await this.execSchtasks(args);
+        if (xmlFile) {
+            try { fs.unlinkSync(xmlFile); } catch (_) { /* geçici dosya */ }
+        }
         if (result.success) {
             log.info(`[SchedulerBridge] yedek kaydedildi: ${task.id}`);
         }
@@ -229,6 +318,48 @@ class TaskSchedulerBridge {
         }
         const result = await this.execSchtasks(args);
         return result.success;
+    }
+
+    /**
+     * `\PowerPilot` klasöründeki TÜM görevleri siler.
+     *
+     * Neden gerekli: Windows Görev Zamanlayıcı kayıtları uygulamanın veri
+     * klasöründen bağımsızdır. Kullanıcı "tüm verileri sil" derse ya da bozuk
+     * DB karantinaya alınıp temiz depoyla başlanırsa, veritabanında artık
+     * olmayan görevlerin Windows kayıtları kalır; tetikleme saatinde Windows
+     * uygulamayı `--run-task=<silinmiş id>` ile açar. Kullanıcı için bu,
+     * "verilerimi sildim ama uygulama kendi kendine açıldı" davranışıdır.
+     *
+     * `schtasks /delete /tn \PowerPilot` klasörü **boş değilse** reddeder
+     * (ölçüldü: "ERROR: Dizin boş değil."), bu yüzden görevler tek tek
+     * listelenip silinir.
+     */
+    async removeAllTasks() {
+        if (!this.isSupported()) return { removed: 0, failed: 0 };
+        const list = await this.execSchtasks(['/query', '/fo', 'CSV', '/nh']);
+        if (!list.success) return { removed: 0, failed: 0 };
+        const names = [];
+        // `schtasks /query` görev adlarını kök ters bölü ile döndürür: \PowerPilot\task_x
+        const rootName = `\\${TASK_NAME_PREFIX}`;
+        for (const line of String(list.stdout || '').split(/\r?\n/)) {
+            const match = /^"([^"]*)"/.exec(line.trim());
+            if (!match) continue;
+            const name = match[1];
+            // Yalnızca kendi klasörümüz; kullanıcının başka görevlerine dokunulmaz.
+            if (name !== rootName && !name.startsWith(`${rootName}\\`)) continue;
+            names.push(name);
+        }
+        let removed = 0;
+        let failed = 0;
+        for (const name of names) {
+            const result = await this.execSchtasks(['/delete', '/tn', name, '/f']);
+            if (result.success) removed += 1;
+            else failed += 1;
+        }
+        if (removed > 0 || failed > 0) {
+            log.info(`[SchedulerBridge] toplu temizlik: ${removed} silindi, ${failed} başarısız`);
+        }
+        return { removed, failed };
     }
 }
 

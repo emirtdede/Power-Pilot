@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 import {
     isWindows,
@@ -19,12 +20,21 @@ import {
     secureDirectoryAsync,
     secureFileAsync,
     listAces,
+    accessProblem,
+    repairInheritedAccess,
     encryptFileEfs,
     ensurePrivateDir,
     ensurePrivateFile,
     SYSTEM_SID,
     ADMINS_SID
 } from '../../src/main/security/Acl.js';
+
+// icacls'i System32'den tam yolla çöz (PATH'te ikame olabilir).
+function icacls() {
+    const root = process.env.SystemRoot || process.env.windir || 'C:\\Windows';
+    const full = path.join(root, 'System32', 'icacls.exe');
+    return fs.existsSync(full) ? full : 'icacls.exe';
+}
 
 const isWin = process.platform === 'win32';
 let tmpDir = null;
@@ -142,5 +152,113 @@ describe.skipIf(!isWin)('Acl — Windows üzerinde geçici dizin', () => {
         expect(typeof r.ok).toBe('boolean');
         if (r.ok === false) expect(r.code).toBe('EFS_FAILED');
         try { fs.rmSync(target, { force: true }); } catch (_) { /* yut */ }
+    });
+});
+
+/**
+ * P0 REGRESYON — v1.1.0 ve öncesi `icacls <dizin> ... /T` kullanıyordu.
+ * `/T` + `(OI)(CI)F` kombinasyonu dosyalara hiç ACE yazmadığı için
+ * `powerpilot.db` sahibi tarafından bile açılamıyor, uygulama bakım moduna
+ * düşüyor ve kullanıcının tüm görev/ayarları kayboluyordu.
+ * Bu testler o hatanın geri gelmesini engeller.
+ */
+describe.skipIf(!isWin)('Acl — P0 regresyon: dosya erişimi korunur', () => {
+    let dir = null;
+    const makeDir = () => {
+        const d = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-acl-p0-'));
+        fs.writeFileSync(path.join(d, 'powerpilot.db'), 'SQLite format 3.');
+        return d;
+    };
+
+    beforeAll(() => { dir = makeDir(); });
+    afterAll(() => {
+        if (!dir) return;
+        try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) { /* yut */ }
+    });
+
+    it('secureDirectory sonrası mevcut dosyalar okunabilir/yazılabilir kalır', () => {
+        const dbPath = path.join(dir, 'powerpilot.db');
+        expect(accessProblem(dbPath)).toBeNull();
+        expect(secureDirectory(dir).ok).toBe(true);
+        // Sahip dosyayı hâlâ açabilmeli (fs.accessSync yanıltıcı, gerçek açma).
+        expect(accessProblem(dbPath)).toBeNull();
+        expect(fs.readFileSync(dbPath, 'utf8')).toBe('SQLite format 3.');
+    });
+
+    it('secureDirectory sonrası sonradan oluşturulan dosya kalıtımla erişilebilir', () => {
+        expect(secureDirectory(dir).ok).toBe(true);
+        const fresh = path.join(dir, 'secrets.v1.json');
+        fs.writeFileSync(fresh, '{"v":1}');
+        expect(accessProblem(fresh)).toBeNull();
+        expect(fs.readFileSync(fresh, 'utf8')).toBe('{"v":1}');
+    });
+
+    it('dizin sıkılaştırması icacls çağrısında /T KULLANMAZ', () => {
+        // aclArgs dışa açık değil; davranışı icacls çıktısından doğrula:
+        // /T + (OI)(CI) dosyalarda ACE bırakmaz, dosya okunamaz olurdu.
+        expect(secureDirectory(dir).ok).toBe(true);
+        const aces = listAces(dir);
+        expect(aces.ok).toBe(true);
+        expect(aces.output).toContain('(OI)(CI)');
+        const dbAces = listAces(path.join(dir, 'powerpilot.db'));
+        expect(dbAces.ok).toBe(true);
+        // Dosyada gerçek bir ACE olmalı (yalnızca yol satırı yeterli değil).
+        expect(dbAces.output).toMatch(/:(\([A-Z]+\)|[A-Z])/);
+    });
+
+    it('repairInheritedAccess bozulmuş (/T) dizini onarır, sağlıklıda değişiklik yapmaz', () => {
+        const broken = makeDir();
+        try {
+            const sid = currentUserSid();
+            expect(sid).toBeTruthy();
+            // Eski sürümün hatasını birebir üret.
+            execFileSync(icacls(), [
+                broken, '/inheritance:r',
+                '/grant:r', `*${sid}:(OI)(CI)F`, '/T', '/C', '/Q'
+            ], { stdio: 'ignore', windowsHide: true });
+            const dbPath = path.join(broken, 'powerpilot.db');
+            // Bozulduğunu doğrula: sahibi bile açamıyor.
+            expect(accessProblem(dbPath)).not.toBeNull();
+
+            const fixed = repairInheritedAccess(broken);
+            expect(fixed.repaired).toBe(true);
+            expect(fixed.reason).toBe('REPAIRED');
+            expect(accessProblem(dbPath)).toBeNull();
+            expect(fs.readFileSync(dbPath, 'utf8')).toBe('SQLite format 3.');
+
+            // İdempotent: ikinci çağrı hiçbir şeyi bozmaz.
+            const again = repairInheritedAccess(broken);
+            expect(again).toMatchObject({ repaired: false, reason: 'HEALTHY' });
+        } finally {
+            try {
+                execFileSync(icacls(), [broken, '/reset', '/T', '/C', '/Q'], { stdio: 'ignore', windowsHide: true });
+            } catch (_) { /* yut */ }
+            try { fs.rmSync(broken, { recursive: true, force: true }); } catch (_) { /* yut */ }
+        }
+    });
+
+    it('accessProblem erişilebilir dosyada null, eksik dosyada ENOENT döner', () => {
+        expect(accessProblem(path.join(dir, 'powerpilot.db'))).toBeNull();
+        expect(accessProblem(path.join(dir, 'yok-' + Date.now() + '.db'))).toBe('ENOENT');
+    });
+
+    it('accessProblem çalışan süreç kilidini (EBUSY) ACL hatası saymaz', () => {
+        const lockedPath = path.join(dir, 'lockfile-test');
+        fs.writeFileSync(lockedPath, 'lock');
+        const origOpen = fs.openSync;
+        fs.openSync = (p, ...rest) => {
+            if (p === lockedPath) {
+                const err = new Error('EBUSY: resource busy or locked');
+                err.code = 'EBUSY';
+                throw err;
+            }
+            return origOpen.call(fs, p, ...rest);
+        };
+        try {
+            expect(accessProblem(lockedPath)).toBeNull();
+        } finally {
+            fs.openSync = origOpen;
+            try { fs.rmSync(lockedPath, { force: true }); } catch (_) { /* yut */ }
+        }
     });
 });

@@ -27,12 +27,8 @@ function hashOf(rec) {
     return crypto.createHash('sha256').update(JSON.stringify(slim), 'utf8').digest('hex');
 }
 
-function stableStringify(value) {
-    if (value === null || typeof value !== 'object') return JSON.stringify(value);
-    if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-    const keys = Object.keys(value).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`;
-}
+// Tek kaynak: src/main/util/stableStringify.js (ConsoleStore + MigrateV2 ortak).
+const { stableStringify } = require('../main/util/stableStringify');
 
 function defaultStore() {
     return {

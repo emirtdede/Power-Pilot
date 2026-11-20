@@ -265,10 +265,14 @@ describe('ConsoleStore — WP-03', () => {
         const dir = freshDir();
         const cs = open({ storePath: path.join(dir, 'console-store.json'), maxOrders: 500, nowFn: () => Date.now() });
         const now = Date.now();
+        // Şifreleme sınaması için uzun, benzersiz bir düz metin işareti.
+        // 3 baytlık 'pc0' rastgele şifreli metinde ~%5 olasılıkla kendiliğinden
+        // bulunur; bu yüzden yanlış alarm veren kısa iğne yerine 64+ bayt kullanılır.
+        const plaintextMarker = `DUZMETIN-${crypto.randomBytes(24).toString('hex')}`;
         for (let a = 0; a < 100; a += 1) {
             const agentId = `a${a}`;
             for (let i = 0; i < 10; i += 1) cs.enqueue(agentId, signedOrder(agentId, `c-${a}-${i}`, now));
-            cs.upsertAgent(agentId, { hostname: `pc${a}` });
+            cs.upsertAgent(agentId, { hostname: a === 0 ? plaintextMarker : `pc${a}` });
         }
         let maxLag = 0;
         let last = Date.now();
@@ -301,7 +305,10 @@ describe('ConsoleStore — WP-03', () => {
         expect(backup.ok).toBe(true);
         expect(backup.quickCheck).toBe('ok');
         const raw = fs.readFileSync(backup.path);
-        expect(raw.includes(Buffer.from('pc0', 'utf8'))).toBe(false);
+        // Şifreli yedek: PPBK1 başlığı taşır, SQLite başlığı ve düz metin içermez.
+        expect(raw.subarray(0, 5).toString('utf8')).toBe('PPBK1');
+        expect(raw.includes(Buffer.from('SQLite format 3\u0000', 'utf8'))).toBe(false);
+        expect(raw.includes(Buffer.from(plaintextMarker, 'utf8'))).toBe(false);
         expect(p95(durations)).toBeLessThan(150);
         expect(maxLag).toBeLessThan(100);
     }, 90000);

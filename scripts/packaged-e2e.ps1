@@ -76,10 +76,26 @@ try {
     npx playwright test tests/e2e/packaged.spec.js --reporter=list
     Assert-ExitCode "packaged.spec.js"
 
+    # Kaldırma temizliği: uygulamanın yazdığı Windows Görev Zamanlayıcı
+    # kayıtları (uygulama kapalıyken çalışsın diye) kaldırma sırasında
+    # silinmeli. Aksi hâlde kullanıcı uygulamayı kaldırdıktan sonra Windows
+    # silinmiş bir exe'yi çalıştırmaya çalışır.
+    Write-Host "[packaged-e2e] Seeding a PowerPilot scheduled task to verify uninstall cleanup..."
+    schtasks /Create /TN "\PowerPilot\task_e2euninstall" /TR "cmd /c exit" /SC ONCE /ST 23:59 /F | Out-Null
+    Assert-ExitCode "seed scheduled task"
     Uninstall-PowerPilot
-    Write-Host "[packaged-e2e] PASS - clean install, upgrade and uninstall verified."
+    $leftover = schtasks /Query /FO CSV /NH | Select-String -Pattern '\PowerPilot\' -SimpleMatch
+    if ($leftover) {
+        Write-Error "[packaged-e2e] Scheduled tasks survived uninstall: $leftover"
+        exit 1
+    }
+    Write-Host "[packaged-e2e] PASS - clean install, upgrade, uninstall and scheduled-task cleanup verified."
     exit 0
 } finally {
+    # Görev kaldırma sırasında zaten silinmiş olabilir; temizlik hatası
+    # PASS sonucunu exit code 1'e düşürmemeli (yerelleştirilmiş "bulunamadı"
+    # mesajı schtasks tarafından stderr'e yazılıyor).
+    try { schtasks /Delete /TN "\PowerPilot\task_e2euninstall" /F 2>$null | Out-Null } catch { }
     if (Test-Path -LiteralPath $UserDataDir) {
         Remove-Item -LiteralPath $UserDataDir -Recurse -Force -ErrorAction SilentlyContinue
     }

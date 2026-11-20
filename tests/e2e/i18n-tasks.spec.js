@@ -25,7 +25,7 @@ test('i18n kapsamı, görev görünümü ve sürüm bilgisi', async () => {
             const el = document.getElementById('app-version');
             return el && el.innerText && el.innerText !== 'v—';
         });
-        expect((await window.locator('#app-version').innerText()).trim()).toBe('v1.1.0');
+        expect((await window.locator('#app-version').innerText()).trim()).toBe('v1.0.0');
 
         const switchTo = async (lang) => {
             // L-01: dil için tek doğruluk kaynağı sunucu ayarlarıdır; localStorage

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power Pilot — Privacy Policy / Gizlilik Politikası</title>
+<meta name="description" content="Power Pilot privacy policy: local-first, no telemetry, no data collection.">
+<!--
+  Bu dosya kasıtlı olarak JavaScript içermez ve tek dosyadır.
+  Neden: vellium.dev bir SPA; /power-pilot/privacy adresi HTTP 200 döndürse de
+  HTML yalnızca "Vellium" kabuğundan ibaret (JS çalışmadan politika metni
+  görünmüyor). Mağaza incelemesinde tıklanan gizlilik URL'sinde politika
+  metninin görünmesi zorunlu. Bu sayfayı herhangi bir statik sunucuya veya
+  sitenin public köküne kopyalayın; içerik JS olmadan okunur.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0 auto; max-width: 60rem; padding: 2rem 1.25rem 4rem;
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 1.9rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; padding-top: 1rem; border-top: 1px solid #8884; }
+  h3 { font-size: 1.08rem; margin: 1.5rem 0 .5rem; }
+  .meta { color: #6b7280; font-size: .92rem; margin-bottom: 1.5rem; }
+  table { border-collapse: collapse; width: 100%; margin: .75rem 0 1rem; font-size: .95rem; }
+  th, td { border: 1px solid #8884; padding: .5rem .6rem; text-align: left; vertical-align: top; }
+  th { background: #8881; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: .92em; }
+  ul { padding-left: 1.4rem; }
+  strong { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>Power Pilot — Privacy Policy</h1>
+<p class="meta">
+  Last updated / Son güncelleme: <strong>2026-11-17</strong> ·
+  Applies to / Geçerli sürüm: <strong>Power Pilot 1.1.0</strong> (Microsoft Store / MSIX),
+  Power Pilot Pro (NSIS) ·
+  Contact / İletişim: <a href="mailto:info@vellium.dev">info@vellium.dev</a>
+</p>
+
+<h2 id="english">English</h2>
+
+<h3>Summary</h3>
+<p>Power Pilot is <strong>local-first</strong>. It does not collect telemetry, usage
+statistics, crash reports, or analytics. Your tasks, settings, history, and voice
+commands stay on your computer unless <strong>you</strong> explicitly export them.</p>
+
+<h3>What we collect</h3>
+<p><strong>Nothing.</strong> Power Pilot does not operate a backend service and does
+not send usage data, diagnostics, or crash reports. There is no account, no
+sign-in, and no advertising or tracking SDK bundled in the app.</p>
+
+<h3>Data stored on your device</h3>
+<p>All of the following is stored locally, in <code>%LOCALAPPDATA%\Power Pilot</code>:</p>
+<table>
+  <thead><tr><th>Data</th><th>Purpose</th><th>Retention</th></tr></thead>
+  <tbody>
+    <tr><td>Tasks and schedules</td><td>Execute your power actions</td><td>Until you delete them</td></tr>
+    <tr><td>Settings and preferences</td><td>Remember your choices</td><td>Until you change or delete them</td></tr>
+    <tr><td>Execution history</td><td>Show "why didn't it run?" and health summary</td><td>Last 500 records, then rotated</td></tr>
+    <tr><td>Audit log (HMAC-chained)</td><td>Security integrity of destructive actions</td><td>Until you delete it</td></tr>
+    <tr><td>PIN (Argon2id hash)</td><td>Protect security settings</td><td>Until you remove it</td></tr>
+    <tr><td>API keys / secrets (DPAPI-encrypted)</td><td>Local API and webhooks, if you enable them</td><td>Until you revoke them</td></tr>
+    <tr><td>Optional AI models (Qwen / Whisper)</td><td>On-device voice and text understanding</td><td>Until you delete them</td></tr>
+  </tbody>
+</table>
+<p>You can erase all of it at any time with <strong>Settings → Privacy → Delete my
+data</strong>. Uninstalling the app does not automatically remove this folder, so
+use that button first if you want a clean removal.</p>
+
+<h3>Microphone</h3>
+<p>Voice commands are <strong>optional</strong>. When you press the microphone button,
+the app records audio locally, transcribes it with the on-device Whisper model, and
+discards the audio. <strong>Audio is never uploaded.</strong> The microphone is only
+used while the button is active, and Windows shows its own microphone indicator.</p>
+
+<h3>On-device AI</h3>
+<p>The optional AI assistant (text and voice) runs entirely on your computer using
+models you download explicitly. Commands and audio are processed locally and are
+not sent to any server. Models are verified by SHA-256 after download.</p>
+
+<h3>Network access</h3>
+<p>Power Pilot works fully offline. Network is used only when <strong>you</strong>
+enable a feature that requires it:</p>
+<ul>
+  <li><strong>Local REST API</strong> (Enterprise edition): listens on <code>127.0.0.1</code>
+      by default; LAN exposure requires explicit opt-in. Requests stay on your network.</li>
+  <li><strong>Webhooks</strong>: only to URLs you configure (HTTPS required).</li>
+  <li><strong>Model downloads</strong>: only when you ask the app to download an AI model.</li>
+  <li><strong>Wake-on-LAN</strong>: sends a magic packet on your own network.</li>
+</ul>
+
+<h3>Third parties</h3>
+<p>We do not share data with third parties because we do not receive any. The
+Microsoft Store processes the download/install transaction; Microsoft's own privacy
+statement applies to that transaction.</p>
+
+<h3>Children</h3>
+<p>Power Pilot is a system utility and is not directed at children.</p>
+
+<h3>Changes</h3>
+<p>If this policy changes, the updated version is published with the app release.</p>
+
+<h3>Contact</h3>
+<p>Questions: <a href="mailto:info@vellium.dev">info@vellium.dev</a></p>
+
+<h2 id="turkce">Türkçe</h2>
+
+<h3>Özet</h3>
+<p>Power Pilot <strong>yerel önceliklidir</strong>. Telemetri, kullanım istatistiği,
+çökme raporu veya analitik toplamaz. Görevleriniz, ayarlarınız, geçmişiniz ve sesli
+komutlarınız, <strong>siz</strong> açıkça dışa aktarmadıkça bilgisayarınızda kalır.</p>
+
+<h3>Ne topluyoruz</h3>
+<p><strong>Hiçbir şey.</strong> Power Pilot bir arka uç servisi işletmez; kullanım
+verisi, tanılama veya çökme raporu göndermez. Hesap, oturum açma, reklam veya izleme
+SDK'sı yoktur.</p>
+
+<h3>Cihazınızda saklanan veriler</h3>
+<p>Aşağıdakilerin tamamı <code>%LOCALAPPDATA%\Power Pilot</code> altında
+<strong>yerel</strong> olarak saklanır:</p>
+<table>
+  <thead><tr><th>Veri</th><th>Amaç</th><th>Saklama</th></tr></thead>
+  <tbody>
+    <tr><td>Görevler ve programlar</td><td>Güç eylemlerinizi yürütmek</td><td>Siz silene kadar</td></tr>
+    <tr><td>Ayarlar ve tercihler</td><td>Seçimlerinizi hatırlamak</td><td>Değiştirene/silene kadar</td></tr>
+    <tr><td>Yürütme geçmişi</td><td>"Neden çalışmadı?" ve sağlık özeti</td><td>Son 500 kayıt, sonra döner</td></tr>
+    <tr><td>Denetim günlüğü (HMAC zincirli)</td><td>Yıkıcı eylemlerin güvenlik bütünlüğü</td><td>Siz silene kadar</td></tr>
+    <tr><td>PIN (Argon2id özeti)</td><td>Güvenlik ayarlarını korumak</td><td>Kaldırana kadar</td></tr>
+    <tr><td>API anahtarları / sırlar (DPAPI şifreli)</td><td>Yerel API ve webhook'lar (açarsanız)</td><td>İptal edene kadar</td></tr>
+    <tr><td>Opsiyonel AI modelleri (Qwen / Whisper)</td><td>Cihazda ses/metin anlama</td><td>Silene kadar</td></tr>
+  </tbody>
+</table>
+<p>Tamamını istediğiniz an <strong>Ayarlar → Gizlilik → Verilerimi sil</strong> ile
+silebilirsiniz. Uygulamayı kaldırmak bu klasörü otomatik silmez; temiz kaldırma için
+önce bu düğmeyi kullanın.</p>
+
+<h3>Mikrofon</h3>
+<p>Sesli komutlar <strong>opsiyoneldir</strong>. Mikrofon düğmesine bastığınızda
+uygulama sesi yerelde kaydeder, cihazdaki Whisper modeliyle yazıya çevirir ve sesi
+siler. <strong>Ses hiçbir zaman yüklenmez.</strong> Mikrofon yalnızca düğme etkinken
+kullanılır ve Windows kendi mikrofon göstergesini gösterir.</p>
+
+<h3>Cihazdaki yapay zekâ</h3>
+<p>Opsiyonel AI asistanı (metin ve ses) tamamen bilgisayarınızda, açıkça indirdiğiniz
+modellerle çalışır. Komutlar ve ses yerelde işlenir, hiçbir sunucuya gönderilmez.
+Modeller indirme sonrası SHA-256 ile doğrulanır.</p>
+
+<h3>Ağ erişimi</h3>
+<p>Power Pilot tamamen çevrimdışı çalışır. Ağ yalnızca <strong>siz</strong> gerektiren
+bir özelliği açtığınızda kullanılır:</p>
+<ul>
+  <li><strong>Yerel REST API</strong> (Enterprise): varsayılan olarak <code>127.0.0.1</code>
+      dinler; LAN'a açılması açık onay gerektirir. İstekler ağınızda kalır.</li>
+  <li><strong>Webhook'lar</strong>: yalnızca sizin yapılandırdığınız adreslere (HTTPS zorunlu).</li>
+  <li><strong>Model indirme</strong>: yalnızca bir AI modeli indirmek istediğinizde.</li>
+  <li><strong>Wake-on-LAN</strong>: kendi ağınızda sihirli paket gönderir.</li>
+</ul>
+
+<h3>Üçüncü taraflar</h3>
+<p>Veri paylaşmıyoruz çünkü hiç veri almıyoruz. İndirme/kurulum işlemini Microsoft
+Store yürütür; o işlem için Microsoft'un gizlilik bildirimi geçerlidir.</p>
+
+<h3>Çocuklar</h3>
+<p>Power Pilot bir sistem aracıdır ve çocuklara yönelik değildir.</p>
+
+<h3>Değişiklikler</h3>
+<p>Politika değişirse güncel sürüm uygulama sürümüyle birlikte yayımlanır.</p>
+
+<h3>İletişim</h3>
+<p>Sorular: <a href="mailto:info@vellium.dev">info@vellium.dev</a></p>
+
+</body>
+</html>

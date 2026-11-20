@@ -15,7 +15,21 @@ yenilenmesini tanımlar. Tek kaynak: `src/main/security/TlsConfig.js`.
 
 ```powershell
 # Geliştirme/test CA'sı ile (üretimde HSM/TPM CA kullanın)
-node scripts/certs/generate.mjs --out "$env:APPDATA\powerpilot\certs" --days 397
+# 1) Kök CA (10 yıl) — parmak izini not edin
+.\scripts\certs\New-PowerPilotCa.ps1 -OutDir "$env:APPDATA\powerpilot\certs"
+
+# 2) Sunucu sertifikası (varsayılan 90 gün), SAN'a tüm IP/DNS adları verilmeli
+.\scripts\certs\New-PowerPilotServerCert.ps1 `
+    -CaThumbprint <CA_PARMAR_IZI> `
+    -DnsName konsol.sirket.local `
+    -IpAddress 10.0.0.5 `
+    -OutDir "$env:APPDATA\powerpilot\certs"
+
+# 3) İstemci (ajan) sertifikası (varsayılan 30 gün)
+.\scripts\certs\New-PowerPilotClientCert.ps1 `
+    -CaThumbprint <CA_PARMAR_IZI> `
+    -Subject "CN=powerpilot-agent, O=Power Pilot" `
+    -OutDir "$env:APPDATA\powerpilot\certs"
 ```
 
 Üretimde özel anahtar HSM/TPM'den dışarı çıkmaz; yalnızca sertifika zinciri

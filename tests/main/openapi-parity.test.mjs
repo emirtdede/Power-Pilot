@@ -82,7 +82,8 @@ describe('OpenAPI ↔ kod paritesi (TS-5.3)', () => {
             'GET /maintenance-windows',
             'POST /maintenance-windows',
             'DELETE /maintenance-windows/{id}',
-            'GET /audit'
+            'GET /audit',
+            'GET /audit/verify'
         ].sort());
     });
 

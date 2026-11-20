@@ -26,6 +26,9 @@ Sistem mimarisi ve bileşen sözleşmeleri:
 - [`architecture/SAFETY_POLICIES.md`](architecture/SAFETY_POLICIES.md)
 - [`architecture/LOCAL_API_SECURITY.md`](architecture/LOCAL_API_SECURITY.md)
 - [`architecture/ENTERPRISE_PILOT.md`](architecture/ENTERPRISE_PILOT.md)
+- [`architecture/WINDOW_AND_VIEWPORT_MATRIX.md`](architecture/WINDOW_AND_VIEWPORT_MATRIX.md)
+- [`architecture/ACCESSIBILITY.md`](architecture/ACCESSIBILITY.md)
+- [`architecture/KEYBOARD_SHORTCUTS.md`](architecture/KEYBOARD_SHORTCUTS.md)
 
 ### `audit/`
 Tarih bazlı denetim raporları. Güncel rapor ile arşiv ayrı tutulur:

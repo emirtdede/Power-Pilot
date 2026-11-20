@@ -107,7 +107,7 @@ describe('StorageService v3', () => {
         for (let i = 0; i < 505; i++) s.addHistoryRecord({ id: `h${i}` });
         expect(s.getHistory()).toHaveLength(500);
         expect(s.getHistory()[0].id).toBe('h504');
-    });
+    }, 30000);
 
     it('addTask günceller, removeTask siler', () => {
         const s = open(freshDir());

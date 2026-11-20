@@ -20,11 +20,30 @@
             window.electronAPI.onTimerTick((data) => {
                 const actionText = document.getElementById('action-text');
                 const countdownText = document.getElementById('countdown-text');
+                if (!data) return;
+
+                // Koşullu görevlerde (Smart Finish) hedef zaman yoktur; geri
+                // sayım uydurmak yerine "İzleniyor" ve ilerleme metni gösterilir.
+                if (data.monitoring) {
+                    if (actionText) {
+                        actionText.textContent = data.actionText || data.statusText || '--';
+                        actionText.title = data.progressText || data.actionText || '';
+                    }
+                    if (countdownText) {
+                        countdownText.textContent = data.progressText || data.statusText || '--';
+                        countdownText.classList.add('text-sm');
+                        countdownText.classList.remove('text-2xl');
+                    }
+                    return;
+                }
 
                 if (actionText) {
                     actionText.textContent = data.actionText || '--';
+                    actionText.title = data.actionText || '';
                 }
                 if (countdownText) {
+                    countdownText.classList.remove('text-sm');
+                    countdownText.classList.add('text-2xl');
                     countdownText.textContent = data.formattedCountdown || '00:00';
                 }
             });

@@ -94,7 +94,10 @@ const EXECUTION_RESULT_CODE = {
     TIMEOUT: 'timeout',
     INTERRUPTED_BY_SHUTDOWN: 'interrupted_by_shutdown',
     // WP-02: OS komutu başladıktan sonra gelen iptal isteği.
-    CANCEL_TOO_LATE: 'cancel_too_late'
+    CANCEL_TOO_LATE: 'cancel_too_late',
+    // Uyku/standby veya uygulama kapalıyken zamanı geçen görev. Kullanıcı
+    // politikasına göre çalıştırılır ya da atlanır; asla sessizce yutulmaz.
+    MISSED_WHILE_ASLEEP: 'missed_while_asleep'
 };
 
 class AutomationTask {

@@ -72,6 +72,7 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
 
         // T-REN-05: sunucu reddedince tema/dil ve localStorage eski değerde kalır.
         await window.locator('#nav-settings').click();
+        await window.locator('[data-scroll-target="settings-sec-appearance"]').click();
         await window.waitForTimeout(350);
         const previousTheme = await window.evaluate(() => localStorage.getItem('theme') || 'dark');
         const previousLanguage = await window.evaluate(() => localStorage.getItem('language') || 'tr');
@@ -86,8 +87,8 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
         const nextLanguage = previousLanguage === 'en' ? 'tr' : 'en';
         await window.locator('#setting-theme').selectOption(nextTheme);
         await window.locator('#setting-language').selectOption(nextLanguage);
-        await window.locator('#btn-settings-save').click();
-        await expect(window.locator('#toast-container')).toContainText('E2E reject');
+        await expect(window.locator('#toast-container')).toContainText('E2E reject', { timeout: 5000 });
+        await window.waitForTimeout(450);
         expect(await window.locator('#setting-theme').inputValue()).toBe(previousTheme);
         expect(await window.locator('#setting-language').inputValue()).toBe(previousLanguage);
         expect(await window.evaluate(() => localStorage.getItem('theme') || 'dark')).toBe(previousTheme);
@@ -120,6 +121,7 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
 
         // T-REN-07: ayarlar görünümünden çıkışta arka plan isteği kalmaz.
         await window.locator('#nav-settings').click();
+        await window.locator('[data-scroll-target="settings-sec-appearance"]').click();
         await window.waitForTimeout(400);
         await window.locator('#nav-dashboard').click();
         await window.waitForTimeout(400);

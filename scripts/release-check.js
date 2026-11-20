@@ -45,7 +45,7 @@ function main() {
     const pkg = readJson('package.json');
     const lock = readJson('package-lock.json');
 
-    if (pkg.version !== '1.1.0') issues.push(`package.json sürümü 1.1.0 değil: ${pkg.version}`);
+    if (pkg.version !== '1.0.0') issues.push(`package.json sürümü 1.0.0 değil: ${pkg.version}`);
     if (lock.version !== pkg.version) issues.push(`package-lock sürümü uyuşmuyor: ${lock.version}`);
     if (pkg.engines && pkg.engines.node && !/^>=?24/.test(pkg.engines.node)) {
         issues.push(`engines.node 24.x değil: ${pkg.engines.node}`);
@@ -191,10 +191,10 @@ function main() {
     scanSource('main.js', [
         { re: /unlinkSync\(lockFile\)/, label: 'SingletonLock elle silme' }
     ]);
-    // WP-13: Arapça RTL yönü uygulanmalı.
+    // WP-13: RTL yönü uygulanmalı (ar, he, fa, ur).
     {
         const appJs = fs.readFileSync(path.join(ROOT, 'src/renderer/app.js'), 'utf8');
-        if (!/lang === 'ar' \? 'rtl' : 'ltr'/.test(appJs)) {
+        if (!/lang === 'ar' \? 'rtl' : 'ltr'/.test(appJs) && !(/PPLocale\.isRtl/.test(appJs) && /isRtl \? 'rtl' : 'ltr'/.test(appJs))) {
             issues.push('src/renderer/app.js: Arapça RTL yön ataması eksik.');
         }
         if (!/getActiveState/.test(appJs)) {

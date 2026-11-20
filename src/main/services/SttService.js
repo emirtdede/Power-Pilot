@@ -98,9 +98,10 @@ class SttService {
 
     /**
      * @param {Float32Array|number[]} pcm16k — 16kHz mono örnekler
-     * @param {string} uiLang — arayüz dili (STT_LANGS ile eşlenir, varsayılan 'tr')
+     * @param {string} uiLang — arayüz dili (STT_LANGS ile eşlenir; bilinmeyen
+     *   dilde İngilizce'ye düşer, Türkçe'ye değil)
      */
-    async transcribePcm(pcm16k, uiLang = 'tr') {
+    async transcribePcm(pcm16k, uiLang = 'en') {
         const samples = SttService.toFloat32Array(pcm16k);
         if (!samples) {
             return { ok: false, code: 'INVALID_AUDIO', message: 'Ses verisi anlaşılmadı.' };
@@ -126,7 +127,7 @@ class SttService {
         }
         try {
             const { promise } = await context.transcribeData(work.buffer.slice(work.byteOffset, work.byteOffset + work.byteLength), {
-                language: STT_LANGS[uiLang] || 'tr'
+                language: STT_LANGS[uiLang] || 'en'
             });
             const result = await promise;
             const text = String((result && result.result) || '').trim();

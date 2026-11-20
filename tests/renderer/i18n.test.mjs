@@ -59,9 +59,10 @@ describe('renderer locale yükleyici', () => {
         expect(calls).toEqual(['en', 'ar']);
     });
 
-    it('bilinmeyen dil Türkçe’ye düşer', async () => {
+    it('bilinmeyen dil İngilizce’ye düşer', async () => {
         const { window, calls } = boot({ storedLanguage: 'xx' });
         await window.PPLocale.ready;
-        expect(calls[0]).toBe('tr');
+        // Uluslararası varsayılan 'en'; 'tr' yalnızca gerçek Türkçe sistemde.
+        expect(calls[0]).toBe('en');
     });
 });

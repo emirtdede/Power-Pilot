@@ -50,7 +50,14 @@ describe('validateSettings — şema türleri', () => {
     it('enum kuralı (tema/dil/para birimi)', () => {
         expect(validateSettings({ theme: 'light' }).ok).toBe(true);
         expect(validateSettings({ theme: 'blue' }).code).toBe('INVALID_SETTING');
+        expect(validateSettings({ themeId: 'obsidian' }).ok).toBe(true);
+        expect(validateSettings({ themeId: 'emerald' }).ok).toBe(true);
+        expect(validateSettings({ themeId: 'invalid-palette' }).code).toBe('INVALID_SETTING');
+        expect(validateSettings({ sidebarCollapsed: true }).ok).toBe(true);
+        expect(validateSettings({ sidebarCollapsed: 'yes' }).code).toBe('INVALID_SETTING');
         expect(validateSettings({ currency: 'EUR' }).ok).toBe(true);
+        expect(validateSettings({ language: 'az' }).ok).toBe(true);
+        expect(validateSettings({ language: 'he' }).ok).toBe(true);
         expect(validateSettings({ language: 'xx' }).code).toBe('INVALID_SETTING');
     });
 
@@ -353,6 +360,16 @@ describe('validateTaskData', () => {
         expect(validateTaskData({ ...base, name: 'x'.repeat(121) }).code).toBe('INVALID_NAME');
         expect(validateTaskData({ ...base, name: '<img>' }).code).toBe('INVALID_NAME');
         expect(validateTaskData({ ...base, name: 'Gece kapatma' }).ok).toBe(true);
+    });
+
+    it('boşluktan ibaret ad reddedilir (adsız görev satırı oluşmasın)', () => {
+        // Regresyon: '   ' kabul ediliyordu ve görev listesinde adsız bir
+        // satır olarak görünüyordu.
+        expect(validateTaskData({ ...base, name: '   ' }).code).toBe('INVALID_NAME');
+        expect(validateTaskData({ ...base, name: '\t\n ' }).code).toBe('INVALID_NAME');
+        expect(validateTaskData({ ...base, name: '' }).code).toBe('INVALID_NAME');
+        // Baştaki/sondaki boşluklu GERÇEK ad hâlâ kabul.
+        expect(validateTaskData({ ...base, name: '  Gece kapatma  ' }).ok).toBe(true);
     });
 
     it('istemci kimlik ve ayrıcalıklı alanları gönderemez', () => {

@@ -55,6 +55,8 @@ class LocalApiService {
         this.powerService = powerService;
         // FAZ B: kurumsal servisler (yoksa uçlar 503 döner, çekirdek etkilenmez).
         this.deps = deps || {};
+        // Store dağıtımında LAN'a açılmayız; yalnızca loopback sunulur.
+        this.allowLan = this.deps.allowLan !== false;
 
         this.server = null;
         this.transport = 'disabled'; // disabled|http|https (getSecurityStatus için)
@@ -187,7 +189,7 @@ class LocalApiService {
             apiKeySet: !!settings.localApiKeyHash,
             keyRole: LocalApiService.roleOf(settings),
             rotationDue: LocalApiService.isApiKeyRotationDue(settings),
-            lanMode: !!settings.lanModeEnabled,
+            lanMode: this.allowLan && !!settings.lanModeEnabled,
             boundHost: this.boundHost,
             diagnostics: this.getDiagnostics()
         };
@@ -211,7 +213,7 @@ class LocalApiService {
 
         const port = settings.localApiPort || 18456;
         const allowlist = Array.isArray(settings.lanAllowedIps) ? settings.lanAllowedIps : [];
-        const lanRequested = settings.lanModeEnabled === true;
+        const lanRequested = settings.lanModeEnabled === true && this.allowLan;
         const lanBound = lanRequested && allowlist.length > 0;
         const tlsOpts = this.getServerOptions(settings);
 

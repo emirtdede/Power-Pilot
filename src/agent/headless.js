@@ -41,7 +41,7 @@ function defaultUserDataDir() {
 
 async function bootAgent({
     userDataPath = null,
-    appVersion = '1.1.0',
+    appVersion = '1.0.0',
     syncIntervalMs = 60000,
     secretStore = null,
     timerRegistry = null

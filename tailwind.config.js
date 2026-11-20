@@ -15,8 +15,12 @@ module.exports = {
         extend: {
             colors: {
                 primary: '#0067c2',
+                // Koyu temada `text-primary` (#0067c2) koyu zeminlerde
+                // 2.40–3.16:1 kalıyordu (WCAG AA: 4.5). Açık mavi ton TÜM
+                // koyu zeminlerde ≥5.33:1 sağlar (ölçüldü).
+                'primary-light': '#60a5fa',
                 'background-light': '#f5f7f8',
-                'background-dark': '#0f1a23'
+                'background-dark': '#0b1120'
             },
             fontFamily: {
                 display: ['Public Sans', 'Segoe UI', 'sans-serif']

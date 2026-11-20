@@ -26,7 +26,7 @@ function referencedKeys() {
     const keys = new Set();
     for (const file of htmlFiles) {
         const text = read(file);
-        for (const m of text.matchAll(/data-i18n(?:-placeholder|-title|-aria-label)?="([^"]+)"/g)) keys.add(m[1]);
+        for (const m of text.matchAll(/data-i18n(?:-placeholder|-title|-aria-label|-aria-context)?="([^"]+)"/g)) keys.add(m[1]);
         for (const m of text.matchAll(/data-nav-key="([^"]+)"/g)) keys.add(m[1]);
     }
     for (const file of jsFiles) {

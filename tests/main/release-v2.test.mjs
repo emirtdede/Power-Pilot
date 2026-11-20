@@ -220,7 +220,7 @@ describe('WP-17/WP-18 gözlemlenebilirlik ve APPX kapısı', () => {
 
     it('package.json NSIS-only ve APPX publisher env kapısındadır', () => {
         const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-        expect(pkg.version).toBe('1.1.0');
+        expect(pkg.version).toBe('1.0.0');
         expect(pkg.build.win.target).toEqual(['nsis']);
         expect(pkg.build.appx.publisher).toBe('${env.APPX_PUBLISHER}');
         expect(pkg.build.appx.languages).toHaveLength(17);
@@ -238,7 +238,8 @@ describe('WP-13/WP-15 renderer sözleşmesi', () => {
     const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
 
     it('Arapça RTL, aktif durum geri yüklemesi ve köprü uçları vardır', () => {
-        expect(appJs).toContain("lang === 'ar' ? 'rtl' : 'ltr'");
+        expect(appJs).toContain('PPLocale.isRtl');
+        expect(appJs).toContain("isRtl ? 'rtl' : 'ltr'");
         expect(appJs).toContain('getActiveState');
         expect(preload).toContain("ipcRenderer.invoke('get-active-state')");
         expect(preload).toContain("ipcRenderer.invoke('get-app-version')");

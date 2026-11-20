@@ -6,6 +6,7 @@
 
 const { AutomationTask, TASK_STATUS, TASK_SOURCE, TRIGGER_TYPE, CONDITION_TYPE, EXECUTION_RESULT_CODE, SUPPORTED_CONDITION_TYPES } = require('./models/AutomationTask');
 const { PowerService } = require('./PowerService');
+const { TerminalActionVerifier } = require('./TerminalActionVerifier');
 const crypto = require('crypto');
 const fs = require('fs');
 const log = require('../logger');
@@ -47,6 +48,12 @@ class TaskManager {
         this.changeListener = null;
         this.timerRegistry = timerRegistry;
         this._evaluating = false;
+        // A6: kapatma/yeniden başlatma komutu "başarılı" dönse de Windows
+        // oturumu anında kapatmaz; kaydedilmemiş işi olan uygulamalar vetosu
+        // yalnızca süreç hâlâ ayaktayken gözlemlenebilir. Doğrulayıcı enjekte
+        // edilebilir (test), üretimde varsayılan gerçek zamanlayıcıdır.
+        this.terminalVerifier = new TerminalActionVerifier();
+        this.vetoListener = null;
         // WP-11.T5: yalnızca değişen satırlar; tam liste yazımı yok.
         this._savedTaskState = new Map();
 
@@ -107,6 +114,15 @@ class TaskManager {
 
     setChangeListener(fn) {
         this.changeListener = typeof fn === 'function' ? fn : null;
+    }
+
+    /**
+     * A6: kapatma/yeniden başlatma Windows tarafından veto edildiğinde
+     * (açık uygulamalar onay bekliyor) çağrılır. Renderer'a kullanıcı diliyle
+     * rapor verilir; bu bir başarısızlık değil, engellenme raporudur.
+     */
+    setVetoListener(fn) {
+        this.vetoListener = typeof fn === 'function' ? fn : null;
     }
 
     setTimerRegistry(registry) {
@@ -173,6 +189,11 @@ class TaskManager {
             } else if (timed && targetTime && targetTime < now) {
                 // Time has already passed -> set Expired (Do NOT auto-execute!)
                 task.status = TASK_STATUS.EXPIRED;
+                task.errorInfo = 'Zamanlanan an uygulama kapalıyken geçti; güvenlik için çalıştırılmadı.';
+                task.lastResult = { code: EXECUTION_RESULT_CODE.MISSED_WHILE_ASLEEP, message: task.errorInfo };
+                if (this.history) {
+                    this.history.record(task, EXECUTION_RESULT_CODE.MISSED_WHILE_ASLEEP, task.errorInfo);
+                }
                 log.info(`[TaskManager] Task "${task.name}" expired during offline time.`);
             }
         });
@@ -222,6 +243,71 @@ class TaskManager {
         // Y-04: bayrak yalnızca tek icra içindir; tekrarlayan görevin sonraki
         // çalışması kullanıcı uyarısını atlamamalı.
         delete task._schedulerFired;
+    }
+
+    /**
+     * Uykudan/standby'dan dönüşte zaman çizelgesini yeniden senkronlar.
+     *
+     * Kullanıcı politikası (ayarlar: wakeMode / wakeToleranceMinutes):
+     *  - 'run': hedef zamanı tolerans penceresi içinde kaçırıldıysa görev şimdi
+     *    çalıştırılır (varsayılan 10 dk). Daha eski kaçırmalar atlanır.
+     *  - 'skip': hiçbir kaçırılan görev otomatik çalışmaz; hepsi atlanır.
+     *
+     * Atlanan her görev kullanıcı dilinde bir nedenle geçmişe yazılır; sessiz
+     * yutma yoktur. Tekrarlayan görevler takvimden düşmez, sonraki vakte taşınır.
+     *
+     * @returns {{ran: number, skipped: number, maxOverdueMinutes: number}}
+     */
+    resyncAfterResume({ mode = 'run', toleranceMinutes = 10 } = {}) {
+        const now = Date.now();
+        const tolerance = Math.max(0, Math.min(1440, Number(toleranceMinutes) || 0));
+        const toleranceMs = tolerance * 60000;
+        const ready = [];
+        let skipped = 0;
+        let maxOverdueMinutes = 0;
+
+        for (const task of this.tasks) {
+            if (!task || task.enabled === false) continue;
+            if (task.status !== TASK_STATUS.SCHEDULED) continue;
+            const conds = (task.conditionGroup && task.conditionGroup.conditions) || [];
+            if (conds.length > 0) continue; // koşullu görevler Smart Finish ile izlenir
+            const target = Number(task.trigger && task.trigger.targetTime);
+            if (!Number.isFinite(target) || target <= 0 || target > now) continue;
+
+            const overdueMs = now - target;
+            const overdueMinutes = Math.floor(overdueMs / 60000);
+            maxOverdueMinutes = Math.max(maxOverdueMinutes, overdueMinutes);
+
+            if (mode === 'run' && overdueMs <= toleranceMs) {
+                task.lastProgressMessage = 'Uykudan dönüşte tolerans içinde çalıştırılıyor';
+                ready.push(task);
+                continue;
+            }
+
+            const recurring = !!(task.recurrence && task.recurrence.enabled);
+            task.errorInfo = recurring
+                ? `Uyku sırasında zamanı geçti (${overdueMinutes} dk); sonraki tekrara taşındı.`
+                : `Uyku sırasında zamanı geçti (${overdueMinutes} dk); tolerans ${tolerance} dk olduğu için atlandı.`;
+            task.lastResult = { code: EXECUTION_RESULT_CODE.MISSED_WHILE_ASLEEP, message: task.errorInfo };
+            if (recurring) {
+                this.calculateNextRecurrence(task);
+            } else {
+                task.status = TASK_STATUS.EXPIRED;
+            }
+            if (this.history) {
+                this.history.record(task, EXECUTION_RESULT_CODE.MISSED_WHILE_ASLEEP, task.errorInfo);
+            }
+            skipped += 1;
+        }
+
+        if (skipped > 0) this.persistChanges();
+        if (ready.length > 0) {
+            this.handleTaskExecution(ready);
+        }
+        if (skipped > 0 || ready.length > 0) {
+            log.info(`[TaskManager] Uykudan dönüş: ${ready.length} çalıştırıldı, ${skipped} atlandı (mod=${mode}, tolerans=${tolerance}dk).`);
+        }
+        return { ran: ready.length, skipped, maxOverdueMinutes };
     }
 
     startLoop() {
@@ -496,6 +582,11 @@ class TaskManager {
                 if (this.history) this.history.record(task, EXECUTION_RESULT_CODE.SUCCESS, 'Başarılı');
                 this.notifyResult(task, true);
 
+                // A6: kapatma komutu döndü ama oturum kapanmadıysa Windows
+                // engellemiştir. Doğrulayıcı pencere dolarsa rapor verilir;
+                // süreç gerçekten kapanırsa timer hiç çalışmaz.
+                this.armTerminalVetoCheck(task);
+
                 if (task.recurrence && task.recurrence.enabled) {
                     this.calculateNextRecurrence(task);
                     this.syncScheduler(task);
@@ -522,6 +613,33 @@ class TaskManager {
             this.releaseTask(task.id, token);
             this.persistChanges();
         }
+    }
+
+    // A6: kapatma/yeniden başlatma vetosu. Komut başarı dönse de Windows
+    // oturumu hemen kapatmazsa (açık uygulamalar onay bekliyorsa) kısa bir
+    // pencere sonunda süreç hâlâ ayaktadır ve engellenme raporlanır.
+    armTerminalVetoCheck(task) {
+        if (!task || !this.terminalVerifier) return false;
+        if (!TerminalActionVerifier.isTerminalAction(task.action)) return false;
+        const expectedRun = task.lastRunAt;
+        return this.terminalVerifier.arm(task.action, (action) => {
+            // Timer çalıştığına göre süreç ayakta: oturum kapanmadı.
+            // Aynı görev bu arada yeniden çalıştırıldıysa eski rapor geçersiz.
+            if (task.lastRunAt !== expectedRun) return;
+            log.warn(`[TaskManager] Kapatma engellendi (açık uygulamalar): ${task.name} (${action})`);
+            if (this.vetoListener) {
+                try {
+                    this.vetoListener({
+                        taskId: task.id,
+                        name: task.name,
+                        action,
+                        code: 'SHUTDOWN_VETOED'
+                    });
+                } catch (err) {
+                    log.warn('[TaskManager] Veto dinleyicisi hata verdi:', err && err.message);
+                }
+            }
+        });
     }
 
     // WBS-11.5: Açılışta yanlış tetiklenebilen sessizlik-tipi koşullar.
@@ -632,6 +750,19 @@ class TaskManager {
             // Geçmiş zamanlıysa recovery döngüsü EXPIRED işaretler (otomatik çalışmaz).
             task.status = TASK_STATUS.SCHEDULED;
         }
+        // Tekrarlayan görevde İLK occurrence da sunucuda hesaplanır. İstemcinin
+        // gönderdiği hedef yalnızca saat bilgisi taşır; gün kısıtı (hafta sonu /
+        // özel günler) yok sayılırsa görev yanlış günde tetiklenirdi.
+        if (!hasConditions && task.recurrence && task.recurrence.enabled) {
+            const before = task.trigger.targetTime;
+            this.calculateNextRecurrence(task);
+            if (!Number.isFinite(task.trigger.targetTime) && Number.isFinite(before)) {
+                // Bozuk recurrence yapılandırması görevi kaybettirmez; verilen
+                // hedef korunur (calculateNextRecurrence uyarı loglar).
+                task.trigger.targetTime = before;
+                task.status = TASK_STATUS.SCHEDULED;
+            }
+        }
         this.tasks.push(task);
         try {
             // Y-06: kalıcılaştırma başarısızsa görev bellekte bırakılmaz.
@@ -683,6 +814,8 @@ class TaskManager {
         task.status = TASK_STATUS.CANCELLED;
         task.errorInfo = null;
         task.lastResult = { code: EXECUTION_RESULT_CODE.CANCELLED_BY_USER, message: 'Kullanıcı tarafından iptal edildi' };
+        // A6: kullanıcı açıkça vazgeçtiyse bekleyen veto raporu düşer.
+        if (this.terminalVerifier) this.terminalVerifier.disarm();
         // Y-06: disk yazımı başarısızsa bellek durumu geri alınır ve çağırana
         // açık hata döner; arayüz "iptal edildi" diyemez.
         try {
@@ -703,6 +836,63 @@ class TaskManager {
             : null;
         if (!active || !active.taskId) return { ok: false, code: 'NO_ACTIVE_WARNING' };
         return this.cancelTask(active.taskId);
+    }
+
+    /**
+     * Biten (terminal durumdaki) görevi listeden kaldırır.
+     *
+     * Neden gerekli: iptal edilen/tamamlanan/süresi geçen görevler diskte
+     * kalıcı olarak kalıyordu ve "Tüm" filtresinde eylem düğmesi OLMAYAN
+     * satırlar olarak sonsuza kadar birikiyordu (ölçüm: 15 iptal → 15 satır,
+     * her birinde 0 eylem). Kullanıcının bunları temizlemesinin hiçbir yolu
+     * yoktu.
+     *
+     * Güvenlik: yalnızca terminal durumdaki görevler silinebilir; çalışan bir
+     * görev (scheduled/monitoring/executing/...) silinemez — önce iptal
+     * edilmelidir. Bu, "çalışan görevi kazara silme" riskini kapatır.
+     */
+    removeTask(taskId) {
+        const index = this.tasks.findIndex((t) => t && t.id === taskId);
+        if (index < 0) return { ok: false, code: 'NOT_FOUND' };
+        const task = this.tasks[index];
+        if (!TaskManager.isTerminalStatus(task.status)) {
+            return { ok: false, code: 'TASK_NOT_TERMINAL' };
+        }
+        // Çalışan bir claim varsa silme reddedilir (yarış koruması).
+        if (this.claims && this.claims.has(taskId)) {
+            return { ok: false, code: 'TASK_RUNNING' };
+        }
+        this.tasks.splice(index, 1);
+        try {
+            this.persistChanges({ throwOnError: true });
+        } catch (err) {
+            // Disk yazımı başarısızsa bellek durumu geri alınır.
+            this.tasks.splice(index, 0, task);
+            return { ok: false, code: 'TASK_PERSIST_FAILED' };
+        }
+        this.removeScheduler(taskId);
+        return { ok: true, code: 'REMOVED' };
+    }
+
+    /** Terminal (artık çalışmayacak) durumlar. */
+    static isTerminalStatus(status) {
+        return status === TASK_STATUS.COMPLETED
+            || status === TASK_STATUS.CANCELLED
+            || status === TASK_STATUS.BLOCKED
+            || status === TASK_STATUS.FAILED
+            || status === TASK_STATUS.EXPIRED
+            || status === TASK_STATUS.DISABLED;
+    }
+
+    /** Terminal durumdaki tüm görevleri kaldırır. */
+    removeTerminalTasks() {
+        const terminal = this.tasks.filter((t) => t && TaskManager.isTerminalStatus(t.status));
+        let removed = 0;
+        for (const task of terminal) {
+            const result = this.removeTask(task.id);
+            if (result.ok) removed += 1;
+        }
+        return { ok: true, removed };
     }
 
     /**

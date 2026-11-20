@@ -81,5 +81,7 @@ describe('TemplateService kullanıcı şablonları (WBS-6.4)', () => {
         expect(TemplateService.isValidTemplate({})).toBe(false);
         expect(TemplateService.isValidTemplate({ id: 'a', name: 'x'.repeat(81), action: 'sleep', defaultCondition: { type: 'cpu_usage' } })).toBe(false);
         expect(TemplateService.isValidTemplate({ id: 'a', name: 'N', action: 'sleep', schedule: { timeOfDay: 'gece' } })).toBe(false);
+        expect(TemplateService.isValidTemplate({ id: 'a', name: 'N', action: 'sleep', schedule: { timeOfDay: '99:99' } })).toBe(false);
+        expect(TemplateService.isValidTemplate({ id: 'a', name: 'N', action: 'invalid_action', schedule: { timeOfDay: '01:00' } })).toBe(false);
     });
 });

@@ -17,8 +17,9 @@ const crypto = require('crypto');
 const log = require('../logger');
 const ipaddr = require('ipaddr.js');
 const { Db, StorageError } = require('../storage/Database');
-const { migrateV2, cleanStaleTemps, stableStringify, sanitizeLegacyData, LEGACY_FILE } = require('../storage/MigrateV2');
+const { migrateV2, cleanStaleTemps, sanitizeLegacyData, LEGACY_FILE } = require('../storage/MigrateV2');
 const { AuditCheckpoint } = require('../security/AuditCheckpoint');
+const StorageRecovery = require('./StorageRecovery');
 
 const CURRENT_SCHEMA_VERSION = 3;
 const DB_FILE = 'powerpilot.db';
@@ -87,6 +88,8 @@ class StorageService {
         this.db = null;
         this.maintenanceMode = false;
         this.maintenanceReason = null;
+        // Bozuk DB karantinaya alınıp temiz depoyla devam edildiyse dolu olur.
+        this.recoveredFrom = null;
         this.auditTampered = false;
         this.auditHmacKey = null;
         this._stmts = new Map();
@@ -110,8 +113,10 @@ class StorageService {
             settings: {
                 autostart: false,
                 theme: 'dark',
+                themeId: 'obsidian',
+                sidebarCollapsed: false,
                 notifications: true,
-                language: 'tr',
+                language: null, // null = kullanıcı seçmedi → ilk çalıştırmada sistem dili
                 localApiEnabled: false,
                 localApiPort: 18456,
                 localApiKeyHash: null,
@@ -206,12 +211,23 @@ class StorageService {
     }
 
     openExisting() {
-        this.db = new Db(this.dbPath, { fileMustExist: true });
+        // Bozuk dosya `quickCheck`'ten ÖNCE, `new Db` aşamasında da hata
+        // verebilir (SQLite başlığı bozuk, yarım yazılmış sayfa...). Bu yol
+        // yakalanmazsa `init()` catch'i doğrudan bakım moduna düşürür ve
+        // kurtarma hiç denenmez → kullanıcı kalıcı olarak kilitlenir.
+        try {
+            this.db = new Db(this.dbPath, { fileMustExist: true });
+        } catch (err) {
+            log.warn(`[StorageService] Veritabanı açılamadı, kurtarma denenecek: ${err && err.message}`);
+            this.db = null;
+            this.recoverCorruptDatabase(err && err.code ? err.code : 'DB_OPEN_FAILED');
+            return;
+        }
         const check = this.db.quickCheck();
         if (check !== 'ok') {
             this.db.close();
             this.db = null;
-            this.enterMaintenance(`Veritabanı bozuk (quick_check: ${check}). Son yedekten geri yükleyin.`);
+            this.recoverCorruptDatabase(check);
             return;
         }
         this._loadAll();
@@ -221,6 +237,39 @@ class StorageService {
         this._primeSnapshots();
         // Normalizasyon değişikliklerini kalıcılaştır (yalnızca farklar).
         this.save();
+    }
+
+    /**
+     * Bozuk veritabanından kurtarma.
+     *
+     * Öncesinde yalnızca bakım moduna düşülüyordu: uygulama açılıyor ama HİÇBİR
+     * görev oluşturulamıyor ("Task could not be created") ve kullanıcıya çıkış
+     * yolu gösterilmiyordu — son kullanıcı için "program bozuk" demekti.
+     *
+     * Burada bozuk dosya SİLİNMEZ: `quarantine/` altına taşınır (destek/veri
+     * kurtarma umudu korunur) ve temiz bir veritabanıyla devam edilir. Karantina
+     * taşıması başarısız olursa sessiz veri kaybı riskine girmemek için bakım
+     * moduna düşülür.
+     */
+    recoverCorruptDatabase(reason) {
+        try {
+            const result = StorageRecovery.quarantineDatabase(this.dbPath);
+            this.recoveredFrom = {
+                reason: String(reason || 'quick_check'),
+                quarantinePath: result.quarantined,
+                at: new Date().toISOString()
+            };
+            log.warn(`[StorageService] Bozuk veritabanı karantinaya alındı: ${result.quarantined || 'yok'} (${reason})`);
+            this.openFresh();
+            return true;
+        } catch (err) {
+            log.error('[StorageService] Karantina başarısız; bakım modu:', err && err.message);
+            this.enterMaintenance(
+                `Veritabanı bozuk (quick_check: ${reason}) ve karantinaya alınamadı.`,
+                err
+            );
+            return false;
+        }
     }
 
     migrateLegacy() {
@@ -240,6 +289,11 @@ class StorageService {
             this.openFresh();
             return;
         }
+        // T-STO-03 SÖZLEŞMESİ (tests/main/storage*.test.mjs): bozuk eski JSON
+        // kaynağı ASLA değiştirilmez/taşınmaz. Migrasyon dosyanın üzerine
+        // yazmaz ve `backups/powerpilot_data_corrupted_*.json` yedeğini alır.
+        // Kullanıcıyı kilitli bırakmamak için bakım modunda "veri klasörünü aç"
+        // çıkışı sunulur (arayüz: #btn-storage-open-folder).
         this.enterMaintenance(result.error || 'Migrasyon tamamlanamadı; bakım modu.', null, result.backupPath);
     }
 
@@ -263,6 +317,17 @@ class StorageService {
         this.data = this.getDefaultData();
         if (err) log.error('[StorageService] Bakım modu:', reason, err);
         else log.error('[StorageService] Bakım modu:', reason);
+    }
+
+    /** Bakım modu görünürlüğü için (IPC/UI) salt-okunur erişim. */
+    isMaintenanceMode() {
+        return this.maintenanceMode === true;
+    }
+
+    /** Kullanıcıya gösterilecek teknik olmayan gerekçe (varsa). */
+    getMaintenanceReason() {
+        if (!this.maintenanceMode) return null;
+        return this.maintenanceReason || null;
     }
 
     _loadAll() {

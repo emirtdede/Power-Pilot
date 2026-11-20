@@ -2,7 +2,11 @@ openapi: 3.0.3
 info:
   title: Power Pilot Local API
   description: Local REST API for controlling Power Pilot automation tasks, retrieving device status, and triggering power actions.
-  version: 1.1.0
+  version: 1.0.0
+  contact:
+    name: Vellium
+    url: https://vellium.dev
+    email: support@vellium.dev
 servers:
   - url: http://127.0.0.1:18456/api/v1
     description: Default Localhost Server
@@ -194,7 +198,37 @@ paths:
           description: Window Removed
   /audit:
     get:
-      summary: Get hash-chained audit log with verification (FAZ B enterprise)
+      summary: Get hash-chained audit log, admin only (FAZ B enterprise)
+      description: Returns paginated audit entries. Pass verify=1 to include chain verification (expensive, separate by default).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+        - name: beforeSeq
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: verify
+          in: query
+          required: false
+          description: Set to 1 to include chain verification in the response.
+          schema:
+            type: string
+            enum: ['1']
+      responses:
+        '200':
+          description: OK
+  /audit/verify:
+    get:
+      summary: Verify the audit hash chain integrity, admin only (FAZ B enterprise)
       security:
         - ApiKeyAuth: []
       responses:

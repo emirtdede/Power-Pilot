@@ -36,8 +36,8 @@ test('oturum içi dil değişiminde dinamik etiketler ve aria-adlar güncellenir
 
         const switchLanguage = async (lang) => {
             await window.locator('#nav-settings').click();
+            await window.locator('[data-scroll-target="settings-sec-appearance"]').click();
             await window.selectOption('#setting-language', lang);
-            await window.locator('#btn-settings-save').click();
             await window.waitForFunction((expected) => (
                 document.getElementById('btn-minimize')?.getAttribute('aria-label') === expected
             ), dictionaryOf(lang).winMinimize);

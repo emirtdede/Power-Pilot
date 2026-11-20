@@ -17,7 +17,7 @@ const { document } = dom.window;
 
 const VIEWS = [
     'view-dashboard', 'view-active', 'view-tasks', 'view-smartfinish', 'view-assistant',
-    'view-templates', 'view-history', 'view-stats', 'view-integrations', 'view-settings', 'view-about'
+    'view-templates', 'view-history', 'view-stats', 'view-integrations', 'view-docs', 'view-settings', 'view-about'
 ];
 
 describe('Responsive iskelet — yapı', () => {
@@ -60,9 +60,9 @@ describe('Responsive iskelet — yapı', () => {
         }
     });
 
-    it('11 nav öğesi etiketli, ipucu anahtarlı ve klavye ile erişilebilir', () => {
+    it('12 nav öğesi etiketli, ipucu anahtarlı ve klavye ile erişilebilir', () => {
         const navs = [...document.querySelectorAll('.nav-btn')];
-        expect(navs).toHaveLength(11);
+        expect(navs).toHaveLength(12);
         for (const nav of navs) {
             expect(nav.querySelector('.nav-label'), nav.id).toBeTruthy();
             expect(nav.getAttribute('data-nav-key'), nav.id).toBeTruthy();

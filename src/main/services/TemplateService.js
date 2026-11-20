@@ -9,6 +9,7 @@
 const os = require('os');
 const path = require('path');
 const { canonicalProcessName } = require('./processNames');
+const { PowerService } = require('./PowerService');
 
 const SUPPORTED_TEMPLATE_CONDITIONS = new Set([
     'process_running', 'cpu_usage', 'user_idle', 'file_stable',
@@ -183,6 +184,7 @@ class TemplateService {
     static isValidTemplate(tpl) {
         if (!tpl || typeof tpl !== 'object') return false;
         if (typeof tpl.id !== 'string' || typeof tpl.name !== 'string' || typeof tpl.action !== 'string') return false;
+        if (!PowerService.isValidAction(tpl.action)) return false;
         if (tpl.name.length === 0 || tpl.name.length > 80) return false;
         const cond = tpl.defaultCondition;
         const group = tpl.defaultConditionGroup;
@@ -190,7 +192,7 @@ class TemplateService {
         if (cond && TemplateService.isRunnableCondition(cond)) return true;
         if (group && Array.isArray(group.conditions) && group.conditions.length > 0 &&
             group.conditions.every((c) => TemplateService.isRunnableCondition(c))) return true;
-        if (sched && typeof sched.timeOfDay === 'string' && /^\d{2}:\d{2}$/.test(sched.timeOfDay)) return true;
+        if (sched && typeof sched.timeOfDay === 'string' && /^([01]\d|2[0-3]):([0-5]\d)$/.test(sched.timeOfDay)) return true;
         return false;
     }
 
