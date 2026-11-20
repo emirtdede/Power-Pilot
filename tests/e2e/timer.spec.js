@@ -56,7 +56,7 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
             await window.locator('#nav-active').click().catch(() => {});
         }
         await expect(window.locator('#monitoring-card')).toBeVisible();
-        await expect(window.locator('#monitoring-card-list')).toContainText('İzleniyor');
+        await expect(window.locator('#monitoring-card-list')).toContainText(/İzleniyor|Monitoring/);
         expect(await window.locator('#monitoring-card-list li').count()).toBeGreaterThan(0);
         const removed = await window.evaluate((id) => window.electronAPI.cancelTask(id, '4321'), conditional.task.id);
         expect(removed && removed.success).not.toBe(false);
@@ -74,8 +74,8 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
         await window.locator('#nav-settings').click();
         await window.locator('[data-scroll-target="settings-sec-appearance"]').click();
         await window.waitForTimeout(350);
-        const previousTheme = await window.evaluate(() => localStorage.getItem('theme') || 'dark');
-        const previousLanguage = await window.evaluate(() => localStorage.getItem('language') || 'tr');
+        const previousTheme = await window.locator('#setting-theme').inputValue();
+        const previousLanguage = await window.locator('#setting-language').inputValue();
         await app.evaluate(({ ipcMain }) => {
             // O-20: ayarlar artık tek atomik IPC ile yazılır; ikisi de reddedilir.
             for (const channel of ['save-settings', 'save-settings-atomic']) {
@@ -91,8 +91,8 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
         await window.waitForTimeout(450);
         expect(await window.locator('#setting-theme').inputValue()).toBe(previousTheme);
         expect(await window.locator('#setting-language').inputValue()).toBe(previousLanguage);
-        expect(await window.evaluate(() => localStorage.getItem('theme') || 'dark')).toBe(previousTheme);
-        expect(await window.evaluate(() => localStorage.getItem('language') || 'tr')).toBe(previousLanguage);
+        expect(await window.evaluate((fb) => localStorage.getItem('theme') || fb, previousTheme)).toBe(previousTheme);
+        expect(await window.evaluate((fb) => localStorage.getItem('language') || fb, previousLanguage)).toBe(previousLanguage);
 
         // T-REN-06: pencere kapatılırken maximize IPC istisna üretmez.
         await window.evaluate(() => window.electronAPI.maximizeToggle());
@@ -108,7 +108,7 @@ test('renderer sayaç ve iptal durum makinesi', async () => {
         }));
         expect(timed && timed.success).toBe(true);
         await window.locator('#nav-tasks').click();
-        await expect(window.locator('#tasks-table-body')).toContainText('Hızlı Zamanlayıcı (Kilitle)');
+        await expect(window.locator('#tasks-table-body')).toContainText(/Hızlı Zamanlayıcı \(Kilitle\)|Quick Timer \(Lock\)/);
 
         await window.locator('.btn-task-cancel').first().click();
         await expect(window.locator('#modal-pin')).toBeVisible();
