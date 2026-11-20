@@ -180,14 +180,15 @@ Power_Pilot/
 │   ├── uninstallerSidebar.bmp       # Custom 24-bit NSIS uninstaller sidebar (version-free)
 │   ├── installerHeader.bmp          # Custom 24-bit NSIS inner page header (version-free)
 │   └── installer.nsh                # Custom NSIS install/uninstall hooks & Task Scheduler cleanup
-├── docs/                            # Architecture, audits, release, runbooks, i18n plan, API schema
+├── docs/                            # Architecture, release, runbooks, i18n plan, API schema
 │   ├── architecture/                # Automation, Smart Finish, safety, local API, accessibility
-│   ├── audit/                       # QA and pre-deployment audit reports
 │   ├── i18n/                        # 73-language translation architecture & rollout plan
 │   ├── integrations/                # n8n and PowerShell/CLI guides
 │   ├── openapi/                     # OpenAPI 3.0 schema for the local REST API
 │   ├── release/                     # Signing, ASAR integrity, SBOM documentation
-│   └── runbooks/                    # Incident response and operations
+│   ├── reports/                     # Soak test and dependency license reports
+│   ├── runbooks/                    # Incident response and operations
+│   └── store/                       # Microsoft Store listing metadata and privacy policy
 ├── integrations/n8n/workflows/      # Ready-to-import n8n workflow (Telegram timer)
 ├── public/                          # Canonical Power Pilot & Vellium brand SVGs
 ├── scripts/                         # Release, packaging, NSIS asset generator, security, SBOM tools
