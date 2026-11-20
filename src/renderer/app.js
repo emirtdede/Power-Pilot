@@ -2488,7 +2488,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         tpl_nightly_sleep: ['tplNightlySleep', 'tplNightlySleepDesc'],
         tpl_battery_hibernate: ['tplBatteryHibernate', 'tplBatteryHibernateDesc'],
         tpl_backup_stable: ['tplBackupStable', 'tplBackupStableDesc'],
-        tpl_presentation_lock: ['tplPresentationLock', 'tplPresentationLockDesc']
+        tpl_presentation_lock: ['tplPresentationLock', 'tplPresentationLockDesc'],
+        tpl_torrent_complete_shutdown: ['tplTorrentCompleteShutdown', 'tplTorrentCompleteShutdownDesc'],
+        tpl_render_sleep: ['tplRenderSleep', 'tplRenderSleepDesc'],
+        tpl_disk_copy_shutdown: ['tplDiskCopyShutdown', 'tplDiskCopyShutdownDesc'],
+        tpl_epic_download_shutdown: ['tplEpicDownloadShutdown', 'tplEpicDownloadShutdownDesc'],
+        tpl_gaming_idle_sleep: ['tplGamingIdleSleep', 'tplGamingIdleSleepDesc'],
+        tpl_focus_lock_30m: ['tplFocusLock30m', 'tplFocusLock30mDesc'],
+        tpl_workday_end_lock: ['tplWorkdayEndLock', 'tplWorkdayEndLockDesc'],
+        tpl_obs_stream_sleep: ['tplObsStreamSleep', 'tplObsStreamSleepDesc'],
+        tpl_nightly_shutdown: ['tplNightlyShutdown', 'tplNightlyShutdownDesc'],
+        tpl_weekly_restart: ['tplWeeklyRestart', 'tplWeeklyRestartDesc'],
+        tpl_timer_60m_sleep: ['tplTimer60mSleep', 'tplTimer60mSleepDesc'],
+        tpl_timer_120m_shutdown: ['tplTimer120mShutdown', 'tplTimer120mShutdownDesc']
     };
     const BUILTIN_TEMPLATE_NAMES = {
         'İndirme Bitince Kapat': 'tplDownloadShutdown',
@@ -3409,7 +3421,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (projPill) {
                     projPill.textContent = stats.method === 'measured' ? t('statMethodMeasured')
                         : stats.method === 'mixed' ? t('statMethodMixed')
-                        : stats.method === 'assumed' ? t('statMethodAssumed') : t('statEstimated');
+                            : stats.method === 'assumed' ? t('statMethodAssumed') : t('statEstimated');
                 }
                 const profSummary = document.getElementById('stat-profile-summary');
                 if (profSummary && stats.profile) {
@@ -4772,31 +4784,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (_) { }
     }
 
-            // Setup Wizard (WBS-7.5) — bir kez gösterilir, Atla her zaman mümkün.
-            let wzStep = 1;
-            let wzPoll = null;
-            let wzPollMs = 0;
-            let wzClock = null;
-            // AI indirme canlı-ilerleme durumu (yalnızca arayüz katmanı).
-            // L-12: sihirbaz ve ayarlar aynı durum makinesini paylaşır.
-            const wzDlState = { active: false, failed: false, sample: null, speed: 0 };
-            const setDlState = { active: false, failed: false, sample: null, speed: 0 };
+    // Setup Wizard (WBS-7.5) — bir kez gösterilir, Atla her zaman mümkün.
+    let wzStep = 1;
+    let wzPoll = null;
+    let wzPollMs = 0;
+    let wzClock = null;
+    // AI indirme canlı-ilerleme durumu (yalnızca arayüz katmanı).
+    // L-12: sihirbaz ve ayarlar aynı durum makinesini paylaşır.
+    const wzDlState = { active: false, failed: false, sample: null, speed: 0 };
+    const setDlState = { active: false, failed: false, sample: null, speed: 0 };
 
-            // Anket hızı: indirme sürerken 500ms (canlı animasyon), yoksa 2sn.
-            function wzSetPoll(ms) {
-                if (wzPoll && wzPollMs === ms) return;
-                if (wzPoll) { clearInterval(wzPoll); wzPoll = null; }
-                wzPollMs = ms;
-                wzPoll = setInterval(wizardRefreshAi, ms);
-            }
-            function wzStopPoll() {
-                if (wzPoll) { clearInterval(wzPoll); wzPoll = null; }
-                wzPollMs = 0;
-            }
-            function wizardStopTimers() {
-                wzStopPoll();
-                if (wzClock) { clearInterval(wzClock); wzClock = null; }
-            }
+    // Anket hızı: indirme sürerken 500ms (canlı animasyon), yoksa 2sn.
+    function wzSetPoll(ms) {
+        if (wzPoll && wzPollMs === ms) return;
+        if (wzPoll) { clearInterval(wzPoll); wzPoll = null; }
+        wzPollMs = ms;
+        wzPoll = setInterval(wizardRefreshAi, ms);
+    }
+    function wzStopPoll() {
+        if (wzPoll) { clearInterval(wzPoll); wzPoll = null; }
+        wzPollMs = 0;
+    }
+    function wizardStopTimers() {
+        wzStopPoll();
+        if (wzClock) { clearInterval(wzClock); wzClock = null; }
+    }
 
     function wzFmtMb(bytes) {
         return Math.round(bytes / 1048576) + 'MB';
@@ -5027,7 +5039,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function wizardMaybeShow() {
         let done = null;
-        try { done = localStorage.getItem('pp-wizard-done'); } catch (_) {}
+        try { done = localStorage.getItem('pp-wizard-done'); } catch (_) { }
         if (done) return;
         try {
             const sys = (navigator.language || 'en').split('-')[0];

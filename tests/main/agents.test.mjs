@@ -4,7 +4,15 @@
  * LLM teması yok (sahte AiService) — tam deterministik.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { AgentOrchestrator, AGENT_MANIFESTS } from '../../src/main/services/AgentOrchestrator.js';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { AgentOrchestrator, AGENT_MANIFESTS } = require('../../src/main/services/AgentOrchestrator.js');
+const HistoryService = require('../../src/main/services/HistoryService.js');
+const docsQaAgent = require('../../src/main/services/agents/docsQaAgent.js');
+const templateAgent = require('../../src/main/services/agents/templateAgent.js');
+const connectionAgent = require('../../src/main/services/agents/connectionAgent.js');
+const diagnoseAgent = require('../../src/main/services/agents/diagnoseAgent.js');
 
 function makeOrchestrator(overrides = {}) {
     const storage = {
@@ -279,7 +287,6 @@ describe('recommender sessizlik kuralları (TS-9.1)', () => {
 
 describe('HistoryService.recordAgentRun (F9.5)', () => {
     it('ham metin saklanmaz, şekil sabittir', async () => {
-        const { default: HistoryService } = await import('../../src/main/services/HistoryService.js');
         const added = [];
         const svc = new HistoryService({ addHistoryRecord: (r) => added.push(r) });
         svc.recordAgentRun({ agentId: 'command', intent: 'x'.repeat(200), outcome: 'ok', msDuration: 12.7 });
@@ -289,5 +296,226 @@ describe('HistoryService.recordAgentRun (F9.5)', () => {
         expect(rec.intent.length).toBeLessThanOrEqual(80);
         expect(rec.msDuration).toBe(12);
         expect(rec.timestamp).toBeDefined();
+    });
+});
+
+describe('WP-8 Ajanları — docsQaAgent, templateAgent, connectionAgent, diagnoseAgent ve runAssistant tam kapsam', () => {
+    it('docsQaAgent: boş sorgu, eşleşmeyen sorgu, yerel RAG ve LLM RAG sentezi (TR + EN)', async () => {
+
+        expect((await docsQaAgent.execute({ text: '   ', language: 'tr' })).code).toBe('EMPTY');
+        expect((await docsQaAgent.execute({ text: '', language: 'en' })).code).toBe('EMPTY');
+
+        const noHitTr = await docsQaAgent.execute({ text: 'zzzzxxxxqqqq12345', language: 'tr' });
+        expect(noHitTr.ok).toBe(true);
+        expect(noHitTr.mode).toBe('fallback');
+        const noHitEn = await docsQaAgent.execute({ text: 'zzzzxxxxqqqq12345', language: 'en' });
+        expect(noHitEn.ok).toBe(true);
+        expect(noHitEn.mode).toBe('fallback');
+
+        const localHit = await docsQaAgent.execute({ text: 'Wake-on-LAN magic packet nedir?', language: 'tr' });
+        expect(localHit.ok).toBe(true);
+        expect(localHit.mode).toBe('rag_local');
+        expect(localHit.citations.length).toBeGreaterThan(0);
+
+        const disposed = vi.fn();
+        const fakeBackend = {
+            getStatus: () => ({ loaded: true }),
+            createSession: vi.fn(async () => ({
+                completePrompt: vi.fn(async () => ({ text: 'LLM tarafından kaynak bağlama dayalı sentezlenen detaylı yanıt.' }))
+            })),
+            disposeSession: disposed
+        };
+        const llmHit = await docsQaAgent.execute({
+            text: 'How does Smart Finish work?',
+            language: 'en',
+            aiBackend: fakeBackend
+        });
+        expect(llmHit.ok).toBe(true);
+        expect(llmHit.mode).toBe('rag_llm');
+        expect(llmHit.answer).toContain('LLM tarafından');
+        expect(disposed).toHaveBeenCalledTimes(1);
+
+        // Kısa yanıt veya hata durumunda güvenli biçimde rag_local'a düşer.
+        const failingBackend = {
+            getStatus: () => ({ loaded: true }),
+            createSession: vi.fn(async () => ({
+                completePrompt: vi.fn(async () => { throw new Error('llm fail'); })
+            })),
+            disposeSession: vi.fn()
+        };
+        const fallbackHit = await docsQaAgent.execute({
+            text: 'REST API port 18456 nasıl kullanılır?',
+            language: 'tr',
+            aiBackend: failingBackend
+        });
+        expect(fallbackHit.ok).toBe(true);
+        expect(fallbackHit.mode).toBe('rag_local');
+    });
+
+    it('templateAgent: tüm koşul/zamanlama/süre türlerini, olumsuzluğu ve TR/EN netleştirmeleri kapsar', async () => {
+        expect((await templateAgent.execute({ text: '', language: 'tr' })).code).toBe('EMPTY');
+        expect((await templateAgent.execute({ text: '', language: 'en' })).code).toBe('EMPTY');
+        expect((await templateAgent.execute({ text: 'bilgisayarı sakın kapatma şablon oluştur', language: 'tr' })).code).toBe('NEGATED_INTENT');
+        expect((await templateAgent.execute({ text: 'sakın kapatma create template', language: 'en' })).code).toBe('NEGATED_INTENT');
+
+        const clarifyActionTr = await templateAgent.execute({ text: 'sadece bir şablon oluştur', language: 'tr' });
+        expect(clarifyActionTr.kind).toBe('clarify');
+        expect(clarifyActionTr.needsClarification.missingFields).toEqual(['action']);
+
+        const clarifyActionEn = await templateAgent.execute({ text: 'just create a template', language: 'en' });
+        expect(clarifyActionEn.kind).toBe('clarify');
+
+        const clarifyTriggerTr = await templateAgent.execute({ text: 'bilgisayarı kapat', language: 'tr' });
+        expect(clarifyTriggerTr.kind).toBe('clarify');
+        expect(clarifyTriggerTr.needsClarification.missingFields).toEqual(['trigger']);
+
+        const clarifyTriggerEn = await templateAgent.execute({ text: 'shutdown computer', language: 'en' });
+        expect(clarifyTriggerEn.kind).toBe('clarify');
+
+        const cases = [
+            { text: 'her hafta içi 23:30 uyut şablon oluştur', lang: 'tr', cat: 'schedule' },
+            { text: 'every weekend 01:15 hibernate', lang: 'en', cat: 'schedule' },
+            { text: 'in 1 hour 30 minutes 15 seconds restart', lang: 'en', cat: 'schedule' },
+            { text: 'disk kopyalama 2 mb/s altına düşünce kapat', lang: 'tr', cat: 'render' },
+            { text: 'when idle for 20 minutes lock', lang: 'en', cat: 'power' },
+            { text: 'when download drops below 100 kbps shutdown', lang: 'en', cat: 'download' },
+            { text: 'when cpu render drops below 15% sleep', lang: 'en', cat: 'render' },
+            { text: 'when battery below 25% hibernate', lang: 'en', cat: 'power' },
+            { text: 'when steam.exe closes shutdown', lang: 'en', cat: 'gaming' },
+            { text: 'when code closes lock', lang: 'en', cat: 'security' },
+            { text: 'when node.exe exits sign out', lang: 'en', cat: 'productivity' },
+            { text: '"Gece Yedekleme" disk bitince kapat', lang: 'tr', cat: 'custom' },
+            { text: 'adı Ofis Çıkışı 45 dakika sonra kilitle', lang: 'tr', cat: 'schedule' }
+        ];
+        for (const c of cases) {
+            const res = await templateAgent.execute({ text: c.text, language: c.lang });
+            expect(res.ok, c.text).toBe(true);
+            expect(res.kind, c.text).toBe('template_proposal');
+            expect(res.templateProposal.category, c.text).toBe(c.cat);
+        }
+    });
+
+    it('connectionAgent: MCP, Webhook, WoL, UPS, Kurumsal Konsol ve Yerel REST API dallarını kapsar', async () => {
+        // 1. MCP (API kapalı vs açık, TR vs EN)
+        const mcp1 = await connectionAgent.execute({ text: 'MCP sunucusunu kur', language: 'tr', currentSettings: { localApiEnabled: false } });
+        expect(mcp1.connectionProposal.target).toBe('mcp');
+        expect(mcp1.connectionProposal.requiresPin).toBe(true);
+        const mcp2 = await connectionAgent.execute({ text: 'setup cursor mcp', language: 'en', currentSettings: { localApiEnabled: true, localApiPort: 18456 } });
+        expect(mcp2.connectionProposal.requiresPin).toBe(false);
+
+        // 2. Webhook (http reddi, eksik URL, geçerli HTTPS)
+        const whHttp = await connectionAgent.execute({ text: 'webhook ekle http://insecure.local/hook', language: 'tr' });
+        expect(whHttp.kind).toBe('clarify');
+        const whMissing = await connectionAgent.execute({ text: 'add webhook for zapier', language: 'en' });
+        expect(whMissing.kind).toBe('clarify');
+        const whOk = await connectionAgent.execute({
+            text: '"Bildirim" n8n webhook ekle https://hooks.example.com/pp task_created task_blocked',
+            language: 'tr'
+        });
+        expect(whOk.kind).toBe('connection_proposal');
+        expect(whOk.connectionProposal.webhook.name).toBe('Bildirim');
+        expect(whOk.connectionProposal.webhook.events).toEqual(['task_created', 'task_blocked']);
+
+        // 3. Wake-on-LAN (eksik MAC, kaydetme, anında gönderme)
+        const wolClarify = await connectionAgent.execute({ text: 'wake on lan cihazı ekle', language: 'tr' });
+        expect(wolClarify.kind).toBe('clarify');
+        const wolSave = await connectionAgent.execute({ text: '"Ofis PC" WoL ekle AA:BB:CC:DD:EE:FF 192.168.1.255', language: 'tr' });
+        expect(wolSave.connectionProposal.target).toBe('wol_device');
+        const wolSend = await connectionAgent.execute({ text: 'wake AA-BB-CC-DD-EE-FF now', language: 'en' });
+        expect(wolSend.connectionProposal.target).toBe('wol_send');
+
+        // 4. UPS / NUT (etkinleştir + host + name, devre dışı bırak)
+        const upsOn = await connectionAgent.execute({ text: 'UPS etkinleştir host: 192.168.1.50 name: mainups', language: 'tr' });
+        expect(upsOn.connectionProposal.settingsPatch).toMatchObject({ upsEnabled: true, upsHost: '192.168.1.50', upsName: 'mainups' });
+        const upsOff = await connectionAgent.execute({ text: 'disable nut ups server: nut.local', language: 'en' });
+        expect(upsOff.connectionProposal.settingsPatch.upsEnabled).toBe(false);
+
+        // 5. Kurumsal Konsol (clarify + geçerli ayarlar)
+        const entClarify = await connectionAgent.execute({ text: 'kurumsal konsol', language: 'tr' });
+        expect(entClarify.kind).toBe('clarify');
+        const entOk = await connectionAgent.execute({
+            text: 'kurumsal konsol https://console.vellium.dev agent id: node-01 sunucu',
+            language: 'tr'
+        });
+        expect(entOk.connectionProposal.requiresPin).toBe(true);
+        expect(entOk.connectionProposal.settingsPatch).toMatchObject({
+            consoleUrl: 'https://console.vellium.dev',
+            agentId: 'node-01',
+            deviceRole: 'server'
+        });
+        const entWs = await connectionAgent.execute({ text: 'enterprise console workstation', language: 'en' });
+        expect(entWs.connectionProposal.settingsPatch.deviceRole).toBe('workstation');
+
+        // 6. Yerel REST API / LAN / TLS (clarify + aç/kapat/port/rol)
+        const apiClarify = await connectionAgent.execute({ text: 'yerel api', language: 'tr' });
+        expect(apiClarify.kind).toBe('clarify');
+        const apiOpen = await connectionAgent.execute({
+            text: 'REST API port 18456 üzerinden aç tls operator',
+            language: 'tr',
+            currentSettings: { localApiEnabled: true, localApiTlsEnabled: true }
+        });
+        expect(apiOpen.connectionProposal.settingsPatch).toMatchObject({
+            localApiPort: 18456,
+            localApiEnabled: true,
+            localApiTlsEnabled: true,
+            localApiKeyRole: 'operator'
+        });
+        const lanFail = await connectionAgent.execute({
+            text: 'yerel ağ lan aç',
+            language: 'tr',
+            currentSettings: { localApiEnabled: true, localApiTlsEnabled: true }
+        });
+        expect(lanFail.ok).toBe(false);
+        expect(lanFail.code).toBe('LAN_ALLOWLIST_REQUIRED');
+        const lanToggle = await connectionAgent.execute({
+            text: 'yerel ağ lan aç',
+            language: 'tr',
+            currentSettings: {
+                localApiEnabled: true,
+                localApiTlsEnabled: true,
+                lanAllowedIps: ['192.168.1.0/24'],
+                localApiCertFile: 'cert.pem',
+                localApiKeyFile: 'key.pem'
+            }
+        });
+        expect(lanToggle.connectionProposal.settingsPatch.lanModeEnabled).toBe(true);
+        const apiClose = await connectionAgent.execute({ text: 'disable local api', language: 'en' });
+        expect(apiClose.connectionProposal.settingsPatch.localApiEnabled).toBe(false);
+
+        // 7. Eşleşmeyen genel istek
+        const fallback = await connectionAgent.execute({ text: 'merhaba bağlantı', language: 'tr' });
+        expect(fallback.kind).toBe('clarify');
+        const fallbackEn = await connectionAgent.execute({ text: 'hello integration', language: 'en' });
+        expect(fallbackEn.kind).toBe('clarify');
+    });
+
+    it('diagnoseAgent: tüm engelleme nedenlerini TR ve EN dilinde açıklar', async () => {
+        const reasons = [
+            'Korunan uygulama: code.exe',
+            'USER_ACTIVE uzaktan kapatma',
+            'Çakışan görev CONFLICT',
+            'Tam ekran FULLSCREEN',
+            'Bilinmeyen kural',
+            ''
+        ];
+        for (const r of reasons) {
+            const tr = await diagnoseAgent.execute({ reason: r, language: 'tr' });
+            const en = await diagnoseAgent.execute({ reason: r, language: 'en' });
+            expect(tr.ok).toBe(true);
+            expect(en.ok).toBe(true);
+            expect(tr.explanation.length).toBeGreaterThan(0);
+            expect(en.explanation.length).toBeGreaterThan(0);
+        }
+    });
+
+    it('AgentOrchestrator.runAssistant tüm 7 ajanı ve intentHint yönlendirmesini çalıştırır', async () => {
+        const { orch } = makeOrchestrator();
+        expect((await orch.runAssistant('indirme bitince kapat şablon oluştur')).kind).toBe('template_proposal');
+        expect((await orch.runAssistant('REST API port 18456 aç')).kind).toBe('connection_proposal');
+        expect((await orch.runAssistant('Smart Finish nedir?')).kind).toBe('docs_answer');
+        expect((await orch.runAssistant('neden kapanmadı?', { lastBlockedReason: 'FULLSCREEN' })).kind).toBe('diagnose');
+        expect((await orch.runAssistant('ne kadar tasarruf ettim?', { energyStats: { enabled: false } })).kind).toBe('energy');
+        expect((await orch.runAssistant('bana kural öner', { historyList: [] })).kind).toBe('recommender');
+        expect((await orch.runAssistant('herhangi bir metin', { intentHint: 'diagnose' })).kind).toBe('diagnose');
     });
 });

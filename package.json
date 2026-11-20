@@ -220,10 +220,10 @@
   "homepage": "https://vellium.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/emirtdede/Power-Pilot.git"
+    "url": "git+https://github.com/emirtdede/power-pilot.git"
   },
   "bugs": {
-    "url": "https://github.com/emirtdede/Power-Pilot/issues"
+    "url": "https://github.com/emirtdede/power-pilot/issues"
   },
   "keywords": [
     "electron",

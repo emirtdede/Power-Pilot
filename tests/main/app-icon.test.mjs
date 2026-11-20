@@ -7,9 +7,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import AppIconService from '../../src/main/services/AppIconService.js';
-import { validateSettings } from '../../src/main/ipc/validate.js';
-import StorageService from '../../src/main/services/StorageService.js';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const AppIconService = require('../../src/main/services/AppIconService.js');
+const { validateSettings } = require('../../src/main/ipc/validate.js');
+const StorageService = require('../../src/main/services/StorageService.js');
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const tmpDirs = [];
@@ -261,5 +264,91 @@ describe('AppIconService — ayar doğrulama ve çalışma zamanı uygulaması',
         expect(decoded).toContain('SHChangeNotify(0x00002000');
         expect(decoded).toContain('SHChangeNotify(0x00001000');
         expect(decoded).toContain('SHChangeNotify(0x08000000');
+    });
+
+    it('paketli yol çözümü, NativeImage ölçekleme, replace fallback ve DisplayIcon dallarını kapsar', () => {
+        const fakeResources = freshDir('pp-res-');
+        const unpackedIcons = path.join(fakeResources, 'app.asar.unpacked', 'src', 'assets', 'icons');
+        fs.mkdirSync(unpackedIcons, { recursive: true });
+        const packedIco = path.join(unpackedIcons, 'classic-cyan.ico');
+        const packedPng = path.join(unpackedIcons, 'classic-cyan.png');
+        fs.copyFileSync(path.join(root, 'src', 'assets', 'icons', 'classic-cyan.ico'), packedIco);
+        fs.copyFileSync(path.join(root, 'src', 'assets', 'icons', 'classic-cyan.png'), packedPng);
+
+        expect(AppIconService.resolveIconIcoPath('classic-cyan', {
+            rootDir: root,
+            resourcesPath: fakeResources,
+            isPackaged: true
+        })).toBe(packedIco);
+        expect(AppIconService.resolveIconPngPath('classic-cyan', {
+            rootDir: root,
+            resourcesPath: fakeResources,
+            isPackaged: true
+        })).toBe(packedPng);
+
+        // Kalıcı unpacked kurulumda kopyalama yapmadan doğrudan unpacked yolu döner
+        expect(AppIconService.ensureStableShortcutIco('classic-cyan', {
+            sourceIcoPath: packedIco,
+            isPackaged: true,
+            isPortable: false
+        })).toBe(packedIco);
+        expect(AppIconService.ensureStableShortcutIco('classic-cyan', { sourceIcoPath: null })).toBeNull();
+
+        // NativeImage resize dalı
+        const resizedImg = { isEmpty: () => false, resized: true };
+        const baseImg = {
+            isEmpty: () => false,
+            resize: vi.fn(() => resizedImg)
+        };
+        const payload = AppIconService.buildRuntimeIconPayload('classic-cyan', {
+            icoPath: packedIco,
+            pngPath: packedPng,
+            nativeImage: { createFromPath: () => baseImg },
+            targetSize: 32
+        });
+        expect(payload).toBe(resizedImg);
+
+        // updateWindowsShortcuts: 'update' eski ikonu korursa 'replace' fallback çalışır
+        const desktop = freshDir('pp-replace-');
+        const lnk = path.join(desktop, 'Power Pilot.lnk');
+        fs.writeFileSync(lnk, '');
+        const ops = [];
+        const shellReplaceFallback = {
+            readShortcutLink: () => ({
+                target: 'C:\\Program Files\\Power Pilot\\Power Pilot.exe',
+                icon: 'C:\\old-icon.ico'
+            }),
+            writeShortcutLink: (p, op) => {
+                ops.push(op);
+                return true;
+            }
+        };
+        const upd = AppIconService.updateWindowsShortcuts(packedIco, {
+            shell: shellReplaceFallback,
+            desktopDirs: [desktop],
+            platform: 'win32'
+        });
+        expect(upd.updated).toEqual([lnk]);
+        expect(ops).toEqual(['update', 'replace']);
+
+        // Paketli kurulumda applyAppIcon hem setOverlayIcon hem DisplayIcon tetikler
+        const execCalls = [];
+        const overlayFn = vi.fn();
+        AppIconService.applyAppIcon('classic-cyan', {
+            mainWindow: { isDestroyed: () => false, setIcon: vi.fn(), setOverlayIcon: overlayFn },
+            miniWindow: { isDestroyed: () => false, setIcon: vi.fn() },
+            tray: { isDestroyed: () => false, setImage: vi.fn() },
+            shell: shellReplaceFallback,
+            rootDir: root,
+            resourcesPath: fakeResources,
+            desktopDirs: [desktop],
+            isPortable: false,
+            isStoreBuild: false,
+            isPackaged: true,
+            platform: 'win32',
+            execFileImpl: (file, args) => execCalls.push({ file, args })
+        });
+        expect(overlayFn).toHaveBeenCalledWith(null, '');
+        expect(execCalls.filter((c) => /powershell/i.test(c.file)).length).toBeGreaterThanOrEqual(2);
     });
 });

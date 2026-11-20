@@ -3,7 +3,10 @@
  * beyanlı varsayım damgası, uydurma-sayı yok.
  */
 import { describe, it, expect } from 'vitest';
-import EnergyEstimateService from '../../src/main/services/EnergyEstimateService.js';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const EnergyEstimateService = require('../../src/main/services/EnergyEstimateService.js');
 
 function makeService(settings, history, boots = []) {
     return new EnergyEstimateService({
