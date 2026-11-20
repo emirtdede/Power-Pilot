@@ -173,7 +173,17 @@ class TaskSchedulerBridge {
     }
 
     isSupported() {
-        return !this.isStoreApp && typeof this.exePath === 'string' && this.exePath.length > 0;
+        if (this.isStoreApp || typeof this.exePath !== 'string' || this.exePath.length === 0) {
+            return false;
+        }
+        // Paketlenmemiş geliştirme / Playwright E2E koşularında exePath ham
+        // `node_modules/electron/dist/electron.exe` olur; uygulama yolu argümanı
+        // olmadan Windows Görev Zamanlayıcıya kaydedilirse testten dakikalar sonra
+        // varsayılan boş Electron penceresi ("To run a local app...") açılır.
+        if (path.basename(this.exePath).toLowerCase() === 'electron.exe') {
+            return false;
+        }
+        return true;
     }
 
     /**

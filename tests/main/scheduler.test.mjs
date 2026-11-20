@@ -37,6 +37,20 @@ function timedTask(overrides = {}) {
     }, overrides);
 }
 
+describe('paketlenmemiş electron.exe koruması', () => {
+    it('ham electron.exe (dev/E2E) ile Windows Görev Zamanlayıcıya kayıt yazmaz', async () => {
+        const calls = [];
+        const b = bridgeWith(calls, {
+            exePath: 'D:\\SOFTWARE DEVELOPMENT\\Tools\\Power_Pilot\\node_modules\\electron\\dist\\electron.exe'
+        });
+        expect(b.isSupported()).toBe(false);
+        expect(b.shouldSync(timedTask())).toBe(false);
+        const res = await b.syncTask(timedTask());
+        expect(res).toBe(false);
+        expect(calls).toHaveLength(0);
+    });
+});
+
 describe('removeAllTasks — sahipsiz kayıt temizliği (P1)', () => {
     it('yalnızca \\PowerPilot klasöründeki görevleri siler, başkalarına dokunmaz', async () => {
         const calls = [];
