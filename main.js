@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, screen, shell, powerMonitor, dialog, session } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, screen, shell, powerMonitor, dialog, session, nativeImage, Notification } = require('electron');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
@@ -6,6 +6,9 @@ const fs = require('fs');
 
 // Import modular services
 const { PowerService } = require('./src/main/services/PowerService');
+const AppIconService = require('./src/main/services/AppIconService');
+const { DiagnosticsService } = require('./src/main/services/DiagnosticsService');
+const { searchDocs } = require('./src/main/services/DocsKnowledgeBase');
 const { summarize: summarizeHealth } = require('./src/main/services/HealthMetrics');
 const miniPlacement = require('./src/main/services/MiniWindowPlacement');
 const miniWidgetState = require('./src/main/services/MiniWidgetState');
@@ -36,9 +39,57 @@ const { TimerRegistry } = require('./src/main/util/TimerRegistry');
 const { installCrashGuard } = require('./src/main/util/CrashGuard');
 const Portable = require('./src/main/util/Portable');
 
+// WP-2: Windows 11 görev çubuğu, kısayol ve bildirim kimliği tutarlılığı için
+// AppUserModelId uygulama açılışında tekil olarak sabitlenir.
+if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
+    try { app.setAppUserModelId(AppIconService.APP_USER_MODEL_ID); } catch (_) { /* yut */ }
+}
+
+let diagnosticsService = null;
+
 // Yayın dayanıklılığı: ana süreçteki yakalanmamış hata artık sessizce
 // uygulamayı kapatmaz; redakte edilmiş log satırı bırakır ve süreç ayakta kalır.
-installCrashGuard({ processRef: process, logger: log });
+installCrashGuard({
+    processRef: process,
+    logger: log,
+    onCrash: ({ kind, message }) => {
+        try {
+            if (diagnosticsService) {
+                diagnosticsService.recordCrash({ kind, message, source: 'main' });
+            }
+        } catch (_) { /* yut */ }
+    }
+});
+
+// WP-5: Chromium renderer/alt süreç çöküşlerini de tanılama günlüğüne düş.
+app.on('render-process-gone', (_event, _wc, details) => {
+    const reason = (details && details.reason) || 'unknown';
+    log.error(`[CrashGuard] Renderer süreci sonlandı: ${reason}`);
+    try {
+        if (diagnosticsService) {
+            diagnosticsService.recordCrash({
+                kind: 'render-process-gone',
+                message: `Renderer process exited: ${reason} (exitCode=${details && details.exitCode})`,
+                source: 'renderer'
+            });
+        }
+    } catch (_) { /* yut */ }
+});
+app.on('child-process-gone', (_event, details) => {
+    const type = (details && details.type) || 'unknown';
+    const reason = (details && details.reason) || 'unknown';
+    if (reason === 'clean-exit') return;
+    log.warn(`[CrashGuard] Alt süreç sonlandı (${type}): ${reason}`);
+    try {
+        if (diagnosticsService) {
+            diagnosticsService.recordCrash({
+                kind: 'child-process-gone',
+                message: `Child process (${type}) exited: ${reason}`,
+                source: 'child'
+            });
+        }
+    } catch (_) { /* yut */ }
+});
 
 // WP-10.T1: renderer yalnızca app://powerpilot origin'inden yüklenir.
 registerAppScheme();
@@ -441,6 +492,7 @@ function startBackupSchedule() {
     const run = async () => {
         if (!storageService || storageService.maintenanceMode) return;
         try {
+            if (storageService.getSettings().autoBackupEnabled === false) return;
             const key = await ensureBackupKey();
             if (!key) return;
             const result = await runBackup({
@@ -644,8 +696,25 @@ async function initServices() {
     sttService = new SttService({ modelDir: path.join(app.getPath('userData'), 'models') });
     // WBS-E3: Cihaz profilleyici (kasa + watt tahmini/ölçümü).
     deviceProfiler = new DeviceProfiler();
-    // WBS-9.1: Ajan orkestratörü (deterministik yönlendirme + kuyruk + denetim).
-    agentOrchestrator = new AgentOrchestrator({ aiService, storage: storageService, history: historyService });
+    // WBS-9.1 + WP-8: Ajan orkestratörü (deterministik yönlendirme + şablon/bağlantı/RAG).
+    agentOrchestrator = new AgentOrchestrator({ aiService, aiBackend, storage: storageService, history: historyService });
+    // WP-5: Yerel tanılama, hata/çökme raporlama ve ZIP destek paketi servisi.
+    let downloadsDir = null;
+    try { downloadsDir = app.getPath('downloads'); } catch (_) { downloadsDir = null; }
+    diagnosticsService = new DiagnosticsService({
+        userDataDir: app.getPath('userData'),
+        logsDir: path.join(app.getPath('userData'), 'logs'),
+        downloadsDir,
+        appVersion: getAppVersion(),
+        distributionChannel: distribution.IS_STORE ? 'store' : 'direct',
+        isPortable: Portable.isPortable(process.env),
+        storageService
+    });
+    diagnosticsService.recordSystemEvent({
+        level: 'info',
+        scope: 'startup',
+        message: `Power Pilot v${getAppVersion()} initialized (portable=${Portable.isPortable(process.env)})`
+    });
 
     // FAZ B: konsol istemcisi + emir icracısı (deviceService yukarıda kuruldu).
     // Store kapsamı: konsol ajanı/senkronu yok (politika 10.2.4).
@@ -802,6 +871,90 @@ function hardenWebContents(contents) {
     contents.on('will-attach-webview', (event) => event.preventDefault());
 }
 
+function getShortcutDirs() {
+    const desktopDirs = [];
+    const startMenuDirs = [];
+    const taskbarDirs = [];
+    const pushUnique = (list, candidate) => {
+        if (!candidate || typeof candidate !== 'string') return;
+        const norm = path.resolve(candidate);
+        if (!list.some((d) => d.toLowerCase() === norm.toLowerCase())) list.push(norm);
+    };
+    try { pushUnique(desktopDirs, app.getPath('desktop')); } catch (_) { /* yut */ }
+    try { pushUnique(desktopDirs, path.join(os.homedir(), 'Desktop')); } catch (_) { /* yut */ }
+    if (process.env.OneDrive) pushUnique(desktopDirs, path.join(process.env.OneDrive, 'Desktop'));
+    if (process.env.OneDriveConsumer) pushUnique(desktopDirs, path.join(process.env.OneDriveConsumer, 'Desktop'));
+    if (process.env.OneDriveCommercial) pushUnique(desktopDirs, path.join(process.env.OneDriveCommercial, 'Desktop'));
+    if (process.env.PUBLIC) pushUnique(desktopDirs, path.join(process.env.PUBLIC, 'Desktop'));
+    if (process.env.APPDATA) {
+        const programs = path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+        pushUnique(startMenuDirs, programs);
+        pushUnique(startMenuDirs, path.join(programs, 'Power Pilot'));
+        pushUnique(startMenuDirs, path.join(programs, 'Startup'));
+        const pinned = path.join(process.env.APPDATA, 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned');
+        pushUnique(taskbarDirs, path.join(pinned, 'TaskBar'));
+        pushUnique(taskbarDirs, path.join(pinned, 'ImplicitAppShortcuts'));
+    }
+    if (process.env.ProgramData) {
+        const commonPrograms = path.join(process.env.ProgramData, 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+        pushUnique(startMenuDirs, commonPrograms);
+        pushUnique(startMenuDirs, path.join(commonPrograms, 'Power Pilot'));
+    }
+    return { desktopDirs, startMenuDirs, taskbarDirs };
+}
+
+function getCurrentAppIconId() {
+    const raw = storageService && typeof storageService.getSettings === 'function'
+        ? storageService.getSettings().appIcon
+        : null;
+    return AppIconService.normalizeAppIcon(raw);
+}
+
+function getCurrentAppIconPath() {
+    return AppIconService.resolveIconIcoPath(getCurrentAppIconId(), {
+        rootDir: __dirname,
+        resourcesPath: process.resourcesPath,
+        isPackaged: app.isPackaged
+    });
+}
+
+function getCurrentAppIconImage(targetSize = null) {
+    const id = getCurrentAppIconId();
+    const icoPath = AppIconService.resolveIconIcoPath(id, {
+        rootDir: __dirname,
+        resourcesPath: process.resourcesPath,
+        isPackaged: app.isPackaged
+    });
+    const pngPath = AppIconService.resolveIconPngPath(id, {
+        rootDir: __dirname,
+        resourcesPath: process.resourcesPath,
+        isPackaged: app.isPackaged
+    });
+    return AppIconService.buildRuntimeIconPayload(id, { icoPath, pngPath, nativeImage, targetSize });
+}
+
+function applyRuntimeAppIcon(iconId, { updateShortcuts = true } = {}) {
+    const { desktopDirs, startMenuDirs, taskbarDirs } = getShortcutDirs();
+    return AppIconService.applyAppIcon(iconId, {
+        mainWindow,
+        miniWindow,
+        tray,
+        shell,
+        nativeImage,
+        rootDir: __dirname,
+        resourcesPath: process.resourcesPath,
+        userDataDir: app.getPath('userData'),
+        desktopDirs,
+        startMenuDirs,
+        taskbarDirs,
+        isPortable: Portable.isPortable(process.env),
+        isStoreBuild: distribution.IS_STORE === true,
+        isPackaged: app.isPackaged,
+        updateShortcuts,
+        logger: log
+    });
+}
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1400,
@@ -818,7 +971,7 @@ function createWindow() {
         // koyu tema iskeletiyle eşleşir.
         show: false,
         backgroundColor: '#0b1120',
-        icon: path.join(__dirname, 'powerpilot_icon.ico'),
+        icon: getCurrentAppIconImage(),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -834,10 +987,17 @@ function createWindow() {
 
     // `show: false` ile açılan pencere, ilk kare hazır olunca gösterilir;
     // böylece beyaz parlama olmaz ve kullanıcı doğrudan arayüzü görür.
+    // WP-2: Pencere HWND hazır olduğunda seçili ikon yeniden uygulanır (Windows
+    // görev çubuğu tutarlılığı). WP-9: startMinimized etkinse tepside açılır.
     mainWindow.once('ready-to-show', () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.show();
-            mainWindow.focus();
+            applyRuntimeAppIcon(getCurrentAppIconId(), { updateShortcuts: false });
+            const startMin = storageService && typeof storageService.getSettings === 'function'
+                && storageService.getSettings().startMinimized === true;
+            if (!startMin) {
+                mainWindow.show();
+                mainWindow.focus();
+            }
         }
     });
 
@@ -852,6 +1012,14 @@ function createWindow() {
                     content: t('trayBackgroundRunning')
                 });
             }
+            return;
+        }
+        const closeToTray = storageService && typeof storageService.getSettings === 'function'
+            ? storageService.getSettings().closeToTray === true
+            : false;
+        if (!isQuitting && closeToTray && tray) {
+            event.preventDefault();
+            mainWindow.hide();
         }
     });
 
@@ -875,8 +1043,11 @@ function createWindow() {
 
 function updateMiniWindowVisibility() {
     // WBS-0.2: Görünürlük kararı TaskManager aktif görev sayısına bağlıdır.
+    const autoMini = storageService && typeof storageService.getSettings === 'function'
+        ? storageService.getSettings().autoMiniWidget !== false
+        : true;
     const hasActive = taskManager && taskManager.getActiveTasks().length > 0;
-    if (!hasActive || isMiniWindowDismissed) {
+    if (!hasActive || !autoMini || isMiniWindowDismissed) {
         if (miniWindow && !miniWindow.isDestroyed()) {
             miniWindow.close();
         }
@@ -943,7 +1114,7 @@ function createMiniWindow() {
         alwaysOnTop: true,
         skipTaskbar: true,
         show: false,
-        icon: path.join(__dirname, 'powerpilot_icon.ico'),
+        icon: getCurrentAppIconImage(),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -1063,7 +1234,7 @@ function showMainWindowForPin(reason) {
 }
 
 function createTray() {
-    tray = new Tray(path.join(__dirname, 'powerpilot_icon.ico'));
+    tray = new Tray(getCurrentAppIconImage(32));
 
     const updateTrayMenu = (force = false) => {
         const activeCount = taskManager ? taskManager.getActiveTasks().length : 0;
@@ -1629,7 +1800,40 @@ ipcHandle('quit-app', async (event, args) => {
 
 ipcHandle('get-history', (event, filter) => historyService.getHistory(filter));
 ipcHandle('clear-history', () => historyService.clear());
-ipcHandle('get-statistics', () => energyService.getStatistics());
+ipcHandle('get-statistics', (event, options) => energyService.getStatistics(options && typeof options === 'object' ? options : {}));
+ipcHandle('export-statistics', async (event, args) => {
+    const format = args && args.format === 'csv' ? 'csv' : 'json';
+    const days = args && args.days ? Number(args.days) : null;
+    const stats = energyService.getStatistics(days ? { days } : {});
+    if (!stats || stats.enabled === false) {
+        return { success: false, code: 'STATS_DISABLED', message: t('errorInvalidRequest') };
+    }
+    const target = await dialog.showSaveDialog(mainWindow || undefined, {
+        title: t('statsExportTitle'),
+        defaultPath: `powerpilot-stats.${format}`,
+        filters: format === 'csv'
+            ? [{ name: 'CSV', extensions: ['csv'] }]
+            : [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (target.canceled || !target.filePath) return { success: false, code: 'CANCELLED' };
+    try {
+        let content;
+        if (format === 'csv') {
+            const rows = [
+                'date,runs,hours,kwh',
+                ...(stats.dailySeries || []).map((d) => `${d.date},${d.runs},${d.hours},${d.kwh}`)
+            ];
+            content = rows.join('\n');
+        } else {
+            content = JSON.stringify({ exportedAt: new Date().toISOString(), appVersion: getAppVersion(), ...stats }, null, 2);
+        }
+        await fs.promises.writeFile(target.filePath, content, 'utf8');
+        return { success: true, filePath: target.filePath };
+    } catch (err) {
+        log.warn('[IPC] export-statistics yazılamadı:', err && err.message);
+        return { success: false, code: 'IO_ERROR', message: t('errorSaveFailed') };
+    }
+});
 // C5: yerel sağlık özeti — hiçbir veri dışarı çıkmaz, yalnızca cihazdaki
 // kayıtlar özetlenir (ürünün "telemetri yok" vaadi korunur).
 ipcHandle('get-health-summary', () => {
@@ -1645,13 +1849,27 @@ ipcHandle('get-health-summary', () => {
     } catch (_) { history = []; }
     return summarizeHealth({ history, installedAtMs, nowMs: Date.now() });
 });
-ipcHandle('get-templates', () => templateService.getTemplates());
+ipcHandle('get-templates', (event, options) => templateService.getTemplates(options && typeof options === 'object' ? options : {}));
+ipcHandle('get-hidden-templates', () => templateService.getHiddenBuiltIns());
 ipcHandle('save-template', (event, tpl) => {
-    // WBS-6.4: Kullanıcı şablonu — şema + koşul geçerliliği zorunlu.
+    // WBS-6.4 + WP-7: Kullanıcı şablonu ve yerleşik şablon düzenleme (override).
     if (!tpl || typeof tpl !== 'object') {
         return { success: false, code: 'INVALID_BODY', message: t('errorInvalidTemplateData') };
     }
-    const probe = { action: tpl.action, conditionGroup: tpl.defaultConditionGroup || (tpl.defaultCondition ? { operator: 'AND', conditions: [tpl.defaultCondition] } : undefined) };
+    const allowedCategories = new Set(TemplateService.getCategories());
+    const safeIcon = (typeof tpl.icon === 'string' && /^[a-z0-9_]{1,40}$/.test(tpl.icon.trim()))
+        ? tpl.icon.trim()
+        : 'bookmark';
+    const safeCategory = (typeof tpl.category === 'string' && allowedCategories.has(tpl.category))
+        ? tpl.category
+        : 'custom';
+    const probe = {
+        action: tpl.action,
+        ...(tpl.trigger ? { trigger: tpl.trigger } : {}),
+        ...(tpl.defaultConditionGroup || tpl.defaultCondition
+            ? { conditionGroup: tpl.defaultConditionGroup || { operator: 'AND', conditions: [tpl.defaultCondition] } }
+            : {})
+    };
     const check = validateTaskData(probe);
     if (!check.ok && !tpl.schedule) {
         log.warn(`[IPC] save-template reddedildi: ${check.error}`);
@@ -1663,32 +1881,67 @@ ipcHandle('save-template', (event, tpl) => {
     // takılır ve UI'daki "Şablonu Kaydet" her zaman INVALID_TEMPLATE dönerdi.
     const record = {
         id: typeof tpl.id === 'string' && tpl.id ? tpl.id : `user_tpl_${Date.now()}`,
-        name: String(tpl.name || '').slice(0, 80),
-        description: String(tpl.description || '').slice(0, 200),
+        name: String(tpl.name || '').trim().slice(0, 80),
+        description: String(tpl.description || '').trim().slice(0, 200),
         action: tpl.action,
-        icon: 'bookmark',
-        category: 'custom',
+        icon: safeIcon,
+        category: safeCategory,
         ...(tpl.defaultCondition ? { defaultCondition: tpl.defaultCondition } : {}),
         ...(tpl.defaultConditionGroup ? { defaultConditionGroup: tpl.defaultConditionGroup } : {}),
-        ...(tpl.schedule ? { schedule: tpl.schedule } : {})
+        ...(tpl.schedule ? { schedule: tpl.schedule } : {}),
+        ...(tpl.trigger ? { trigger: tpl.trigger } : {})
     };
     if (!TemplateService.isValidTemplate(record)) {
         return { success: false, code: 'INVALID_TEMPLATE', message: t('errorInvalidTemplate') };
     }
+    // Yerleşik bir şablon düzenleniyorsa override haritasına kaydet (ve gizliyse görünür yap).
+    if (templateService.isBuiltInId(record.id)) {
+        const s = storageService.getSettings();
+        const overrides = { ...(s.templateOverrides || {}), [record.id]: record };
+        const hidden = (Array.isArray(s.hiddenBuiltInTemplates) ? s.hiddenBuiltInTemplates : []).filter((id) => id !== record.id);
+        storageService.updateSettings({ templateOverrides: overrides, hiddenBuiltInTemplates: hidden });
+        return { success: true, template: { ...record, builtIn: true, modified: true } };
+    }
     const list = storageService.getTemplates().filter(t => t.id !== record.id);
     list.push(record);
     storageService.saveTemplates(list);
-    return { success: true, template: record };
+    return { success: true, template: { ...record, custom: true, builtIn: false } };
 });
 ipcHandle('delete-template', (event, templateId) => {
     const check = validateTaskId(templateId);
     if (!check.ok) return { success: false, code: check.code, message: t('errorInvalidRequest') };
-    // Hazır şablonlar silinemez (id öneki tpl_, kullanıcılarınki user_tpl_).
+    // WP-7: Yerleşik şablon silindiğinde gizlenenler listesine alınır (geri getirilebilir).
+    if (templateService.isBuiltInId(templateId)) {
+        const s = storageService.getSettings();
+        const hidden = Array.isArray(s.hiddenBuiltInTemplates) ? [...s.hiddenBuiltInTemplates] : [];
+        if (!hidden.includes(templateId)) hidden.push(templateId);
+        storageService.updateSettings({ hiddenBuiltInTemplates: hidden });
+        return { success: true, hidden: true };
+    }
     if (!String(templateId).startsWith('user_tpl_')) {
         return { success: false, code: 'PROTECTED_TEMPLATE', message: t('errorProtectedTemplate') };
     }
     storageService.saveTemplates(storageService.getTemplates().filter(t => t.id !== templateId));
     return { success: true };
+});
+ipcHandle('reset-template', (event, templateId) => {
+    const check = validateTaskId(templateId);
+    if (!check.ok || !templateService.isBuiltInId(templateId)) {
+        return { success: false, code: 'INVALID_TEMPLATE', message: t('errorInvalidRequest') };
+    }
+    const s = storageService.getSettings();
+    const overrides = { ...(s.templateOverrides || {}) };
+    delete overrides[templateId];
+    const hidden = (Array.isArray(s.hiddenBuiltInTemplates) ? s.hiddenBuiltInTemplates : []).filter((id) => id !== templateId);
+    storageService.updateSettings({ templateOverrides: overrides, hiddenBuiltInTemplates: hidden });
+    return { success: true, template: templateService.getBuiltInById(templateId) };
+});
+ipcHandle('restore-default-templates', (event, options) => {
+    const resetEdits = !!(options && options.resetEdits === true);
+    const patch = { hiddenBuiltInTemplates: [] };
+    if (resetEdits) patch.templateOverrides = {};
+    storageService.updateSettings(patch);
+    return { success: true, templates: templateService.getTemplates() };
 });
 
 // Faz 3: profil/şablon içe-dışa aktarma (sürümlü JSON).
@@ -1785,6 +2038,34 @@ ipcHandle('ai-parse', async (event, text) => {
     if (!input.ok) return { ok: false, code: input.code, message: t('errorInvalidRequest') };
     return localizeResult(await agentOrchestrator.runCommand(input.text), AI_RESULT_KEYS);
 });
+ipcHandle('ai-assist', async (event, payload) => {
+    const text = typeof payload === 'string' ? payload : (payload && payload.text);
+    const intentHint = payload && typeof payload === 'object' ? payload.intentHint : null;
+    const input = normalizeAiInput(text, { allowEmpty: false });
+    if (!input.ok) return { ok: false, code: input.code, message: t('errorInvalidRequest') };
+    // Doküman sorusu ve teşhis/enerji otomasyon duraklatılmışken bile çalışabilir;
+    // sadece görev planlama el-frenine tabidir.
+    const routed = intentHint || agentOrchestrator.constructor.route(input.text).agentId;
+    if (routed === 'command' && taskManager && taskManager.pausedAll) {
+        return { ok: false, code: 'PAUSED', message: t('toastAllPaused') };
+    }
+    const hist = historyService.getHistory();
+    const lastBlocked = hist.find((h) => h.resultCode === 'blocked_by_policy');
+    const lastBlockedReason = lastBlocked ? `${lastBlocked.taskName}: ${lastBlocked.detail || ''}`.slice(0, 4000) : '';
+    const res = await agentOrchestrator.runAssistant(input.text, {
+        language: currentLanguage(),
+        intentHint,
+        energyStats: energyService.getStatistics(),
+        historyList: hist,
+        lastBlockedReason
+    });
+    return localizeResult(res, AI_RESULT_KEYS);
+});
+ipcHandle('search-docs', (event, query) => {
+    const q = String(query || '').trim().slice(0, 300);
+    if (!q) return [];
+    return searchDocs(q, { lang: currentLanguage(), topK: 6, minScore: 0.35 });
+});
 ipcHandle('ai-diagnose', (event, reason) => {
     // WP-10.T9: sebep de aynı 4000 karakter sınırına tabidir.
     let detail = '';
@@ -1797,10 +2078,10 @@ ipcHandle('ai-diagnose', (event, reason) => {
         const lastBlocked = historyService.getHistory().find(h => h.resultCode === 'blocked_by_policy');
         detail = lastBlocked ? `${lastBlocked.taskName}: ${lastBlocked.detail || ''}`.slice(0, 4000) : '';
     }
-    return agentOrchestrator.runDiagnose(detail);
+    return agentOrchestrator.runDiagnose(detail, { language: currentLanguage() });
 });
-ipcHandle('ai-energy', () => agentOrchestrator.runEnergy(energyService.getStatistics()));
-ipcHandle('ai-suggest', () => agentOrchestrator.runSuggest(historyService.getHistory()));
+ipcHandle('ai-energy', () => agentOrchestrator.runEnergy(energyService.getStatistics(), { language: currentLanguage() }));
+ipcHandle('ai-suggest', () => agentOrchestrator.runSuggest(historyService.getHistory(), { language: currentLanguage() }));
 ipcHandle('ai-dismiss-suggestion', (event, topic) => {
     if (typeof topic !== 'string' || !topic) return { success: false };
     return { success: agentOrchestrator.dismissTopic(topic) };
@@ -2012,6 +2293,10 @@ async function applySettingsPatch(newSettings, current, auditAction) {
         if (rest.upsHost !== undefined || rest.upsName !== undefined || rest.upsEnabled !== undefined) {
             recreateUpsMonitor(storageService.getSettings());
         }
+        let iconSync = null;
+        if (rest.appIcon !== undefined) {
+            iconSync = applyRuntimeAppIcon(rest.appIcon, { updateShortcuts: true });
+        }
         if (auditAction) {
             try {
                 auditLog.append({
@@ -2030,7 +2315,11 @@ async function applySettingsPatch(newSettings, current, auditAction) {
             }
         }
         scheduleTrayUpdate();
-        return { success: true, settings: toRendererSettings(storageService.getSettings()) };
+        return {
+            success: true,
+            settings: toRendererSettings(storageService.getSettings()),
+            ...(iconSync ? { iconSync } : {})
+        };
     } catch (err) {
         // WP-10: yarım kalmış yapılandırma bırakma; önceki ayarlara dön.
         log.error('[IPC] save-settings uygulanamadı, geri alınıyor:', err && err.message);
@@ -2049,6 +2338,9 @@ async function applySettingsPatch(newSettings, current, auditAction) {
             }
             if (rest.upsHost !== undefined || rest.upsName !== undefined || rest.upsEnabled !== undefined) {
                 recreateUpsMonitor(storageService.getSettings());
+            }
+            if (rest.appIcon !== undefined) {
+                applyRuntimeAppIcon(before.appIcon, { updateShortcuts: true });
             }
         } catch (_) { /* rollback best-effort */ }
         return { success: false, code: err && err.code ? err.code : 'SETTINGS_APPLY_FAILED', message: t('errorSettingsApplyReverted') };
@@ -2267,17 +2559,36 @@ ipcHandle('save-webhooks', async (event, webhooks) => {
         };
     }
 });
-ipcHandle('test-webhook', (event, hook) => {
-    // WBS-5.2: Tek seferlik test gönderimi — kayıt defteri değişmez.
+ipcHandle('test-webhook', async (event, hook) => {
+    // WBS-5.2 + WP-3: Gerçek asenkron test gönderimi + kayıtlı sırları birleştirme.
     const check = validateWebhooks([hook]);
     if (!check.ok) {
         return { success: false, code: check.code, message: t('errorInvalidRequest') };
     }
+    const merged = WebhookService.mergeSecrets([hook], storageService.getWebhooks())[0] || hook;
     const sample = webhookService.buildPayload('task_created', {
         id: 'test', name: t('toastConsoleTestTitle'), source: 'user_interface', status: 'testing', action: 'lock'
     });
-    webhookService.sendPayload(hook, sample);
-    return { success: true, message: t('toastConsoleTestSent') };
+    const t0 = Date.now();
+    const res = await webhookService.sendPayload(merged, sample);
+    const elapsedMs = Date.now() - t0;
+    if (res && res.ok) {
+        return {
+            success: true,
+            status: res.status || 200,
+            elapsedMs,
+            message: `${t('toastConsoleTestSent')} (HTTP ${res.status || 200} · ${elapsedMs} ms)`
+        };
+    }
+    return {
+        success: false,
+        status: res && res.status ? res.status : 0,
+        code: (res && res.code) || 'WEBHOOK_FAILED',
+        elapsedMs,
+        message: (res && (res.reason || res.code))
+            ? `${t('errorWebhookTestFailed')} (${res.reason || res.code})`
+            : t('errorWebhookTestFailed')
+    };
 });
 ipcHandle('send-wol', (event, { macAddress, broadcastIp, port }) => {
     const check = validateWol({ macAddress, broadcastIp, port });
@@ -2286,6 +2597,273 @@ ipcHandle('send-wol', (event, { macAddress, broadcastIp, port }) => {
         return { success: false, code: check.code, message: t('errorInvalidRequest') };
     }
     return deviceService.sendWakeOnLan(macAddress, broadcastIp, port);
+});
+ipcHandle('get-wol-devices', () => {
+    return storageService.getDeviceProfiles().filter((p) => p && typeof p.macAddress === 'string');
+});
+ipcHandle('save-wol-devices', (event, devices) => {
+    if (!Array.isArray(devices) || devices.length > 32) {
+        return { success: false, code: 'INVALID_BODY', message: t('errorInvalidRequest') };
+    }
+    const cleaned = [];
+    for (const dev of devices) {
+        if (!dev || typeof dev !== 'object') return { success: false, code: 'INVALID_BODY', message: t('errorInvalidRequest') };
+        const macAddress = String(dev.macAddress || '').trim().toUpperCase().replace(/-/g, ':');
+        const broadcastIp = dev.broadcastIp ? String(dev.broadcastIp).trim() : undefined;
+        const port = dev.port !== undefined && dev.port !== '' ? Number(dev.port) : 9;
+        const check = validateWol({ macAddress, ...(broadcastIp ? { broadcastIp } : {}), port });
+        if (!check.ok) return { success: false, code: check.code, message: check.error };
+        cleaned.push({
+            id: typeof dev.id === 'string' && dev.id ? dev.id.slice(0, 64) : `wol_${Date.now()}_${cleaned.length}`,
+            name: String(dev.name || macAddress).trim().slice(0, 60),
+            macAddress,
+            broadcastIp: broadcastIp || '',
+            port
+        });
+    }
+    storageService.saveDeviceProfiles(cleaned);
+    return { success: true, devices: cleaned };
+});
+ipcHandle('test-ups', async (event, args) => {
+    const s = storageService.getSettings();
+    const host = (args && typeof args.host === 'string' && args.host.trim()) ? args.host.trim() : (s.upsHost || '127.0.0.1');
+    const ups = (args && typeof args.ups === 'string' && args.ups.trim()) ? args.ups.trim() : (s.upsName || 'ups');
+    let monitor = null;
+    try {
+        monitor = new UpsMonitor({ host, ups, cacheTtlMs: 0 });
+        const result = await monitor.query();
+        return { ok: result && result.reachable === true, ...result, host, ups };
+    } catch (err) {
+        return { ok: false, reachable: false, code: (err && err.code) || 'UPS_ERROR', error: err && err.message };
+    } finally {
+        if (monitor) {
+            try { monitor.close(); } catch (_) { /* yut */ }
+        }
+    }
+});
+ipcHandle('get-mcp-config', () => {
+    const s = storageService.getSettings();
+    const mcpEntry = path.join(__dirname, 'src', 'mcp', 'server.js');
+    return {
+        apiEnabled: s.localApiEnabled === true,
+        port: s.localApiPort || 18456,
+        hasKey: Boolean(s.localApiKeyHash),
+        keyMasked: s.localApiKeyMasked || null,
+        serverPath: mcpEntry,
+        configJson: JSON.stringify({
+            mcpServers: {
+                'power-pilot': {
+                    command: 'node',
+                    args: [mcpEntry],
+                    env: {
+                        POWER_PILOT_API_PORT: String(s.localApiPort || 18456),
+                        POWER_PILOT_API_KEY: '<API_KEY>'
+                    }
+                }
+            }
+        }, null, 2)
+    };
+});
+ipcHandle('get-app-icon-status', () => {
+    const iconId = getCurrentAppIconId();
+    const isPortable = Portable.isPortable(process.env);
+    let desktopLnk = null;
+    try {
+        const desktop = app.getPath('desktop');
+        const names = isPortable
+            ? ['Power Pilot Portable.lnk', 'Power Pilot.lnk']
+            : ['Power Pilot.lnk', 'Power Pilot Portable.lnk'];
+        for (const n of names) {
+            const candidate = path.join(desktop, n);
+            if (fs.existsSync(candidate)) { desktopLnk = candidate; break; }
+        }
+    } catch (_) { /* yut */ }
+    return {
+        iconId,
+        isPortable,
+        isStoreBuild: distribution.IS_STORE === true,
+        hasDesktopShortcut: Boolean(desktopLnk)
+    };
+});
+ipcHandle('create-desktop-shortcut', () => {
+    const iconId = getCurrentAppIconId();
+    const isPortable = Portable.isPortable(process.env);
+    const sourceIco = AppIconService.resolveIconIcoPath(iconId, {
+        rootDir: __dirname,
+        resourcesPath: process.resourcesPath,
+        isPackaged: app.isPackaged
+    });
+    const stableIco = AppIconService.ensureStableShortcutIco(iconId, {
+        sourceIcoPath: sourceIco,
+        userDataDir: app.getPath('userData'),
+        isPortable,
+        isPackaged: app.isPackaged
+    });
+    const targetExePath = Portable.portableExePath(process.env, fs.existsSync) || app.getPath('exe');
+    let desktopDir = null;
+    try { desktopDir = app.getPath('desktop'); } catch (_) { desktopDir = null; }
+    return AppIconService.createDesktopShortcut({
+        desktopDir,
+        targetExePath,
+        icoPath: stableIco,
+        shell,
+        isPortable,
+        logger: log
+    });
+});
+
+// WP-5: Tanılama, çökme raporları ve destek paketi (ZIP) IPC'leri
+ipcHandle('get-diagnostics', () => {
+    return diagnosticsService ? diagnosticsService.getDiagnosticsSnapshot() : null;
+});
+ipcHandle('clear-diagnostics', () => {
+    if (!diagnosticsService) return { ok: false };
+    diagnosticsService.clearLogs();
+    return { ok: true, snapshot: diagnosticsService.getDiagnosticsSnapshot() };
+});
+ipcOn('report-renderer-error', (event, payload) => {
+    if (!diagnosticsService || !payload || typeof payload !== 'object') return;
+    diagnosticsService.recordRendererError({
+        kind: payload.kind || 'renderer_error',
+        message: payload.message || '',
+        stack: payload.stack || '',
+        context: payload.context || ''
+    });
+});
+ipcHandle('create-support-bundle', () => {
+    if (!diagnosticsService) return { ok: false, code: 'NOT_READY' };
+    try {
+        return diagnosticsService.createSupportBundle();
+    } catch (err) {
+        log.error('[Diagnostics] Destek paketi oluşturulamadı:', err && err.message);
+        return { ok: false, code: 'BUNDLE_FAILED', message: t('errorSaveFailed') };
+    }
+});
+ipcHandle('reveal-support-bundle', (event, filePath) => {
+    if (!diagnosticsService || typeof filePath !== 'string' || !filePath) return { ok: false };
+    const resolved = path.resolve(filePath);
+    const allowedRoots = [diagnosticsService.downloadsDir, diagnosticsService.logsDir]
+        .filter(Boolean)
+        .map((d) => path.resolve(d).toLowerCase());
+    const insideAllowed = allowedRoots.some((rootDir) => resolved.toLowerCase().startsWith(rootDir + path.sep));
+    if (!insideAllowed || !fs.existsSync(resolved)) return { ok: false, code: 'INVALID_PATH' };
+    shell.showItemInFolder(resolved);
+    return { ok: true };
+});
+ipcHandle('open-logs-folder', async () => {
+    if (!diagnosticsService) return { ok: false };
+    try {
+        fs.mkdirSync(diagnosticsService.logsDir, { recursive: true });
+        const err = await shell.openPath(diagnosticsService.logsDir);
+        return { ok: !err, path: diagnosticsService.logsDir };
+    } catch (_) {
+        return { ok: false };
+    }
+});
+ipcHandle('compose-support-mail', async (event, args) => {
+    if (!diagnosticsService) return { ok: false };
+    const bundleFileName = args && typeof args.bundleFileName === 'string'
+        ? path.basename(args.bundleFileName).slice(0, 120)
+        : null;
+    const mailtoUrl = diagnosticsService.buildSupportMailto({ bundleFileName });
+    // Güvenlik: alıcı yalnızca sabit support@vellium.dev olabilir.
+    if (!mailtoUrl.startsWith('mailto:support@vellium.dev?')) return { ok: false, code: 'BLOCKED' };
+    try {
+        await shell.openExternal(mailtoUrl);
+        return { ok: true };
+    } catch (err) {
+        log.warn('[Diagnostics] mailto açılamadı:', err && err.message);
+        return { ok: false, code: 'MAIL_OPEN_FAILED' };
+    }
+});
+ipcHandle('open-github-issue', () => {
+    if (!diagnosticsService) return { ok: false };
+    const url = diagnosticsService.buildGithubIssueUrl();
+    const opened = openExternalSafely(shell, url, log);
+    return { ok: opened };
+});
+
+// WP-9: Gerçek Ayarlar JSON Dışa/İçe Aktarma & Masaüstü Bildirim Testi
+ipcHandle('export-settings', async () => {
+    const safeSettings = toRendererSettings(storageService.getSettings());
+    delete safeSettings.secretPresence;
+    delete safeSettings.localApiKeyHash;
+    delete safeSettings.localApiKeyMasked;
+    delete safeSettings.localApiKeyCreatedAt;
+    const payload = {
+        app: 'Power Pilot',
+        schemaVersion: 1,
+        appVersion: getAppVersion(),
+        exportedAt: new Date().toISOString(),
+        settings: safeSettings
+    };
+    const target = await dialog.showSaveDialog(mainWindow || undefined, {
+        title: t('settingsExportDialog'),
+        defaultPath: 'powerpilot-settings.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (target.canceled || !target.filePath) return { success: false, code: 'CANCELLED' };
+    try {
+        await fs.promises.writeFile(target.filePath, JSON.stringify(payload, null, 2), 'utf8');
+        return { success: true, filePath: target.filePath };
+    } catch (err) {
+        log.warn('[IPC] export-settings yazılamadı:', err && err.message);
+        return { success: false, code: 'IO_ERROR', message: t('errorSaveFailed') };
+    }
+});
+ipcHandle('import-settings', async (event, args) => {
+    const selection = await dialog.showOpenDialog(mainWindow || undefined, {
+        title: t('settingsImportDialog'),
+        properties: ['openFile'],
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (selection.canceled || !selection.filePaths || selection.filePaths.length === 0) {
+        return { success: false, code: 'CANCELLED' };
+    }
+    let parsed;
+    try {
+        const raw = await fs.promises.readFile(selection.filePaths[0], 'utf8');
+        if (raw.length > 256 * 1024) return { success: false, code: 'FILE_TOO_LARGE', message: t('errorInvalidRequest') };
+        parsed = JSON.parse(raw);
+    } catch (_) {
+        return { success: false, code: 'INVALID_JSON', message: t('errorInvalidRequest') };
+    }
+    const incoming = (parsed && typeof parsed.settings === 'object' && parsed.settings)
+        || (parsed && typeof parsed.preferences === 'object' && parsed.preferences);
+    if (!incoming || Array.isArray(incoming)) {
+        return { success: false, code: 'INVALID_BODY', message: t('errorInvalidRequest') };
+    }
+    const current = storageService.getSettings();
+    const regularEntries = [];
+    for (const [k, v] of Object.entries(incoming)) {
+        if (SECURITY_SETTING_KEYS.includes(k)) continue; // Güvenlik bayrakları içe aktarmada sessizce açılmaz
+        const oneCheck = validateSettings({ [k]: v }, current);
+        if (oneCheck.ok) regularEntries.push([k, v]);
+    }
+    if (regularEntries.length === 0) {
+        return { success: false, code: 'NO_VALID_SETTINGS', message: t('errorInvalidRequest') };
+    }
+    const patch = Object.fromEntries(regularEntries);
+    const res = await applySettingsPatch(patch, current, 'settings_imported');
+    return res && res.success
+        ? { success: true, count: regularEntries.length, settings: res.settings }
+        : res;
+});
+ipcHandle('test-desktop-notification', () => {
+    try {
+        if (Notification && typeof Notification.isSupported === 'function' && Notification.isSupported()) {
+            const n = new Notification({
+                title: 'Power Pilot',
+                body: t('toastNotifyTestBody'),
+                icon: getCurrentAppIconImage(64)
+            });
+            n.show();
+            return { ok: true, nativeShown: true };
+        }
+    } catch (err) {
+        log.warn('[Notify] test bildirimi gönderilemedi:', err && err.message);
+    }
+    return { ok: true, nativeShown: false };
 });
 
 ipcOn('setting-autostart', (event, enable) => {
@@ -2347,38 +2925,42 @@ ipcHandle('delete-all-data', async (event, args) => {
         const pinCheck = await requireCancelPin(payload.pin);
         if (pinCheck) return pinCheck;
     }
+    const withTimeout = (p, ms) => Promise.race([
+        Promise.resolve(p).catch(() => { }),
+        new Promise((resolve) => timers.setTimeout(resolve, ms))
+    ]);
     try {
         isQuitting = true;
-        // Chromium kendi dosyalarını (Local Storage, GPUCache, Network, …) açık
-        // tutar ve silinen klasörleri anında yeniden oluşturur; bu yüzden
-        // silme EBUSY/ENOENT ile yarıda kalabiliyordu (ölçüldü: WIPE_PARTIAL,
-        // 20 kalıntı). Pencere yok EDİLMEZ (window-all-closed uygulamayı
-        // kapatır ve silme yarıda kalır); oturum verisi bırakılır, silinemeyen
-        // girdiler bir sonraki açılışta tamamlanmak üzere işaretlenir.
+        // 1. Arka plan servislerini ve dosya tutamaklarını kilitlemeden kapat.
+        try {
+            if (consoleSyncTimer) { clearInterval(consoleSyncTimer); consoleSyncTimer = null; }
+            if (taskManager && taskManager.loopInterval) {
+                clearInterval(taskManager.loopInterval);
+                taskManager.loopInterval = null;
+            }
+            if (upsMonitor && typeof upsMonitor.close === 'function') {
+                upsMonitor.close();
+            }
+            if (localApiService && typeof localApiService.stop === 'function') {
+                await withTimeout(localApiService.stop(), 1000);
+            }
+        } catch (_) { /* servisler zaten kapalı */ }
+
+        // 2. Chromium oturum verisini kısa zaman aşımıyla temizle (olay döngüsünü dondurma).
         try {
             if (session && session.defaultSession) {
-                // Sınırlı bekleme: Chromium yanıt vermezse silme yine de
-                // sürsün (kilitli girdiler zaten işaretlenip sonraki açılışta
-                // tamamlanıyor). Aksi hâlde kullanıcı "siliyorum" ekranında
-                // dakikalarca bekliyordu.
-                const withTimeout = (p, ms) => Promise.race([
-                    p.catch(() => { }),
-                    new Promise((resolve) => timers.setTimeout(resolve, ms))
-                ]);
-                await withTimeout(session.defaultSession.clearStorageData(), 4000);
-                await withTimeout(session.defaultSession.clearCache(), 4000);
+                await withTimeout(session.defaultSession.clearStorageData(), 1500);
+                await withTimeout(session.defaultSession.clearCache(), 1500);
             }
         } catch (err) {
             log.warn('[DataWipe] oturum verisi bırakılamadı:', err && err.message);
         }
-        // Windows Görev Zamanlayıcı kayıtları veri klasörünün dışındadır; wipe
-        // onları silmez. Silinmiş görevlerin kayıtları kalırsa tetikleme
-        // saatinde Windows uygulamayı yeniden açar ("verilerimi sildim ama
-        // uygulama kendi kendine açıldı"). Veri silinmeden ÖNCE temizlenir.
+
+        // 3. Windows Görev Zamanlayıcı kayıtlarını üst sınırlı bekleme ile temizle.
         if (taskManager && taskManager.schedulerBridge
             && typeof taskManager.schedulerBridge.removeAllTasks === 'function') {
             try {
-                const cleaned = await taskManager.schedulerBridge.removeAllTasks();
+                const cleaned = await withTimeout(taskManager.schedulerBridge.removeAllTasks(), 3000);
                 if (cleaned && cleaned.failed > 0) {
                     log.warn(`[DataWipe] ${cleaned.failed} zamanlayıcı kaydı silinemedi.`);
                 }
@@ -2386,43 +2968,46 @@ ipcHandle('delete-all-data', async (event, args) => {
                 log.warn('[DataWipe] zamanlayıcı temizliği atlandı:', err && err.message);
             }
         }
-        const result = DataWipe.performWipe(app.getPath('userData'), {
-            // Kökteki her girdi hedeflenir (Chromium klasörleri sürümle değişir).
-            readdir: (dir) => require('fs').readdirSync(dir),
+
+        // 4. Tamamen asenkron veri silme: Win32 pencere döngüsü asla donmaz ("yanıt vermiyor" yok).
+        const result = await DataWipe.performWipeAsync(app.getPath('userData'), {
+            readdir: (dir) => fs.readdirSync(dir),
             onBefore: () => {
-                try {
-                    if (taskManager && taskManager.loopInterval) clearInterval(taskManager.loopInterval);
-                    taskManager.loopInterval = null;
-                } catch (_) { /* döngü zaten kapalı */ }
                 try { storageService.close(); } catch (_) { /* db kapalı */ }
+                try {
+                    if (log && log.transports && log.transports.file) {
+                        log.transports.file.level = false;
+                    }
+                } catch (_) { /* yut */ }
             }
         });
         if (!result.ok) {
-            // Temel kullanıcı verisi silinemedi (gerçek hata): sonraki açılışta
-            // yeniden denenir. Chromium önbellek klasörleri buraya düşmez.
             const marker = pendingWipeMarkerPath();
             const queued = DataWipe.writePendingWipe(marker, {
                 root: result.root,
                 paths: result.failed.map((f) => f.path)
             });
-            log.warn(`[DataWipe] ${result.failed.length} temel girdi kilitli`
-                + ` (${result.failed.map(f => f.error).join(',')});`
-                + ` sonraki açılışta silinecek: ${queued}`);
             if (!queued) {
+                isQuitting = false;
                 return { success: false, code: 'WIPE_PARTIAL', message: t('errorSaveFailed') };
             }
         }
-        if (result.optionalFailed && result.optionalFailed.length > 0) {
-            // Chromium çalışma klasörleri; içerikleri clearStorageData ile
-            // boşaltıldı, klasörler yeniden oluşturulur. Hata değildir.
-            log.info(`[DataWipe] ${result.optionalFailed.length} önbellek klasörü kilitliydi (zararsız).`);
-        }
-        log.info(`[DataWipe] kullanıcı verisi silindi (${result.removed.length} girdi).`);
-        // Silme tamamlandıktan sonra uygulamayı kapat: açık DB/log tutamağı
-        // kalmasın, yeniden açılışta temiz ilk kurulum deneyimi olsun.
-        setImmediate(() => app.quit());
+        // Silme tamamlandı: before-quit DB checkpoint'i / yeniden dosya oluşturmayı tetiklemesin;
+        // renderer başarı mesajını göstersin, ardından kesin ve temiz kapanış yapılsın.
+        shutdownStarted = true;
+        setTimeout(() => {
+            try { if (tray && !tray.isDestroyed()) tray.destroy(); } catch (_) { /* yut */ }
+            try { if (miniWindow && !miniWindow.isDestroyed()) miniWindow.destroy(); } catch (_) { /* yut */ }
+            try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy(); } catch (_) { /* yut */ }
+            try { timers.clearAll(); } catch (_) { /* yut */ }
+            try { app.quit(); } catch (_) { /* yut */ }
+            setTimeout(() => {
+                try { app.exit(0); } catch (_) { /* yut */ }
+            }, 800);
+        }, 350);
         return { success: true, removed: result.removed.length };
     } catch (err) {
+        isQuitting = false;
         log.error('[DataWipe] başarısız:', err && err.message);
         return { success: false, code: (err && err.code) || 'WIPE_FAILED', message: t('errorSaveFailed') };
     }

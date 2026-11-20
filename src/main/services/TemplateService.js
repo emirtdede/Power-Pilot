@@ -1,10 +1,12 @@
 /**
- * TemplateService.js
- * Preset automation templates for non-technical users (WBS-6.3: 10 hazır şablon)
- * + user templates merged from StorageService (WBS-6.4).
- * Kural: her şablon ya desteklenen bir defaultCondition ya da schedule.timeOfDay
- * içermek zorundadır (ölü şablon yasaktır — templates.test.mjs ile korunur).
+ * TemplateService.js — WP-7
+ * Kategorize edilmiş 22 hazır otomasyon şablonu + kullanıcı özel şablonları +
+ * yerleşik şablon düzenleme (override), silme/gizleme ve varsayılana sıfırlama / geri getirme.
+ *
+ * Kural: her şablon ya desteklenen bir defaultCondition/defaultConditionGroup,
+ * ya schedule.timeOfDay, ya da trigger (duration) içermek zorundadır (ölü şablon yasak).
  */
+'use strict';
 
 const os = require('os');
 const path = require('path');
@@ -16,10 +18,22 @@ const SUPPORTED_TEMPLATE_CONDITIONS = new Set([
     'directory_idle', 'network_speed', 'disk_activity', 'battery_level'
 ]);
 
+const TEMPLATE_CATEGORIES = Object.freeze([
+    'download',
+    'render',
+    'gaming',
+    'productivity',
+    'schedule',
+    'power',
+    'security',
+    'custom'
+]);
+
 class TemplateService {
     constructor(storageService = null) {
         this.storage = storageService;
         this.templates = [
+            // ── 1. İNDİRME (download) ─────────────────────────────────────────
             {
                 id: 'tpl_download_shutdown',
                 name: 'İndirme Bitince Kapat',
@@ -31,45 +45,6 @@ class TemplateService {
                     type: 'network_speed',
                     thresholdKbps: 50,
                     stabilitySeconds: 60
-                }
-            },
-            {
-                id: 'tpl_render_shutdown',
-                name: 'Render Bitince Kapat',
-                description: 'HandBrake, Premiere veya Blender gibi render yazılımınız kapandığında veya CPU kullanımı %10 altına düştüğünde kapatır.',
-                action: 'shutdown',
-                icon: 'video_settings',
-                category: 'render',
-                defaultCondition: {
-                    type: 'cpu_usage',
-                    thresholdPercent: 10,
-                    stabilitySeconds: 120
-                }
-            },
-            {
-                id: 'tpl_idle_sleep',
-                name: 'Gece Boşta Kalırsa Uyut',
-                description: 'Klavye ve fare 15 dakika boyunca kullanılmazsa bilgisayarı uyku moduna alır.',
-                action: 'sleep',
-                icon: 'bedtime',
-                category: 'idle',
-                defaultCondition: {
-                    type: 'user_idle',
-                    idleSeconds: 900,
-                    stabilitySeconds: 10
-                }
-            },
-            {
-                id: 'tpl_process_lock',
-                name: 'Chrome Kapanınca Kilitle',
-                description: 'Chrome tarayıcısı kapandığında ekranı otomatik kilitler. Farklı bir uygulama için şablonu düzenleyin.',
-                action: 'lock',
-                icon: 'lock',
-                category: 'security',
-                defaultCondition: {
-                    type: 'process_running',
-                    triggerOnClose: true,
-                    processName: 'chrome.exe'
                 }
             },
             {
@@ -89,18 +64,144 @@ class TemplateService {
                 }
             },
             {
-                id: 'tpl_meeting_lock',
-                name: 'Toplantı Bitince Kilitle',
-                description: 'Zoom veya Teams kapandığında ekranı otomatik kilitler.',
+                id: 'tpl_backup_stable',
+                name: 'İndirilenler Sabitlenince Kapat',
+                description: 'İndirilenler klasörü 5 dakika değişmezse (indirme bittiyse) kapatır. Farklı klasör için şablonu düzenleyin.',
+                action: 'shutdown',
+                icon: 'folder_copy',
+                category: 'download',
+                defaultCondition: {
+                    type: 'directory_idle',
+                    dirPath: path.join(os.homedir(), 'Downloads'),
+                    stableSeconds: 300
+                }
+            },
+            {
+                id: 'tpl_torrent_complete_shutdown',
+                name: 'Ağ ve Disk Durunca Kapat',
+                description: 'Hem ağ indirmesi hem disk yazması durduğunda (büyük indirme/arşiv açma bittiğinde) kapatır.',
+                action: 'shutdown',
+                icon: 'cloud_done',
+                category: 'download',
+                defaultConditionGroup: {
+                    operator: 'AND',
+                    stabilitySeconds: 120,
+                    conditions: [
+                        { type: 'network_speed', thresholdKbps: 80 },
+                        { type: 'disk_activity', thresholdKbps: 500 }
+                    ]
+                }
+            },
+
+            // ── 2. RENDER & DERLEME (render) ──────────────────────────────────
+            {
+                id: 'tpl_render_shutdown',
+                name: 'Render Bitince Kapat',
+                description: 'HandBrake, Premiere veya Blender gibi render yazılımınız bittiğinde CPU %10 altına düşünce kapatır.',
+                action: 'shutdown',
+                icon: 'video_settings',
+                category: 'render',
+                defaultCondition: {
+                    type: 'cpu_usage',
+                    thresholdPercent: 10,
+                    stabilitySeconds: 120
+                }
+            },
+            {
+                id: 'tpl_render_sleep',
+                name: 'Render Bitince Uyku Modu',
+                description: 'Video/3D render sonrası CPU ve disk kullanımı düştüğünde projeyi kaybetmeden uyku moduna alır.',
+                action: 'sleep',
+                icon: 'movie_filter',
+                category: 'render',
+                defaultConditionGroup: {
+                    operator: 'AND',
+                    stabilitySeconds: 90,
+                    conditions: [
+                        { type: 'cpu_usage', thresholdPercent: 12 },
+                        { type: 'disk_activity', thresholdKbps: 500 }
+                    ]
+                }
+            },
+            {
+                id: 'tpl_disk_copy_shutdown',
+                name: 'Büyük Kopyalama / Yedek Bitince Kapat',
+                description: 'Harici disk yedeklemesi veya büyük dosya aktarımı bitip disk I/O sakinleşince kapatır.',
+                action: 'shutdown',
+                icon: 'hard_drive',
+                category: 'render',
+                defaultCondition: {
+                    type: 'disk_activity',
+                    thresholdKbps: 300,
+                    stabilitySeconds: 90
+                }
+            },
+
+            // ── 3. OYUN (gaming) ──────────────────────────────────────────────
+            {
+                id: 'tpl_epic_download_shutdown',
+                name: 'Epic Games İndirmesi Bitince Kapat',
+                description: 'Epic Games Launcher çalışırken indirme hızı 100 KB/s altına indiğinde kapatır.',
+                action: 'shutdown',
+                icon: 'stadia_controller',
+                category: 'gaming',
+                defaultConditionGroup: {
+                    operator: 'AND',
+                    stabilitySeconds: 90,
+                    conditions: [
+                        { type: 'process_running', processName: 'epicgameslauncher.exe', triggerOnClose: false },
+                        { type: 'network_speed', thresholdKbps: 100 }
+                    ]
+                }
+            },
+            {
+                id: 'tpl_gaming_idle_sleep',
+                name: 'Oyun Sonrası 30 Dk Boşta Uyut',
+                description: 'Bilgisayar başında 30 dakika etkileşim olmazsa ekranı ve sistemi uyku moduna alır.',
+                action: 'sleep',
+                icon: 'gamepad',
+                category: 'gaming',
+                defaultCondition: {
+                    type: 'user_idle',
+                    idleSeconds: 1800,
+                    stabilitySeconds: 15
+                }
+            },
+
+            // ── 4. ÜRETKENLİK (productivity) ──────────────────────────────────
+            {
+                id: 'tpl_focus_lock_30m',
+                name: '30 Dakika Sonra Mola Kilidi',
+                description: '30 dakikalık odaklanma oturumu bitiminde ekranı otomatik kilitleyerek mola hatırlatır.',
                 action: 'lock',
-                icon: 'video_call',
-                category: 'security',
+                icon: 'hourglass_top',
+                category: 'productivity',
+                trigger: { type: 'duration', durationMs: 30 * 60 * 1000 }
+            },
+            {
+                id: 'tpl_workday_end_lock',
+                name: 'Hafta İçi 18:30 Ekranı Kilitle',
+                description: 'Mesai bitiminde her hafta içi saat 18:30\'da ekranı otomatik kilitler.',
+                action: 'lock',
+                icon: 'work_history',
+                category: 'productivity',
+                schedule: { timeOfDay: '18:30', recurrence: 'weekdays' }
+            },
+            {
+                id: 'tpl_obs_stream_sleep',
+                name: 'OBS Yayını Kapanınca Uyut',
+                description: 'OBS Studio kapandığında sistemi uyku moduna alır.',
+                action: 'sleep',
+                icon: 'podcasts',
+                category: 'productivity',
                 defaultCondition: {
                     type: 'process_running',
                     triggerOnClose: true,
-                    processName: 'zoom.exe'
+                    processName: 'obs64.exe'
                 }
             },
+
+            // ── 5. ZAMANLI (schedule) ─────────────────────────────────────────
             {
                 id: 'tpl_nightly_sleep',
                 name: 'Her Gece 01:00 Uyut',
@@ -108,7 +209,58 @@ class TemplateService {
                 action: 'sleep',
                 icon: 'nightlight',
                 category: 'schedule',
-                schedule: { timeOfDay: '01:00' }
+                schedule: { timeOfDay: '01:00', recurrence: 'daily' }
+            },
+            {
+                id: 'tpl_nightly_shutdown',
+                name: 'Her Gece 02:00 Kapat',
+                description: 'Gece açık unutulan bilgisayarları her gün 02:00\'de güvenle kapatır.',
+                action: 'shutdown',
+                icon: 'power_settings_new',
+                category: 'schedule',
+                schedule: { timeOfDay: '02:00', recurrence: 'daily' }
+            },
+            {
+                id: 'tpl_weekly_restart',
+                name: 'Gece 04:00 Bakım Yeniden Başlat',
+                description: 'Güncellemelerin ve belleğin tazelenmesi için saat 04:00\'te yeniden başlatır.',
+                action: 'restart',
+                icon: 'restart_alt',
+                category: 'schedule',
+                schedule: { timeOfDay: '04:00', recurrence: 'weekends' }
+            },
+            {
+                id: 'tpl_timer_60m_sleep',
+                name: '1 Saat Sonra Uyut',
+                description: 'Video veya müzik dinlerken 60 dakika sonra bilgisayarı otomatik uyutur.',
+                action: 'sleep',
+                icon: 'snooze',
+                category: 'schedule',
+                trigger: { type: 'duration', durationMs: 60 * 60 * 1000 }
+            },
+            {
+                id: 'tpl_timer_120m_shutdown',
+                name: '2 Saat Sonra Kapat',
+                description: '2 saatlik geri sayım bitiminde bilgisayarı güvenle kapatır.',
+                action: 'shutdown',
+                icon: 'timer',
+                category: 'schedule',
+                trigger: { type: 'duration', durationMs: 120 * 60 * 1000 }
+            },
+
+            // ── 6. GÜÇ & PİL (power) ──────────────────────────────────────────
+            {
+                id: 'tpl_idle_sleep',
+                name: 'Gece Boşta Kalırsa Uyut',
+                description: 'Klavye ve fare 15 dakika boyunca kullanılmazsa bilgisayarı uyku moduna alır.',
+                action: 'sleep',
+                icon: 'bedtime',
+                category: 'power',
+                defaultCondition: {
+                    type: 'user_idle',
+                    idleSeconds: 900,
+                    stabilitySeconds: 10
+                }
             },
             {
                 id: 'tpl_battery_hibernate',
@@ -123,18 +275,32 @@ class TemplateService {
                     stabilitySeconds: 30
                 }
             },
+
+            // ── 7. GÜVENLİK (security) ────────────────────────────────────────
             {
-                id: 'tpl_backup_stable',
-                name: 'İndirilenler Sabitlenince Kapat',
-                description: 'İndirilenler klasörü 5 dakika değişmezse (indirme bittiyse) kapatır. Farklı klasör için şablonu düzenleyin.',
-                action: 'shutdown',
-                icon: 'folder_copy',
-                category: 'download',
+                id: 'tpl_process_lock',
+                name: 'Chrome Kapanınca Kilitle',
+                description: 'Chrome tarayıcısı kapandığında ekranı otomatik kilitler. Farklı bir uygulama için şablonu düzenleyin.',
+                action: 'lock',
+                icon: 'lock',
+                category: 'security',
                 defaultCondition: {
-                    // K-05: klasör mtime'ı yerine içerik imzası izlenir.
-                    type: 'directory_idle',
-                    dirPath: path.join(os.homedir(), 'Downloads'),
-                    stableSeconds: 300
+                    type: 'process_running',
+                    triggerOnClose: true,
+                    processName: 'chrome.exe'
+                }
+            },
+            {
+                id: 'tpl_meeting_lock',
+                name: 'Toplantı Bitince Kilitle',
+                description: 'Zoom veya Teams kapandığında ekranı otomatik kilitler.',
+                action: 'lock',
+                icon: 'video_call',
+                category: 'security',
+                defaultCondition: {
+                    type: 'process_running',
+                    triggerOnClose: true,
+                    processName: 'zoom.exe'
                 }
             },
             {
@@ -153,13 +319,14 @@ class TemplateService {
         ];
     }
 
+    static getCategories() {
+        return [...TEMPLATE_CATEGORIES];
+    }
+
     static isSupportedCondition(type) {
         return SUPPORTED_TEMPLATE_CONDITIONS.has(type);
     }
 
-    // WP-03: Şablonun koşulu yalnızca tip olarak değil, çalıştırılabilir
-    // alanlarıyla da geçerli olmalı. Boş processName "kapandı" sayılıp
-    // yanlış otomatik kilitlemeye yol açamaz.
     static isRunnableCondition(cond) {
         if (!cond || typeof cond !== 'object' || !TemplateService.isSupportedCondition(cond.type)) return false;
         if (cond.type === 'process_running') return canonicalProcessName(cond.processName).length > 0;
@@ -180,33 +347,101 @@ class TemplateService {
         return true;
     }
 
-    // Şablon geçerliliği: koşul destekli olmalı YA DA zamanlamalı olmalı.
+    // Şablon geçerliliği: koşul destekli, saatli zamanlama YA DA süreli (duration) olmalı.
     static isValidTemplate(tpl) {
         if (!tpl || typeof tpl !== 'object') return false;
         if (typeof tpl.id !== 'string' || typeof tpl.name !== 'string' || typeof tpl.action !== 'string') return false;
         if (!PowerService.isValidAction(tpl.action)) return false;
-        if (tpl.name.length === 0 || tpl.name.length > 80) return false;
+        if (tpl.name.trim().length === 0 || tpl.name.length > 80) return false;
         const cond = tpl.defaultCondition;
         const group = tpl.defaultConditionGroup;
         const sched = tpl.schedule;
+        const trig = tpl.trigger;
         if (cond && TemplateService.isRunnableCondition(cond)) return true;
         if (group && Array.isArray(group.conditions) && group.conditions.length > 0 &&
             group.conditions.every((c) => TemplateService.isRunnableCondition(c))) return true;
         if (sched && typeof sched.timeOfDay === 'string' && /^([01]\d|2[0-3]):([0-5]\d)$/.test(sched.timeOfDay)) return true;
+        if (trig && trig.type === 'duration' && Number.isInteger(trig.durationMs) && trig.durationMs >= 60000 && trig.durationMs <= 2500000000) return true;
         return false;
     }
 
-    getTemplates() {
+    isBuiltInId(id) {
+        return this.templates.some((t) => t.id === id);
+    }
+
+    getBuiltInById(id) {
+        const hit = this.templates.find((t) => t.id === id);
+        return hit ? JSON.parse(JSON.stringify(hit)) : null;
+    }
+
+    _readSettings() {
+        if (!this.storage || typeof this.storage.getSettings !== 'function') return {};
+        try {
+            return this.storage.getSettings() || {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    getHiddenBuiltInIds() {
+        const s = this._readSettings();
+        const raw = Array.isArray(s.hiddenBuiltInTemplates) ? s.hiddenBuiltInTemplates : [];
+        return raw.filter((id) => this.isBuiltInId(id));
+    }
+
+    getBuiltInOverrides() {
+        const s = this._readSettings();
+        return (s.templateOverrides && typeof s.templateOverrides === 'object' && !Array.isArray(s.templateOverrides))
+            ? s.templateOverrides
+            : {};
+    }
+
+    getHiddenBuiltIns() {
+        const hiddenSet = new Set(this.getHiddenBuiltInIds());
+        return this.templates
+            .filter((t) => hiddenSet.has(t.id))
+            .map((t) => ({ ...t, builtIn: true, hidden: true }));
+    }
+
+    getTemplates({ includeHidden = false } = {}) {
+        const hiddenSet = new Set(this.getHiddenBuiltInIds());
+        const overrides = this.getBuiltInOverrides();
+
+        const builtIns = [];
+        for (const base of this.templates) {
+            const isHidden = hiddenSet.has(base.id);
+            if (isHidden && !includeHidden) continue;
+            const ov = overrides[base.id];
+            if (ov && TemplateService.isValidTemplate({ ...ov, id: base.id })) {
+                builtIns.push({
+                    ...ov,
+                    id: base.id,
+                    builtIn: true,
+                    modified: true,
+                    ...(isHidden ? { hidden: true } : {})
+                });
+            } else {
+                builtIns.push({
+                    ...base,
+                    builtIn: true,
+                    modified: false,
+                    ...(isHidden ? { hidden: true } : {})
+                });
+            }
+        }
+
         const customs = this.storage && typeof this.storage.getTemplates === 'function'
             ? this.storage.getTemplates()
             : [];
-        // Bozuk kullanıcı kayıtları sessizce değil, disabled karantinayla listelenir.
         const quarantined = (customs || []).map((tpl) => {
-            if (TemplateService.isValidTemplate(tpl)) return { ...tpl, custom: true };
-            return { ...tpl, custom: true, disabled: true, disabledReason: 'Geçersiz şablon kaydı (karantina)' };
+            if (TemplateService.isValidTemplate(tpl)) return { ...tpl, custom: true, builtIn: false };
+            return { ...tpl, custom: true, builtIn: false, disabled: true, disabledReason: 'Geçersiz şablon kaydı (karantina)' };
         });
-        return [...this.templates, ...quarantined];
+
+        return [...builtIns, ...quarantined];
     }
 }
 
 module.exports = TemplateService;
+module.exports.TEMPLATE_CATEGORIES = TEMPLATE_CATEGORIES;
+module.exports.SUPPORTED_TEMPLATE_CONDITIONS = SUPPORTED_TEMPLATE_CONDITIONS;

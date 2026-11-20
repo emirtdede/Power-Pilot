@@ -169,6 +169,13 @@ async function applyLanguage(lang) {
         // Rail modunda etiket gizlenir; fare kullanıcısı için yerel ipucu.
         el.title = value;
     });
+    // İkinci kenar menü öğeleri tek satırda kilitli olduğundan uzun dillerde
+    // fare ile tam metin ipucu gösterilir.
+    document.querySelectorAll('.pp-split-nav-link').forEach(el => {
+        const label = el.querySelector('span:not(.material-symbols-outlined)');
+        const txt = label ? label.textContent.trim() : '';
+        if (txt) el.title = txt;
+    });
     // Update the HTML class lang attribute
     document.documentElement.setAttribute('lang', lang);
     // WP-14 + 73 dil: RTL diller (ar, he, fa, ur) sağdan-sola.
@@ -293,8 +300,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (navId === 'nav-integrations' && typeof loadIntegrations === 'function') {
             loadIntegrations();
         }
-        if (navId === 'nav-settings' && typeof settingsRefreshAi === 'function') {
-            settingsRefreshAi();
+        if (navId === 'nav-settings') {
+            if (typeof settingsRefreshAi === 'function') settingsRefreshAi();
+            const diagSec = document.getElementById('settings-sec-diagnostics');
+            if (diagSec && !diagSec.classList.contains('hidden') && typeof loadDiagnostics === 'function') {
+                loadDiagnostics();
+            }
         } else if (typeof stopSettingsPoll === 'function') {
             stopSettingsPoll();
         }
@@ -700,8 +711,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const btnPinSet = document.getElementById('btn-pin-set');
     if (btnPinSet) btnPinSet.addEventListener('click', async () => {
-        const pin = document.getElementById('pin-input').value;
+        const pin = document.getElementById('pin-input').value.trim();
         if (!window.electronAPI || !window.electronAPI.setCancelPin) return;
+        const lenMode = (document.getElementById('setting-pin-length-mode')?.value || localStorage.getItem('pp-pin-length-mode') || 'flex');
+        const exactLen = (lenMode === '4' || lenMode === '6' || lenMode === '8') ? parseInt(lenMode, 10) : null;
+        if (exactLen && (!/^\d+$/.test(pin) || pin.length !== exactLen)) {
+            showToast(t('pinLengthPolicyError', { len: exactLen }), 'error');
+            return;
+        }
+        if (!exactLen && !/^\d{4,8}$/.test(pin)) {
+            showToast(t('pinSetFailed'), 'error');
+            return;
+        }
         const finish = (res) => {
             if (res && res.success === false) {
                 showToast(res.message || t('pinSetFailed'), 'error');
@@ -896,8 +917,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         return (mode === 'always' || mode === 'never') ? mode : 'auto';
     }
     function isQuietHours(now = new Date()) {
-        const h = now.getHours();
-        return h >= 22 || h < 8;
+        const startStr = (elQuietStart && elQuietStart.value) || localStorage.getItem('pp-quiet-start') || '22:00';
+        const endStr = (elQuietEnd && elQuietEnd.value) || localStorage.getItem('pp-quiet-end') || '08:00';
+        const toMin = (str, fallback) => {
+            const parts = String(str || '').split(':');
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            return (Number.isInteger(h) && Number.isInteger(m)) ? (h * 60 + m) : fallback;
+        };
+        const startM = toMin(startStr, 22 * 60);
+        const endM = toMin(endStr, 8 * 60);
+        const curM = now.getHours() * 60 + now.getMinutes();
+        if (startM === endM) return false;
+        return startM < endM ? (curM >= startM && curM < endM) : (curM >= startM || curM < endM);
     }
     function uiBeep() {
         try {
@@ -941,7 +973,65 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Klavye kısayolları (WBS-11.3): giriş alanlarındayken çalışmaz.
+    // WP-5: Renderer hata ve işlenmemiş promise reddini ana süreç tanılama günlüğüne köprüle.
+    window.addEventListener('error', (ev) => {
+        try {
+            if (window.electronAPI && typeof window.electronAPI.reportRendererError === 'function') {
+                window.electronAPI.reportRendererError({
+                    kind: 'window_error',
+                    message: (ev && ev.message) || 'Renderer error',
+                    stack: (ev && ev.error && ev.error.stack) || `${ev && ev.filename || ''}:${ev && ev.lineno || 0}`
+                });
+            }
+        } catch (_) { /* yut */ }
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+        try {
+            if (window.electronAPI && typeof window.electronAPI.reportRendererError === 'function') {
+                const reason = ev && ev.reason;
+                window.electronAPI.reportRendererError({
+                    kind: 'unhandled_rejection',
+                    message: reason instanceof Error ? reason.message : String(reason || 'Unhandled rejection'),
+                    stack: reason instanceof Error ? String(reason.stack || '') : ''
+                });
+            }
+        } catch (_) { /* yut */ }
+    });
+
+    // WP-9: Özelleştirilebilir klavye kısayolları (5 kısayol + Alt+eylem).
+    const DEFAULT_SHORTCUTS = Object.freeze({
+        theme: 'Ctrl+T',
+        quickstart: 'Ctrl+Enter',
+        cancel: 'Escape',
+        settings: 'Ctrl+,',
+        docs: 'F1'
+    });
+    function normalizeComboFromEvent(e) {
+        const key = String(e.key || '');
+        if (['Control', 'Shift', 'Alt', 'Meta'].includes(key)) return null;
+        const parts = [];
+        if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+        if (e.altKey) parts.push('Alt');
+        if (e.shiftKey && key.length > 1) parts.push('Shift');
+        const label = key === ' ' ? 'Space' : (key.length === 1 ? key.toUpperCase() : key);
+        parts.push(label);
+        return parts.join('+');
+    }
+    function getActiveShortcuts() {
+        const read = (id, def) => {
+            const el = document.getElementById(`shortcut-${id}`);
+            const val = (el && el.value && el.value.trim()) || localStorage.getItem(`pp-shortcut-${id}`) || def;
+            return val.trim();
+        };
+        return {
+            theme: read('theme', DEFAULT_SHORTCUTS.theme),
+            quickstart: read('quickstart', DEFAULT_SHORTCUTS.quickstart),
+            cancel: read('cancel', DEFAULT_SHORTCUTS.cancel),
+            settings: read('settings', DEFAULT_SHORTCUTS.settings),
+            docs: read('docs', DEFAULT_SHORTCUTS.docs)
+        };
+    }
+
     document.addEventListener('keydown', (e) => {
         const tag = (e.target && e.target.tagName) || '';
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -955,7 +1045,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
         }
-        if (e.key === 'Escape') {
+        const combo = normalizeComboFromEvent(e);
+        if (!combo) return;
+        const sc = getActiveShortcuts();
+        const match = (target) => String(target || '').toLowerCase() === combo.toLowerCase();
+        if (match(sc.cancel)) {
             const activeView = document.getElementById('view-active');
             if (activeView && !activeView.classList.contains('hidden')) {
                 const cancelBtn = document.getElementById('btn-cancel');
@@ -963,13 +1057,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             return;
         }
-        if ((e.ctrlKey || e.metaKey) && (e.key || '').toLowerCase() === 't') {
+        if (match(sc.theme)) {
             e.preventDefault();
             const next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
             try { localStorage.setItem('theme', next); } catch (_) { }
             if (elTheme) elTheme.value = next;
             applyTheme(next, activeThemeId);
             persistThemeAsync(next, activeThemeId);
+            return;
+        }
+        if (match(sc.quickstart)) {
+            const dash = document.getElementById('view-dashboard');
+            if (dash && !dash.classList.contains('hidden')) {
+                e.preventDefault();
+                const startBtn = document.getElementById('btn-start');
+                if (startBtn) startBtn.click();
+            }
+            return;
+        }
+        if (match(sc.settings)) {
+            e.preventDefault();
+            switchView('nav-settings');
+            return;
+        }
+        if (match(sc.docs)) {
+            e.preventDefault();
+            switchView('nav-docs');
         }
     });
 
@@ -1197,10 +1310,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         'obsidian', 'slate', 'navy', 'blue', 'cyan', 'indigo', 'purple',
         'pink', 'red', 'orange', 'yellow', 'emerald', 'grass', 'lime'
     ];
+    const VALID_APP_ICONS = [
+        'monochrome-dark', 'monochrome-light', 'monochrome-contrast', 'classic-cyan'
+    ];
     const btnModeLight = document.getElementById('btn-mode-light');
     const btnModeDark = document.getElementById('btn-mode-dark');
     const themeColorGrid = document.getElementById('theme-color-grid');
     const themeColorCountEl = document.getElementById('theme-color-count');
+    const appIconGrid = document.getElementById('app-icon-grid');
 
     let committedTheme = localStorage.getItem('theme') || 'dark';
     let activeThemeId = (() => {
@@ -1208,9 +1325,86 @@ document.addEventListener('DOMContentLoaded', async () => {
         return VALID_THEME_IDS.includes(saved) ? saved : 'obsidian';
     })();
     let committedThemeId = activeThemeId;
+    let activeAppIcon = (() => {
+        const saved = localStorage.getItem('appIcon');
+        return VALID_APP_ICONS.includes(saved) ? saved : 'monochrome-dark';
+    })();
+    let committedAppIcon = activeAppIcon;
     let committedLanguage = localStorage.getItem('language') || currentLanguage || 'tr';
     let langSaveTimer = null;
     let themeSaveTimer = null;
+
+    function applyAppIconUi(iconId) {
+        const resolved = VALID_APP_ICONS.includes(iconId) ? iconId : 'monochrome-dark';
+        activeAppIcon = resolved;
+        document.documentElement.setAttribute('data-app-icon', resolved);
+        const fav = document.getElementById('pp-favicon');
+        if (fav) fav.setAttribute('href', `assets/icons/${resolved}.png`);
+        if (appIconGrid) {
+            appIconGrid.querySelectorAll('[data-app-icon-option]').forEach((card) => {
+                const selected = card.getAttribute('data-app-icon-option') === resolved;
+                card.classList.toggle('is-selected', selected);
+                card.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            });
+        }
+    }
+
+    async function refreshAppIconStatus() {
+        const portableNote = document.getElementById('app-icon-portable-note');
+        if (!window.electronAPI || typeof window.electronAPI.getAppIconStatus !== 'function') return;
+        try {
+            const st = await window.electronAPI.getAppIconStatus();
+            if (portableNote) portableNote.classList.toggle('hidden', !(st && st.isPortable));
+        } catch (_) { /* opsiyonel */ }
+    }
+
+    const btnCreateDesktopShortcut = document.getElementById('btn-create-desktop-shortcut');
+    if (btnCreateDesktopShortcut) {
+        btnCreateDesktopShortcut.addEventListener('click', async () => {
+            if (!window.electronAPI || typeof window.electronAPI.createDesktopShortcut !== 'function') return;
+            const res = await window.electronAPI.createDesktopShortcut();
+            if (res && res.ok) {
+                showToast(t('appIconShortcutCreated'), 'success');
+            } else {
+                showToast(t('errorSaveFailed'), 'error');
+            }
+        });
+    }
+
+    function selectAppIcon(iconId) {
+        if (!VALID_APP_ICONS.includes(iconId)) return;
+        const previous = committedAppIcon;
+        applyAppIconUi(iconId);
+        try { localStorage.setItem('appIcon', iconId); } catch (_) { /* yut */ }
+        if (window.electronAPI && typeof window.electronAPI.saveSettingsAtomic === 'function') {
+            Promise.resolve(
+                window.electronAPI.saveSettingsAtomic({ settings: { appIcon: iconId } })
+            ).then((res) => {
+                if (res && res.success === false) {
+                    applyAppIconUi(previous);
+                    try { localStorage.setItem('appIcon', previous); } catch (_) { /* yut */ }
+                    showToast(res.message || t('errorModeSave'), 'error');
+                    return;
+                }
+                committedAppIcon = iconId;
+                const count = res && res.iconSync && Array.isArray(res.iconSync.shortcutsUpdated)
+                    ? res.iconSync.shortcutsUpdated.length
+                    : 0;
+                showToast(count > 0 ? t('appIconUpdatedWithShortcuts', { count }) : t('toastSettingsSaved'), 'success');
+                refreshAppIconStatus();
+            }).catch(() => { /* çevrimdışı: localStorage yeterli */ });
+        } else {
+            committedAppIcon = iconId;
+        }
+    }
+
+    if (appIconGrid) {
+        appIconGrid.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('[data-app-icon-option]') : null;
+            if (!btn) return;
+            selectAppIcon(btn.getAttribute('data-app-icon-option'));
+        });
+    }
 
     function persistThemeAsync(mode, themeId) {
         if (themeSaveTimer) clearTimeout(themeSaveTimer);
@@ -1279,7 +1473,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (elSoundMode) {
         elSoundMode.addEventListener('change', () => {
-            try { localStorage.setItem('soundMode', elSoundMode.value); } catch (_) { }
+            const val = elSoundMode.value;
+            try { localStorage.setItem('soundMode', val); } catch (_) { }
+            if (window.electronAPI && typeof window.electronAPI.saveSettingsAtomic === 'function') {
+                window.electronAPI.saveSettingsAtomic({ settings: { soundMode: val } }).catch(() => { });
+            }
         });
     }
     if (elAutostart) {
@@ -1382,6 +1580,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const voice = localStorage.getItem('voice') === 'true';
         let theme = localStorage.getItem('theme') || 'dark';
         let themeId = VALID_THEME_IDS.includes(localStorage.getItem('themeId')) ? localStorage.getItem('themeId') : 'obsidian';
+        let appIcon = VALID_APP_ICONS.includes(localStorage.getItem('appIcon')) ? localStorage.getItem('appIcon') : 'monochrome-dark';
         const notifications = localStorage.getItem('notifications') !== 'false';
         const soundMode = getSoundMode();
 
@@ -1409,6 +1608,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (!localStorage.getItem('themeId') && VALID_THEME_IDS.includes(serverSettings.themeId)) {
                 themeId = serverSettings.themeId;
+            }
+            if (VALID_APP_ICONS.includes(serverSettings.appIcon)) {
+                appIcon = serverSettings.appIcon;
             }
             if (localStorage.getItem('pp-sidebar-collapsed') === null && typeof serverSettings.sidebarCollapsed === 'boolean') {
                 setSidebarCollapsed(serverSettings.sidebarCollapsed, { persist: false });
@@ -1457,11 +1659,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         activeThemeId = themeId;
         committedTheme = theme;
         committedThemeId = themeId;
+        activeAppIcon = appIcon;
+        committedAppIcon = appIcon;
         committedLanguage = language;
-        try { localStorage.setItem('themeId', themeId); } catch (_) { /* yut */ }
+        try {
+            localStorage.setItem('themeId', themeId);
+            localStorage.setItem('appIcon', appIcon);
+        } catch (_) { /* yut */ }
 
         applyTheme(theme, themeId);
+        applyAppIconUi(appIcon);
+        refreshAppIconStatus();
         syncSidebarCollapseUi();
+        if (serverSettings && typeof hydrateExtendedSettingsFromServer === 'function') {
+            hydrateExtendedSettingsFromServer(serverSettings);
+        }
         applyLanguage(language);
         // Store kısıtları sözlük uygulandıktan sonra görünürleşir.
         await applyDistribution();
@@ -1617,11 +1829,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Şablondan forma doldurma (WBS-6.5)
+    // Şablondan forma doldurma (WBS-6.5 + WP-7: süre, tekrarlı saat ve çoklu koşul desteği)
     function applyTemplate(tpl) {
         if (!tpl || tpl.disabled) return;
+        if (tpl.trigger && tpl.trigger.type === 'duration' && Number.isInteger(tpl.trigger.durationMs)) {
+            const totalMin = Math.max(1, Math.round(tpl.trigger.durationMs / 60000));
+            const d = Math.floor(totalMin / 1440);
+            const h = Math.floor((totalMin % 1440) / 60);
+            const m = totalMin % 60;
+            const dEl = document.getElementById('input-days');
+            const hEl = document.getElementById('input-hours');
+            const mEl = document.getElementById('input-mins');
+            if (dEl) dEl.value = String(d);
+            if (hEl) hEl.value = String(h);
+            if (mEl) mEl.value = String(m);
+            if (tpl.action) {
+                const abtn = document.querySelector(`.action-btn[data-action="${tpl.action}"]`);
+                if (abtn) abtn.click();
+            }
+            showToast(t('sfTemplateLoaded', { name: localizedTemplateName(tpl) }), 'info');
+            switchView('nav-dashboard');
+            return;
+        }
         if (tpl.schedule && tpl.schedule.timeOfDay) {
             document.getElementById('sf-time').value = tpl.schedule.timeOfDay;
+            const recSel = document.getElementById('sf-repeat');
+            if (recSel && tpl.schedule.recurrence) {
+                recSel.value = tpl.schedule.recurrence;
+                if (typeof syncRepeatVisibility === 'function') syncRepeatVisibility();
+            }
             showToast(t('sfTemplateTimeApplied', { name: localizedTemplateName(tpl) }), 'info');
         } else {
             const group = tpl.defaultConditionGroup ||
@@ -2264,19 +2500,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         'Her Gece 01:00 Uyut': 'tplNightlySleep',
         'Pil Azalınca Hazırda Beklet': 'tplBatteryHibernate',
         'İndirilenler Sabitlenince Kapat': 'tplBackupStable',
-        'Sunum Kapanınca Kilitle': 'tplPresentationLock'
+        'Sunum Kapanınca Kilitle': 'tplPresentationLock',
+        'Ağ ve Disk Durunca Kapat': 'tplTorrentCompleteShutdown',
+        'Render Bitince Uyku Modu': 'tplRenderSleep',
+        'Büyük Kopyalama / Yedek Bitince Kapat': 'tplDiskCopyShutdown',
+        'Epic Games İndirmesi Bitince Kapat': 'tplEpicDownloadShutdown',
+        'Oyun Sonrası 30 Dk Boşta Uyut': 'tplGamingIdleSleep',
+        '30 Dakika Sonra Mola Kilidi': 'tplFocusLock30m',
+        'Hafta İçi 18:30 Ekranı Kilitle': 'tplWorkdayEndLock',
+        'OBS Yayını Kapanınca Uyut': 'tplObsStreamSleep',
+        'Her Gece 02:00 Kapat': 'tplNightlyShutdown',
+        'Gece 04:00 Bakım Yeniden Başlat': 'tplWeeklyRestart',
+        '1 Saat Sonra Uyut': 'tplTimer60mSleep',
+        '2 Saat Sonra Kapat': 'tplTimer120mShutdown'
     };
 
     function localizedTemplateName(tpl) {
         if (!tpl) return '';
-        if (tpl.id && TEMPLATE_I18N[tpl.id] && !tpl.custom) return t(TEMPLATE_I18N[tpl.id][0]);
-        if (tpl.name && BUILTIN_TEMPLATE_NAMES[tpl.name]) return t(BUILTIN_TEMPLATE_NAMES[tpl.name]);
+        if (tpl.id && TEMPLATE_I18N[tpl.id] && !tpl.custom && !tpl.modified) return t(TEMPLATE_I18N[tpl.id][0]);
+        if (tpl.name && !tpl.modified && BUILTIN_TEMPLATE_NAMES[tpl.name]) return t(BUILTIN_TEMPLATE_NAMES[tpl.name]);
         return tpl.name || '';
     }
 
     function localizedTemplateDescription(tpl) {
         if (!tpl) return '';
-        if (tpl.id && TEMPLATE_I18N[tpl.id] && !tpl.custom) return t(TEMPLATE_I18N[tpl.id][1]);
+        if (tpl.id && TEMPLATE_I18N[tpl.id] && !tpl.custom && !tpl.modified) return t(TEMPLATE_I18N[tpl.id][1]);
         return tpl.description || '';
     }
 
@@ -2302,6 +2550,323 @@ document.addEventListener('DOMContentLoaded', async () => {
         return t(keys[source] || 'sourceUserInterface');
     }
 
+    // WP-7: Kategorize edilmiş şablon listesi, arama, oluşturma/düzenleme, silme ve varsayılanları sıfırlama
+    let allTemplatesCache = [];
+    let activeTplCategory = 'all';
+    let tplSearchTerm = '';
+
+    const TPL_CAT_I18N = {
+        download: 'tplCatDownload',
+        render: 'tplCatRender',
+        gaming: 'tplCatGaming',
+        productivity: 'tplCatProductivity',
+        schedule: 'tplCatSchedule',
+        power: 'tplCatPower',
+        security: 'tplCatSecurity',
+        custom: 'tplCatCustom'
+    };
+
+    function syncTplEditorPanes() {
+        const mode = (document.getElementById('tpl-edit-mode') || {}).value || 'condition';
+        const pDur = document.getElementById('tpl-pane-duration');
+        const pSch = document.getElementById('tpl-pane-schedule');
+        const pCond = document.getElementById('tpl-pane-condition');
+        if (pDur) pDur.classList.toggle('hidden', mode !== 'duration');
+        if (pSch) pSch.classList.toggle('hidden', mode !== 'schedule');
+        if (pCond) pCond.classList.toggle('hidden', mode !== 'condition');
+    }
+
+    function openTemplateEditor(tpl = null, { duplicate = false } = {}) {
+        const idEl = document.getElementById('tpl-edit-id');
+        const titleEl = document.getElementById('tpl-editor-title');
+        const nameEl = document.getElementById('tpl-edit-name');
+        const descEl = document.getElementById('tpl-edit-desc');
+        const catEl = document.getElementById('tpl-edit-category');
+        const actEl = document.getElementById('tpl-edit-action');
+        const iconEl = document.getElementById('tpl-edit-icon');
+        const modeEl = document.getElementById('tpl-edit-mode');
+        const minEl = document.getElementById('tpl-edit-minutes');
+        const timeEl = document.getElementById('tpl-edit-time');
+        const recEl = document.getElementById('tpl-edit-recurrence');
+        const cTypeEl = document.getElementById('tpl-edit-cond-type');
+        const cValEl = document.getElementById('tpl-edit-cond-val');
+        const cStabEl = document.getElementById('tpl-edit-cond-stability');
+        const errEl = document.getElementById('tpl-editor-error');
+        if (errEl) { errEl.textContent = ''; errEl.classList.add('hidden'); }
+
+        if (!tpl) {
+            if (idEl) idEl.value = '';
+            if (titleEl) titleEl.textContent = t('tplEditorNewTitle');
+            if (nameEl) nameEl.value = '';
+            if (descEl) descEl.value = '';
+            if (catEl) catEl.value = 'custom';
+            if (actEl) actEl.value = 'shutdown';
+            if (iconEl) iconEl.value = 'bookmark';
+            if (modeEl) modeEl.value = 'condition';
+            if (minEl) minEl.value = '45';
+            if (timeEl) timeEl.value = '01:00';
+            if (recEl) recEl.value = 'daily';
+            if (cTypeEl) cTypeEl.value = 'network_speed';
+            if (cValEl) cValEl.value = '50';
+            if (cStabEl) cStabEl.value = '60';
+        } else {
+            if (idEl) idEl.value = duplicate ? '' : (tpl.id || '');
+            if (titleEl) titleEl.textContent = duplicate ? t('tplEditorDuplicateTitle') : t('tplEditorEditTitle');
+            const baseName = localizedTemplateName(tpl);
+            if (nameEl) nameEl.value = duplicate ? `${baseName} (${t('tplCopySuffix')})`.slice(0, 80) : baseName;
+            if (descEl) descEl.value = localizedTemplateDescription(tpl);
+            if (catEl) catEl.value = tpl.category || 'custom';
+            if (actEl) actEl.value = tpl.action || 'shutdown';
+            if (iconEl) iconEl.value = tpl.icon || 'bookmark';
+            if (tpl.trigger && tpl.trigger.type === 'duration') {
+                if (modeEl) modeEl.value = 'duration';
+                if (minEl) minEl.value = String(Math.max(1, Math.round((tpl.trigger.durationMs || 2700000) / 60000)));
+            } else if (tpl.schedule && tpl.schedule.timeOfDay) {
+                if (modeEl) modeEl.value = 'schedule';
+                if (timeEl) timeEl.value = tpl.schedule.timeOfDay;
+                if (recEl) recEl.value = tpl.schedule.recurrence || 'daily';
+            } else {
+                if (modeEl) modeEl.value = 'condition';
+                const c = tpl.defaultCondition || (tpl.defaultConditionGroup && tpl.defaultConditionGroup.conditions && tpl.defaultConditionGroup.conditions[0]) || { type: 'network_speed', thresholdKbps: 50 };
+                if (cTypeEl) cTypeEl.value = c.type || 'network_speed';
+                if (cValEl) {
+                    if (c.type === 'process_running') cValEl.value = c.processName || 'chrome.exe';
+                    else if (c.type === 'cpu_usage') cValEl.value = String(c.thresholdPercent ?? 10);
+                    else if (c.type === 'user_idle') cValEl.value = String(c.idleSeconds ?? 900);
+                    else if (c.type === 'battery_level') cValEl.value = String(c.belowPercent ?? c.abovePercent ?? 20);
+                    else if (c.type === 'directory_idle') cValEl.value = c.dirPath || c.filePath || '';
+                    else if (c.type === 'file_stable') cValEl.value = c.filePath || '';
+                    else cValEl.value = String(c.thresholdKbps ?? 50);
+                }
+                if (cStabEl) {
+                    const stab = (tpl.defaultConditionGroup && tpl.defaultConditionGroup.stabilitySeconds) ?? c.stabilitySeconds ?? c.stableSeconds ?? 60;
+                    cStabEl.value = String(stab);
+                }
+            }
+        }
+        syncTplEditorPanes();
+        openModal('modal-template-editor');
+    }
+
+    function buildTemplatePayloadFromEditor() {
+        const id = (document.getElementById('tpl-edit-id')?.value || '').trim();
+        const name = (document.getElementById('tpl-edit-name')?.value || '').trim();
+        const description = (document.getElementById('tpl-edit-desc')?.value || '').trim();
+        const category = document.getElementById('tpl-edit-category')?.value || 'custom';
+        const action = document.getElementById('tpl-edit-action')?.value || 'shutdown';
+        const icon = document.getElementById('tpl-edit-icon')?.value || 'bookmark';
+        const mode = document.getElementById('tpl-edit-mode')?.value || 'condition';
+        if (!name) return { error: t('errorEnterTemplateName') };
+
+        const payload = {
+            ...(id ? { id } : {}),
+            name,
+            description,
+            category,
+            action,
+            icon
+        };
+        if (mode === 'duration') {
+            const mins = parseInt(document.getElementById('tpl-edit-minutes')?.value, 10);
+            if (!Number.isInteger(mins) || mins < 1 || mins > 1440) return { error: t('errorInvalidTemplate') };
+            payload.trigger = { type: 'duration', durationMs: mins * 60000 };
+            return { payload };
+        }
+        if (mode === 'schedule') {
+            const hhmm = (document.getElementById('tpl-edit-time')?.value || '').trim();
+            const recurrence = document.getElementById('tpl-edit-recurrence')?.value || 'daily';
+            if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(hhmm)) return { error: t('errorInvalidTemplate') };
+            payload.schedule = { timeOfDay: hhmm, recurrence };
+            return { payload };
+        }
+        const cType = document.getElementById('tpl-edit-cond-type')?.value || 'network_speed';
+        const rawVal = (document.getElementById('tpl-edit-cond-val')?.value || '').trim();
+        const stab = parseInt(document.getElementById('tpl-edit-cond-stability')?.value, 10);
+        const safeStab = Number.isInteger(stab) && stab >= 0 && stab <= 3600 ? stab : 60;
+        let cond = null;
+        if (cType === 'process_running') {
+            if (!rawVal) return { error: t('errorEnterProcess') };
+            cond = { type: 'process_running', processName: rawVal, triggerOnClose: true };
+        } else if (cType === 'cpu_usage') {
+            const num = Number(rawVal);
+            if (!Number.isFinite(num) || num < 0 || num > 100) return { error: t('errorCpuRange') };
+            cond = { type: 'cpu_usage', thresholdPercent: Math.floor(num), stabilitySeconds: safeStab };
+        } else if (cType === 'user_idle') {
+            const num = Number(rawVal);
+            if (!Number.isFinite(num) || num < 1) return { error: t('errorPositiveSeconds') };
+            cond = { type: 'user_idle', idleSeconds: Math.floor(num), stabilitySeconds: safeStab };
+        } else if (cType === 'battery_level') {
+            const num = Number(rawVal);
+            if (!Number.isFinite(num) || num < 1 || num > 100) return { error: t('errorBatteryRange') };
+            cond = { type: 'battery_level', belowPercent: Math.floor(num), stabilitySeconds: safeStab };
+        } else if (cType === 'directory_idle') {
+            if (!rawVal) return { error: t('errorEnterPath') };
+            cond = { type: 'directory_idle', dirPath: rawVal, stableSeconds: Math.max(10, safeStab) };
+        } else if (cType === 'file_stable') {
+            if (!rawVal) return { error: t('errorEnterPath') };
+            cond = { type: 'file_stable', filePath: rawVal, stableSeconds: Math.max(10, safeStab) };
+        } else {
+            const num = Number(rawVal);
+            if (!Number.isFinite(num) || num < 0) return { error: t('errorKbps') };
+            cond = { type: cType, thresholdKbps: Math.floor(num), stabilitySeconds: safeStab };
+        }
+        payload.defaultCondition = cond;
+        return { payload };
+    }
+
+    function renderTemplatesGrid() {
+        const grid = document.getElementById('templates-grid');
+        if (!grid) return;
+        const q = tplSearchTerm.trim().toLocaleLowerCase('tr');
+        const filtered = allTemplatesCache.filter((tpl) => {
+            if (!tpl) return false;
+            const cat = tpl.custom ? 'custom' : (tpl.category || 'custom');
+            if (activeTplCategory !== 'all') {
+                if (activeTplCategory === 'custom' && !tpl.custom) return false;
+                if (activeTplCategory !== 'custom' && (tpl.category || 'custom') !== activeTplCategory) return false;
+            }
+            if (q) {
+                const hay = `${localizedTemplateName(tpl)} ${localizedTemplateDescription(tpl)} ${tpl.action || ''} ${cat}`.toLocaleLowerCase('tr');
+                if (!hay.includes(q)) return false;
+            }
+            return true;
+        });
+
+        const cards = filtered.map((tpl) => {
+            const name = localizedTemplateName(tpl);
+            const description = localizedTemplateDescription(tpl) || (tpl.custom ? t('defaultUserTemplate') : '');
+            const card = document.createElement('div');
+            card.className = 'pp-tpl-card';
+
+            const top = document.createElement('div');
+            top.className = 'flex flex-col gap-2.5 min-w-0';
+
+            const head = document.createElement('div');
+            head.className = 'flex items-start justify-between gap-2 min-w-0';
+            const titleRow = document.createElement('div');
+            titleRow.className = 'flex items-center gap-2.5 min-w-0 flex-1';
+            const iconWrap = document.createElement('span');
+            iconWrap.className = 'pp-tpl-icon-wrap';
+            iconWrap.setAttribute('aria-hidden', 'true');
+            const icon = document.createElement('span');
+            icon.className = 'material-symbols-outlined text-[18px]';
+            icon.textContent = tpl.icon || 'widgets';
+            icon.setAttribute('aria-hidden', 'true');
+            iconWrap.appendChild(icon);
+            const heading = document.createElement('h4');
+            heading.className = 'font-bold text-slate-900 dark:text-white text-sm leading-snug truncate';
+            heading.textContent = name;
+            heading.title = name;
+            titleRow.append(iconWrap, heading);
+
+            const badges = document.createElement('div');
+            badges.className = 'flex items-center gap-1 shrink-0 pt-0.5';
+            const catKey = TPL_CAT_I18N[tpl.category] || 'tplCatCustom';
+            const catBadge = document.createElement('span');
+            catBadge.className = tpl.custom ? 'pp-template-badge pp-template-badge--custom' : 'pp-template-badge';
+            catBadge.textContent = tpl.custom ? t('badgeCustom') : t(catKey);
+            badges.appendChild(catBadge);
+            if (tpl.modified) {
+                const modBadge = document.createElement('span');
+                modBadge.className = 'pp-template-badge pp-template-badge--modified';
+                modBadge.textContent = t('tplBadgeModified');
+                badges.appendChild(modBadge);
+            }
+            head.append(titleRow, badges);
+
+            const desc = document.createElement('p');
+            desc.className = 'text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2';
+            desc.textContent = description;
+
+            const meta = document.createElement('span');
+            meta.className = 'pp-tpl-trigger-chip';
+            const actionText = getActionString(tpl.action);
+            if (tpl.trigger && tpl.trigger.type === 'duration') {
+                meta.textContent = `${actionText} · ${Math.round(tpl.trigger.durationMs / 60000)} ${t('shortMinute')}`;
+            } else if (tpl.schedule && tpl.schedule.timeOfDay) {
+                meta.textContent = `${actionText} · ${tpl.schedule.timeOfDay}`;
+            } else if (tpl.defaultCondition) {
+                meta.textContent = `${actionText} · ${tpl.defaultCondition.type}`;
+            } else if (tpl.defaultConditionGroup) {
+                meta.textContent = `${actionText} · ${(tpl.defaultConditionGroup.conditions || []).map((c) => c.type).join(' + ')}`;
+            } else {
+                meta.textContent = actionText;
+            }
+            meta.title = meta.textContent;
+            top.append(head, desc, meta);
+
+            const footer = document.createElement('div');
+            footer.className = 'pp-tpl-footer';
+
+            const use = document.createElement('button');
+            use.type = 'button';
+            use.className = 'flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 h-8 px-3 bg-primary/10 border border-primary/50 text-primary dark:text-primary-light hover:bg-primary/15 rounded-lg text-xs font-bold transition-all disabled:cursor-default';
+            const useIcon = document.createElement('span');
+            useIcon.className = 'material-symbols-outlined text-[16px]';
+            useIcon.setAttribute('aria-hidden', 'true');
+            useIcon.textContent = 'play_arrow';
+            const useTxt = document.createElement('span');
+            useTxt.className = 'truncate';
+            useTxt.textContent = t('templateUse');
+            use.append(useIcon, useTxt);
+            use.disabled = Boolean(tpl.disabled);
+            if (tpl.disabled) use.title = tpl.disabledReason || t('templateUnavailable');
+            use.addEventListener('click', () => applyTemplate(tpl));
+            footer.appendChild(use);
+
+            const makeIconBtn = (iconName, label, extraClass, onClick) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = extraClass ? `pp-icon-action-btn ${extraClass}` : 'pp-icon-action-btn';
+                btn.title = label;
+                btn.setAttribute('aria-label', `${name}: ${label}`);
+                const sp = document.createElement('span');
+                sp.className = 'material-symbols-outlined text-[17px]';
+                sp.setAttribute('aria-hidden', 'true');
+                sp.textContent = iconName;
+                btn.appendChild(sp);
+                btn.addEventListener('click', onClick);
+                return btn;
+            };
+
+            const actions = document.createElement('div');
+            actions.className = 'pp-tpl-actions';
+            actions.appendChild(makeIconBtn('edit', t('edit'), '', () => openTemplateEditor(tpl, { duplicate: false })));
+            actions.appendChild(makeIconBtn('content_copy', t('tplDuplicate'), '', () => openTemplateEditor(tpl, { duplicate: true })));
+
+            if (tpl.builtIn && tpl.modified) {
+                actions.appendChild(makeIconBtn('restart_alt', t('tplResetOne'), 'pp-icon-action-btn--warn', async () => {
+                    if (window.electronAPI && window.electronAPI.resetTemplate) {
+                        await window.electronAPI.resetTemplate(tpl.id);
+                        await loadTemplates();
+                        showToast(t('toastTemplateReset'), 'success');
+                    }
+                }));
+            }
+
+            actions.appendChild(makeIconBtn('delete_outline', t('delete'), 'pp-icon-action-btn--danger', async () => {
+                if (window.electronAPI && window.electronAPI.deleteTemplate) {
+                    const res = await window.electronAPI.deleteTemplate(tpl.id);
+                    if (res && res.success) {
+                        await loadTemplates();
+                        showToast(res.hidden ? t('toastTemplateHidden') : t('toastTemplateDeleted'), 'info');
+                    } else {
+                        showToast((res && res.message) || t('errorSaveFailed'), 'error');
+                    }
+                }
+            }));
+
+            footer.appendChild(actions);
+            card.append(top, footer);
+            return card;
+        });
+
+        grid.replaceChildren(...cards);
+        const empty = document.getElementById('templates-empty');
+        if (empty) empty.classList.toggle('hidden', cards.length !== 0);
+        grid.classList.toggle('hidden', cards.length === 0);
+    }
+
     async function loadTemplates() {
         if (window.electronAPI && window.electronAPI.getTemplates) {
             let tpls;
@@ -2310,68 +2875,125 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (_) {
                 tpls = null;
             }
-            if (!Array.isArray(tpls)) tpls = [];
-            const grid = document.getElementById('templates-grid');
-            if (grid) {
-                const cards = tpls.map(tpl => {
-                    const name = localizedTemplateName(tpl);
-                    const description = localizedTemplateDescription(tpl) || (tpl.custom ? t('defaultUserTemplate') : '');
-                    const card = document.createElement('div');
-                    card.className = 'bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between';
+            allTemplatesCache = Array.isArray(tpls) ? tpls : [];
+            renderTemplatesGrid();
+        }
+    }
 
-                    const top = document.createElement('div');
-                    const titleRow = document.createElement('div');
-                    titleRow.className = 'flex items-center gap-3 mb-2';
-                    const icon = document.createElement('span');
-                    icon.className = 'material-symbols-outlined text-primary dark:text-primary-light text-xl';
-                    icon.textContent = tpl.icon || 'widgets';
-                    icon.setAttribute('aria-hidden', 'true');
-                    const heading = document.createElement('h4');
-                    heading.className = 'font-bold text-slate-900 dark:text-white text-sm';
-                    heading.textContent = name;
-                    titleRow.append(icon, heading);
-                    if (tpl.custom) {
-                        const badge = document.createElement('span');
-                        badge.className = 'text-[10px] font-bold text-amber-700 dark:text-amber-400 border border-amber-500/40 rounded px-1.5 py-0.5';
-                        badge.textContent = t('badgeCustom');
-                        titleRow.appendChild(badge);
-                    }
-                    const desc = document.createElement('p');
-                    desc.className = 'text-xs text-slate-600 dark:text-slate-400 mb-4';
-                    desc.textContent = description;
-                    top.append(titleRow, desc);
-
-                    const footer = document.createElement('div');
-                    footer.className = 'flex gap-2';
-                    const use = document.createElement('button');
-                    use.className = 'flex-1 px-4 py-2 bg-primary/10 border border-primary/50 text-primary dark:text-primary-light hover:bg-primary/30 rounded-lg text-xs font-bold transition-all text-center disabled:cursor-default';
-                    use.textContent = t('templateUse');
-                    use.disabled = Boolean(tpl.disabled);
-                    if (tpl.disabled) use.title = tpl.disabledReason || t('templateUnavailable');
-                    use.addEventListener('click', () => applyTemplate(tpl));
-                    footer.appendChild(use);
-                    if (tpl.custom) {
-                        const del = document.createElement('button');
-                        del.className = 'px-3 py-2 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-lg text-xs font-bold transition-all';
-                        del.textContent = t('delete');
-                        del.addEventListener('click', async () => {
-                            if (window.electronAPI && window.electronAPI.deleteTemplate) {
-                                await window.electronAPI.deleteTemplate(tpl.id);
-                                loadTemplates();
-                                showToast(t('toastTemplateDeleted'), 'info');
-                            }
-                        });
-                        footer.appendChild(del);
-                    }
-                    card.append(top, footer);
-                    return card;
+    async function openRestoreTemplatesModal() {
+        const listEl = document.getElementById('hidden-templates-list');
+        if (listEl) listEl.replaceChildren();
+        let hidden = [];
+        try {
+            if (window.electronAPI && window.electronAPI.getHiddenTemplates) {
+                hidden = (await window.electronAPI.getHiddenTemplates()) || [];
+            }
+        } catch (_) { hidden = []; }
+        if (listEl) {
+            if (hidden.length === 0) {
+                const p = document.createElement('p');
+                p.className = 'text-xs text-slate-600 dark:text-slate-400 py-2';
+                p.textContent = t('tplNoHiddenDefaults');
+                listEl.appendChild(p);
+            } else {
+                hidden.forEach((tpl) => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between gap-2 p-2.5 rounded-lg pp-modal-subcard';
+                    const title = document.createElement('span');
+                    title.className = 'text-xs font-semibold truncate';
+                    title.textContent = localizedTemplateName(tpl);
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'pp-btn-secondary text-[11px] shrink-0';
+                    btn.textContent = t('tplRestoreOne');
+                    btn.addEventListener('click', async () => {
+                        if (window.electronAPI && window.electronAPI.resetTemplate) {
+                            await window.electronAPI.resetTemplate(tpl.id);
+                            await loadTemplates();
+                            await openRestoreTemplatesModal();
+                            showToast(t('toastTemplateRestored'), 'success');
+                        }
+                    });
+                    row.append(title, btn);
+                    listEl.appendChild(row);
                 });
-                grid.replaceChildren(...cards);
-                const empty = document.getElementById('templates-empty');
-                if (empty) empty.classList.toggle('hidden', cards.length !== 0);
-                grid.classList.toggle('hidden', cards.length === 0);
             }
         }
+        openModal('modal-restore-templates');
+    }
+
+    const tplCatTabs = document.getElementById('tpl-category-tabs');
+    if (tplCatTabs) {
+        tplCatTabs.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('[data-tpl-cat]') : null;
+            if (!btn) return;
+            activeTplCategory = btn.getAttribute('data-tpl-cat') || 'all';
+            tplCatTabs.querySelectorAll('[data-tpl-cat]').forEach((b) => b.classList.toggle('is-active', b === btn));
+            renderTemplatesGrid();
+        });
+    }
+    const tplSearchEl = document.getElementById('tpl-search');
+    if (tplSearchEl) {
+        tplSearchEl.addEventListener('input', () => {
+            tplSearchTerm = tplSearchEl.value || '';
+            renderTemplatesGrid();
+        });
+    }
+    const btnCreateTpl = document.getElementById('btn-create-template');
+    if (btnCreateTpl) btnCreateTpl.addEventListener('click', () => openTemplateEditor(null));
+    const btnEmptyCreateTpl = document.getElementById('btn-empty-create-tpl');
+    if (btnEmptyCreateTpl) btnEmptyCreateTpl.addEventListener('click', () => openTemplateEditor(null));
+    const btnRestoreTpls = document.getElementById('btn-restore-templates');
+    if (btnRestoreTpls) btnRestoreTpls.addEventListener('click', () => openRestoreTemplatesModal());
+    const tplModeSel = document.getElementById('tpl-edit-mode');
+    if (tplModeSel) tplModeSel.addEventListener('change', syncTplEditorPanes);
+
+    const btnTplEditorClose = document.getElementById('modal-template-editor-close');
+    const btnTplEditorCancel = document.getElementById('modal-template-editor-cancel');
+    const btnTplEditorSave = document.getElementById('modal-template-editor-save');
+    if (btnTplEditorClose) btnTplEditorClose.addEventListener('click', () => closeModal('modal-template-editor'));
+    if (btnTplEditorCancel) btnTplEditorCancel.addEventListener('click', () => closeModal('modal-template-editor'));
+    if (btnTplEditorSave) {
+        btnTplEditorSave.addEventListener('click', async () => {
+            const errEl = document.getElementById('tpl-editor-error');
+            const built = buildTemplatePayloadFromEditor();
+            if (built.error) {
+                if (errEl) { errEl.textContent = built.error; errEl.classList.remove('hidden'); }
+                return;
+            }
+            if (!window.electronAPI || !window.electronAPI.saveTemplate) return;
+            const res = await window.electronAPI.saveTemplate(built.payload);
+            if (!res || res.success === false) {
+                if (errEl) { errEl.textContent = (res && res.message) || t('errorInvalidTemplate'); errEl.classList.remove('hidden'); }
+                return;
+            }
+            closeModal('modal-template-editor');
+            await loadTemplates();
+            showToast(t('toastTemplateSaved'), 'success');
+        });
+    }
+
+    const btnRestoreModalClose = document.getElementById('modal-restore-templates-close');
+    if (btnRestoreModalClose) btnRestoreModalClose.addEventListener('click', () => closeModal('modal-restore-templates'));
+    const btnRestoreHiddenAll = document.getElementById('btn-restore-hidden-all');
+    if (btnRestoreHiddenAll) {
+        btnRestoreHiddenAll.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.restoreDefaultTemplates) return;
+            await window.electronAPI.restoreDefaultTemplates({ resetEdits: false });
+            closeModal('modal-restore-templates');
+            await loadTemplates();
+            showToast(t('toastTemplateRestored'), 'success');
+        });
+    }
+    const btnResetAllBuiltins = document.getElementById('btn-reset-all-builtins');
+    if (btnResetAllBuiltins) {
+        btnResetAllBuiltins.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.restoreDefaultTemplates) return;
+            await window.electronAPI.restoreDefaultTemplates({ resetEdits: true });
+            closeModal('modal-restore-templates');
+            await loadTemplates();
+            showToast(t('toastTemplateReset'), 'success');
+        });
     }
 
     // Faz 3: profil/şablon içe-dışa aktarma (JSON).
@@ -2571,34 +3193,237 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 60);
     }
 
+    let activeStatsDays = 30;
+
+    const SVG_NS = (() => {
+        const existing = document.querySelector('svg');
+        return (existing && existing.namespaceURI) || ['http:', '//www.w3.org/2000/svg'].join('');
+    })();
+
+    function createSvgEl(tag, attrs = {}) {
+        const el = document.createElementNS(SVG_NS, tag);
+        for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+        return el;
+    }
+
+    function renderDailyStatsChart(series) {
+        const wrap = document.getElementById('stats-daily-chart');
+        if (!wrap) return;
+        const list = Array.isArray(series) ? series : [];
+        if (list.length === 0) {
+            const p = document.createElement('p');
+            p.className = 'text-xs text-slate-600 dark:text-slate-400 py-8 text-center';
+            p.textContent = t('healthNoData');
+            wrap.replaceChildren(p);
+            return;
+        }
+        const W = 600;
+        const H = 170;
+        const padL = 28;
+        const padR = 10;
+        const padT = 14;
+        const padB = 26;
+        const plotW = W - padL - padR;
+        const plotH = H - padT - padB;
+        const useHours = list.some((d) => d.hours > 0);
+        const vals = list.map((d) => (useHours ? d.hours : d.runs));
+        const maxV = Math.max(1, ...vals);
+
+        const svg = createSvgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pp-stats-chart-svg', role: 'img', 'aria-label': t('statDailyChartTitle') });
+        // Horizontal grid lines (0%, 50%, 100%)
+        [0, 0.5, 1].forEach((ratio) => {
+            const y = padT + plotH * (1 - ratio);
+            svg.appendChild(createSvgEl('line', { x1: padL, y1: y, x2: W - padR, y2: y, class: 'pp-stats-grid-line' }));
+            const lbl = createSvgEl('text', { x: padL - 4, y: y + 3, 'text-anchor': 'end', class: 'pp-stats-axis-text' });
+            const n = maxV * ratio;
+            lbl.textContent = useHours ? `${n.toFixed(n >= 10 ? 0 : 1)}h` : String(Math.round(n));
+            svg.appendChild(lbl);
+        });
+
+        const step = plotW / list.length;
+        const barW = Math.max(4, Math.min(28, step * 0.68));
+        const labelEvery = list.length > 14 ? 5 : 1;
+
+        list.forEach((d, idx) => {
+            const val = useHours ? d.hours : d.runs;
+            const h = Math.max(val > 0 ? 3 : 0, (val / maxV) * plotH);
+            const x = padL + idx * step + (step - barW) / 2;
+            const y = padT + plotH - h;
+            svg.appendChild(createSvgEl('rect', { x, y: padT, width: barW, height: plotH, rx: 3, class: 'pp-stats-bar-bg' }));
+            if (h > 0) {
+                const bar = createSvgEl('rect', { x, y, width: barW, height: h, rx: 3, class: 'pp-stats-bar-rect' });
+                const tip = createSvgEl('title');
+                tip.textContent = `${d.date}: ${d.runs} · ${d.hours}h · ${d.kwh} kWh`;
+                bar.appendChild(tip);
+                svg.appendChild(bar);
+            }
+            if (idx % labelEvery === 0 || idx === list.length - 1) {
+                const xl = createSvgEl('text', { x: x + barW / 2, y: H - 6, 'text-anchor': 'middle', class: 'pp-stats-axis-text' });
+                xl.textContent = String(d.date || '').slice(5);
+                svg.appendChild(xl);
+            }
+        });
+        wrap.replaceChildren(svg);
+    }
+
+    function renderBreakdownBars(containerId, items, labelFn) {
+        const box = document.getElementById(containerId);
+        if (!box) return;
+        const active = (items || []).filter((x) => x && x.count > 0);
+        if (active.length === 0) {
+            const p = document.createElement('p');
+            p.className = 'text-xs text-slate-600 dark:text-slate-400';
+            p.textContent = t('healthNoData');
+            box.replaceChildren(p);
+            return;
+        }
+        const nodes = active.slice(0, 6).map((item) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'space-y-1';
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between text-xs';
+            const left = document.createElement('span');
+            left.className = 'font-medium truncate';
+            left.textContent = labelFn(item);
+            const right = document.createElement('span');
+            right.className = 'font-mono text-[11px] text-slate-600 dark:text-slate-400 tabular-nums';
+            right.textContent = `${item.count} (${item.pct}%)`;
+            row.append(left, right);
+            const svg = createSvgEl('svg', { viewBox: '0 0 100 6', width: '100%', height: '6', 'aria-hidden': 'true' });
+            svg.appendChild(createSvgEl('rect', { x: 0, y: 0, width: 100, height: 6, rx: 3, class: 'pp-stats-bar-bg' }));
+            svg.appendChild(createSvgEl('rect', { x: 0, y: 0, width: Math.max(4, Math.min(100, item.pct)), height: 6, rx: 3, class: 'pp-stats-bar-rect' }));
+            wrap.append(row, svg);
+            return wrap;
+        });
+        box.replaceChildren(...nodes);
+    }
+
+    function renderHourlyHeatmap(dist) {
+        const box = document.getElementById('stats-hourly-heatmap');
+        if (!box) return;
+        const arr = Array.isArray(dist) && dist.length === 24 ? dist : new Array(24).fill(0);
+        const maxVal = Math.max(1, ...arr);
+        const cells = arr.map((count, hour) => {
+            const cell = document.createElement('div');
+            cell.className = 'pp-heatmap-cell';
+            const ratio = count / maxVal;
+            const level = count === 0 ? 0 : (ratio >= 0.66 ? 3 : (ratio >= 0.33 ? 2 : 1));
+            cell.setAttribute('data-level', String(level));
+            cell.title = `${String(hour).padStart(2, '0')}:00 — ${count}`;
+            const hSpan = document.createElement('span');
+            hSpan.textContent = String(hour).padStart(2, '0');
+            const cSpan = document.createElement('span');
+            cSpan.className = 'text-[10px] opacity-80';
+            cSpan.textContent = String(count);
+            cell.append(hSpan, cSpan);
+            return cell;
+        });
+        box.replaceChildren(...cells);
+    }
+
+    function renderRecentSessionsTable(sessions) {
+        const tbody = document.getElementById('stats-sessions-body');
+        if (!tbody) return;
+        const list = Array.isArray(sessions) ? sessions : [];
+        if (list.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 5;
+            td.className = 'px-4 py-6 text-center text-xs text-slate-600 dark:text-slate-400';
+            td.textContent = t('statNoMeasuredSessions');
+            tr.appendChild(td);
+            tbody.replaceChildren(tr);
+            return;
+        }
+        const locale = getCurrentLanguage();
+        const rows = list.map((s) => {
+            const tr = document.createElement('tr');
+            const mk = (txt, cls) => {
+                const td = document.createElement('td');
+                td.className = cls;
+                td.textContent = txt;
+                return td;
+            };
+            tr.append(
+                mk(new Date(s.downAt).toLocaleString(locale), 'px-4 py-3 font-mono text-[11px] whitespace-nowrap'),
+                mk(new Date(s.bootAt).toLocaleString(locale), 'px-4 py-3 font-mono text-[11px] whitespace-nowrap'),
+                mk(`${s.hours} h`, 'px-4 py-3 text-right font-bold tabular-nums whitespace-nowrap'),
+                mk(s.kwh == null ? '—' : `${s.kwh} kWh`, 'px-4 py-3 text-right tabular-nums whitespace-nowrap'),
+                mk(s.cost == null ? '—' : `${s.cost} ${s.currency || ''}`.trim(), 'px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap')
+            );
+            return tr;
+        });
+        tbody.replaceChildren(...rows);
+    }
+
     async function loadStatistics() {
         if (window.electronAPI && window.electronAPI.getStatistics) {
             let stats;
             try {
-                stats = await window.electronAPI.getStatistics();
+                stats = await window.electronAPI.getStatistics(activeStatsDays ? { days: activeStatsDays } : {});
             } catch (_) {
                 stats = null;
             }
             if (!stats) {
-                const hours = document.getElementById('stat-hours');
-                const kwh = document.getElementById('stat-kwh');
-                const cost = document.getElementById('stat-cost');
-                if (hours) hours.innerText = '—';
-                if (kwh) kwh.innerText = '—';
-                if (cost) cost.innerText = '—';
+                ['stat-hours', 'stat-kwh', 'stat-cost', 'stat-co2'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerText = '—';
+                });
                 return;
             }
             if (stats.enabled) {
                 document.getElementById('stat-hours').innerText = t('statHoursValue', { hours: stats.preventedUptimeHours });
                 const kwhEl = document.getElementById('stat-kwh');
                 const costEl = document.getElementById('stat-cost');
+                const co2El = document.getElementById('stat-co2');
+                const rateEl = document.getElementById('stat-success-rate');
                 const chipW = document.getElementById('chip-watt');
                 const chipP = document.getElementById('chip-price');
                 const missing = stats.missing || [];
                 kwhEl.innerText = stats.kwhSaved == null ? '—' : `${stats.kwhSaved} kWh`;
                 costEl.innerText = stats.costSavedFormatted == null ? '—' : stats.costSavedFormatted;
+                if (co2El) co2El.innerText = stats.estimatedCo2Kg == null ? '—' : `${stats.estimatedCo2Kg} kg CO₂`;
+                if (rateEl) rateEl.innerText = t('statSuccessRateLine', { rate: stats.successRatePct ?? 0, total: stats.totalRuns ?? 0 });
                 chipW.classList.toggle('hidden', !missing.includes('watt'));
                 chipP.classList.toggle('hidden', !missing.includes('price'));
+
+                const hoursSub = document.getElementById('stat-hours-sub');
+                if (hoursSub) hoursSub.textContent = t('statMeasuredSplit', { measured: stats.measuredHours || '0.0', estimated: stats.estimatedHours || '0.0' });
+                const kwhSub = document.getElementById('stat-kwh-sub');
+                if (kwhSub && stats.monthlyProjectedKwh != null) {
+                    kwhSub.textContent = t('statMonthlyProjection', { kwh: stats.monthlyProjectedKwh });
+                }
+                const costSub = document.getElementById('stat-cost-sub');
+                if (costSub && stats.yearlyProjectedCostFormatted) {
+                    costSub.textContent = t('statYearlyProjection', { cost: stats.yearlyProjectedCostFormatted });
+                }
+
+                const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
+                setTxt('stat-success-count', stats.totalActionsCount || 0);
+                setTxt('stat-blocked-count', stats.blockedCount || 0);
+                setTxt('stat-cancelled-count', (stats.cancelledCount || 0) + (stats.snoozedCount || 0));
+                setTxt('stat-streak-days', stats.activeStreakDays || 0);
+                setTxt('stat-longest-off', `${stats.longestOffSessionHours || 0} h`);
+
+                const projPill = document.getElementById('stat-projection-pill');
+                if (projPill) {
+                    projPill.textContent = stats.method === 'measured' ? t('statMethodMeasured')
+                        : stats.method === 'mixed' ? t('statMethodMixed')
+                        : stats.method === 'assumed' ? t('statMethodAssumed') : t('statEstimated');
+                }
+                const profSummary = document.getElementById('stat-profile-summary');
+                if (profSummary && stats.profile) {
+                    const w = stats.profile.deviceWattage != null ? `${stats.profile.deviceWattage}W` : '—W';
+                    const p = stats.profile.electricityCostPerKwh != null ? `${stats.profile.electricityCostPerKwh} ${stats.profile.currency}/kWh` : '—/kWh';
+                    profSummary.textContent = `${w} · ${p}`;
+                }
+
+                renderDailyStatsChart(stats.dailySeries);
+                renderBreakdownBars('stats-action-breakdown', stats.actionBreakdown, (it) => getActionString(it.action));
+                renderBreakdownBars('stats-source-breakdown', stats.sourceBreakdown, (it) => sourceLabel(it.source));
+                renderHourlyHeatmap(stats.hourlyDistribution);
+                renderRecentSessionsTable(stats.recentSavingsEvents);
+
                 if (missing.length > 0) {
                     let seen = false;
                     try { seen = localStorage.getItem('pp-stats-hint-shown') === '1'; } catch (_) { }
@@ -2610,6 +3435,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     }
+
+    document.querySelectorAll('[data-stats-days]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const raw = btn.getAttribute('data-stats-days');
+            activeStatsDays = raw === 'all' ? null : parseInt(raw, 10);
+            document.querySelectorAll('[data-stats-days]').forEach((b) => b.classList.toggle('is-active', b === btn));
+            loadStatistics();
+        });
+    });
+    const btnStatsCsv = document.getElementById('btn-stats-export-csv');
+    if (btnStatsCsv) {
+        btnStatsCsv.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.exportStatistics) return;
+            const res = await window.electronAPI.exportStatistics({ format: 'csv', days: activeStatsDays });
+            if (res && res.success) showToast(t('toastExported'), 'success');
+            else if (res && res.code !== 'CANCELLED') showToast(t('errorSaveFailed'), 'error');
+        });
+    }
+    const btnStatsJson = document.getElementById('btn-stats-export-json');
+    if (btnStatsJson) {
+        btnStatsJson.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.exportStatistics) return;
+            const res = await window.electronAPI.exportStatistics({ format: 'json', days: activeStatsDays });
+            if (res && res.success) showToast(t('toastExported'), 'success');
+            else if (res && res.code !== 'CANCELLED') showToast(t('errorSaveFailed'), 'error');
+        });
+    }
+    const btnStatsProfile = document.getElementById('btn-stats-energy-profile');
+    if (btnStatsProfile) btnStatsProfile.addEventListener('click', gotoEnergySettings);
 
     // C5: yerel sağlık özeti (Hakkında). Telemetri yok; main yalnızca
     // cihazdaki kayıtları özetler. Değer yoksa "veri yok" gösterilir.
@@ -2658,7 +3512,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('qr-api-box').classList.add('hidden');
                 showToast(t('toastNewApiKey'), 'success');
             };
-            const run = (pin) => window.electronAPI.generateApiKey({ pin });
+            const run = (pin) => window.electronAPI.generateApiKey({
+                pin,
+                role: document.getElementById('api-key-role')?.value || 'admin'
+            });
             const res = await run();
             if (isPinChallenge(res)) {
                 if (await pinRequiredWithoutPin(res)) return;
@@ -2752,7 +3609,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (s.localApiKeyMasked) {
                 document.getElementById('display-api-key').innerText = s.localApiKeyMasked;
             }
+            const roleSel = document.getElementById('api-key-role');
+            if (roleSel && s.localApiKeyRole) roleSel.value = s.localApiKeyRole;
             paintApiBadge(s.localApiEnabled === true, s.localApiPort || 18456);
+            // WP-3: UPS & Kurumsal Konsol alanlarını doldur
+            const upsEn = document.getElementById('ups-enabled');
+            const upsHost = document.getElementById('ups-host');
+            const upsName = document.getElementById('ups-name');
+            if (upsEn) upsEn.checked = s.upsEnabled === true;
+            if (upsHost) upsHost.value = s.upsHost || '127.0.0.1';
+            if (upsName) upsName.value = s.upsName || 'ups';
+
+            const entUrl = document.getElementById('ent-console-url');
+            const entAgent = document.getElementById('ent-agent-id');
+            const entRole = document.getElementById('ent-device-role');
+            if (entUrl) entUrl.value = s.consoleUrl || '';
+            if (entAgent) entAgent.value = s.agentId || '';
+            if (entRole) entRole.value = s.deviceRole || 'workstation';
+
             // P0/BLOCKER-001: güç isteği ölçümü yükseltme gerektiriyorsa
             // uyarı satırı görünür olur (kapı atlandığı gizlenmez).
             try {
@@ -2771,6 +3645,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } catch (_) { /* salt-okunur ekran, sessiz geç */ }
         if (typeof loadWebhooks === 'function') loadWebhooks();
+        if (typeof loadWolDevices === 'function') loadWolDevices();
+        if (typeof loadMcpPanel === 'function') loadMcpPanel();
+        if (typeof loadEnterprisePanel === 'function') loadEnterprisePanel();
     }
 
     const btnSaveApi = document.getElementById('btn-save-api');
@@ -2781,6 +3658,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const lan = document.getElementById('api-lan').checked;
             const blockRemote = document.getElementById('api-block-remote').checked;
             const ips = document.getElementById('api-ips').value.split(',').map(x => x.trim()).filter(Boolean);
+            const roleSel = document.getElementById('api-key-role');
+            const keyRole = (roleSel && roleSel.value) || 'admin';
             if (!Number.isInteger(port) || port < 1024 || port > 65535) {
                 showToast(t('errorPortRange'), 'error');
                 return;
@@ -2802,36 +3681,279 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showToast(t('errorTlsMaterialRequired'), 'error');
                 return;
             }
-            if (window.electronAPI && window.electronAPI.saveSettings) {
-                const res = await window.electronAPI.saveSettings({
-                    localApiPort: port,
-                    lanAllowedIps: ips,
-                    blockRemoteShutdownWhenActive: blockRemote
-                });
+            // WP-3: Tek atomik IPC (`saveSettingsAtomic`) — `localApiClientFingerprints`
+            // şema uyuşmazlığını, kısmi kaydı ve çift toast'ı tamamen giderir.
+            const combinedPatch = {
+                localApiPort: port,
+                lanAllowedIps: ips,
+                blockRemoteShutdownWhenActive: blockRemote,
+                localApiClientFingerprints: fingerprints,
+                localApiEnabled: enabled,
+                lanModeEnabled: lan,
+                localApiTlsEnabled: tls,
+                localApiTlsStrict: tlsStrict,
+                localApiRequireClientCert: requireClientCert,
+                localApiCertFile: certFile,
+                localApiKeyFile: keyFile,
+                localApiKeyRole: keyRole
+            };
+            if (window.electronAPI && window.electronAPI.saveSettingsAtomic) {
+                const run = (pin) => window.electronAPI.saveSettingsAtomic({ settings: combinedPatch, pin });
+                const res = await run();
+                if (isPinChallenge(res)) {
+                    if (await pinRequiredWithoutPin(res)) return;
+                    requestPin(t('pinPromptCancel'), {
+                        run,
+                        done: (r2) => {
+                            if (r2 && r2.success !== false) {
+                                paintApiBadge(enabled, port);
+                                showToast(t('toastApiSaved'), 'success');
+                                if (typeof loadMcpPanel === 'function') loadMcpPanel();
+                            } else {
+                                showToast((r2 && r2.message) || t('errorSaveFailed'), 'error');
+                            }
+                        }
+                    });
+                    paintPinError(res);
+                    return;
+                }
                 if (res && res.success === false) {
                     showToast(res.message || t('errorSaveFailed'), 'error');
                     return;
                 }
                 paintApiBadge(enabled, port);
-                const sec = await saveSecuritySettings(
-                    {
-                        localApiEnabled: enabled,
-                        lanModeEnabled: lan,
-                        localApiTlsEnabled: tls,
-                        localApiTlsStrict: tlsStrict,
-                        localApiRequireClientCert: requireClientCert,
-                        localApiCertFile: certFile,
-                        localApiKeyFile: keyFile,
-                        localApiClientFingerprints: fingerprints
-                    },
-                    () => { paintApiBadge(enabled, port); showToast(t('toastApiSaved'), 'success'); }
-                );
-                if (sec && sec.success === false && !sec.pendingPin) {
-                    showToast(sec.message || t('errorSaveFailed'), 'error');
-                    return;
-                }
-                if (sec && sec.success !== false) showToast(t('toastApiSaved'), 'success');
+                showToast(t('toastApiSaved'), 'success');
+                if (typeof loadMcpPanel === 'function') loadMcpPanel();
             }
+        });
+    }
+
+    // WP-3: Kayıtlı Wake-on-LAN Cihazları, MCP Paneli, CLI Oluşturucu, UPS Test & Kurumsal Konsol
+    let wolDevicesDraft = [];
+    function renderWolDevices() {
+        const box = document.getElementById('wol-devices-list');
+        if (!box) return;
+        if (wolDevicesDraft.length === 0) {
+            const p = document.createElement('p');
+            p.className = 'text-xs text-slate-600 dark:text-slate-400';
+            p.textContent = t('wolNoSavedDevices');
+            box.replaceChildren(p);
+            return;
+        }
+        const rows = wolDevicesDraft.map((dev, idx) => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700';
+            const info = document.createElement('div');
+            info.className = 'min-w-0';
+            const title = document.createElement('p');
+            title.className = 'text-xs font-bold truncate';
+            title.textContent = dev.name || dev.macAddress;
+            const sub = document.createElement('p');
+            sub.className = 'text-[11px] font-mono text-slate-600 dark:text-slate-400 truncate';
+            sub.textContent = `${dev.macAddress}${dev.broadcastIp ? ` · ${dev.broadcastIp}` : ''}`;
+            info.append(title, sub);
+            const btns = document.createElement('div');
+            btns.className = 'flex gap-1.5 shrink-0';
+            const bWake = document.createElement('button');
+            bWake.type = 'button';
+            bWake.className = 'px-2.5 py-1 text-[11px] font-bold bg-primary/10 text-primary dark:text-primary-light rounded hover:bg-primary/15';
+            bWake.textContent = t('wolWakeBtn');
+            bWake.addEventListener('click', async () => {
+                if (!window.electronAPI || !window.electronAPI.sendWakeOnLan) return;
+                const r = await window.electronAPI.sendWakeOnLan({
+                    macAddress: dev.macAddress,
+                    broadcastIp: dev.broadcastIp || undefined,
+                    port: dev.port || 9
+                });
+                showToast(r && r.success ? t('toastWolSent') : t('errorWol', { error: (r && r.error) || '' }), r && r.success ? 'success' : 'error');
+            });
+            const bDel = document.createElement('button');
+            bDel.type = 'button';
+            bDel.className = 'px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-500/10 rounded';
+            bDel.textContent = t('delete');
+            bDel.addEventListener('click', async () => {
+                wolDevicesDraft.splice(idx, 1);
+                if (window.electronAPI && window.electronAPI.saveWolDevices) {
+                    await window.electronAPI.saveWolDevices(wolDevicesDraft);
+                }
+                renderWolDevices();
+            });
+            btns.append(bWake, bDel);
+            row.append(info, btns);
+            return row;
+        });
+        box.replaceChildren(...rows);
+    }
+
+    async function loadWolDevices() {
+        if (!window.electronAPI || !window.electronAPI.getWolDevices) return;
+        try {
+            const list = await window.electronAPI.getWolDevices();
+            wolDevicesDraft = Array.isArray(list) ? list : [];
+        } catch (_) { wolDevicesDraft = []; }
+        renderWolDevices();
+    }
+
+    const btnSaveWolDevice = document.getElementById('btn-save-wol-device');
+    if (btnSaveWolDevice) {
+        btnSaveWolDevice.addEventListener('click', async () => {
+            const name = (document.getElementById('wol-device-name')?.value || '').trim();
+            const macAddress = (document.getElementById('wol-mac')?.value || '').trim();
+            const broadcastIp = (document.getElementById('wol-ip')?.value || '').trim();
+            if (!macAddress) { showToast(t('errorMac'), 'error'); return; }
+            const next = [...wolDevicesDraft, { name: name || macAddress, macAddress, broadcastIp, port: 9 }];
+            if (!window.electronAPI || !window.electronAPI.saveWolDevices) return;
+            const res = await window.electronAPI.saveWolDevices(next);
+            if (res && res.success) {
+                wolDevicesDraft = res.devices || next;
+                const nameEl = document.getElementById('wol-device-name');
+                if (nameEl) nameEl.value = '';
+                renderWolDevices();
+                showToast(t('toastSettingsSaved'), 'success');
+            } else {
+                showToast((res && res.message) || t('errorMac'), 'error');
+            }
+        });
+    }
+
+    async function loadMcpPanel() {
+        const pre = document.getElementById('mcp-config-pre');
+        const badge = document.getElementById('mcp-prereq-badge');
+        if (!pre || !window.electronAPI || !window.electronAPI.getMcpConfig) return;
+        try {
+            const cfg = await window.electronAPI.getMcpConfig();
+            if (cfg) {
+                pre.textContent = cfg.configJson || '';
+                if (badge) {
+                    badge.textContent = cfg.apiEnabled
+                        ? t('apiRunning', { port: cfg.port || 18456 })
+                        : t('intMcpApiOffWarn');
+                }
+            }
+        } catch (_) { /* opsiyonel */ }
+    }
+
+    const btnCopyMcpJson = document.getElementById('btn-copy-mcp-json');
+    if (btnCopyMcpJson) {
+        btnCopyMcpJson.addEventListener('click', () => {
+            const txt = document.getElementById('mcp-config-pre')?.textContent || '';
+            copyTextWithFeedback(txt, btnCopyMcpJson);
+        });
+    }
+    const btnMcpGotoApi = document.getElementById('btn-mcp-goto-api');
+    if (btnMcpGotoApi) btnMcpGotoApi.addEventListener('click', () => switchSplitSubpage('int-sec-api'));
+
+    function updateCliBuilderOutput() {
+        const act = document.getElementById('cli-builder-action')?.value || 'shutdown';
+        const mins = parseInt(document.getElementById('cli-builder-minutes')?.value, 10) || 45;
+        const out = document.getElementById('cli-builder-output');
+        if (out) out.textContent = `powerpilot timer --action ${act} --minutes ${mins}`;
+    }
+    const cliAct = document.getElementById('cli-builder-action');
+    const cliMin = document.getElementById('cli-builder-minutes');
+    if (cliAct) cliAct.addEventListener('change', updateCliBuilderOutput);
+    if (cliMin) cliMin.addEventListener('input', updateCliBuilderOutput);
+    const btnCopyCliCmd = document.getElementById('btn-copy-cli-cmd');
+    if (btnCopyCliCmd) {
+        btnCopyCliCmd.addEventListener('click', () => {
+            const txt = document.getElementById('cli-builder-output')?.textContent || '';
+            copyTextWithFeedback(txt, btnCopyCliCmd);
+        });
+    }
+
+    const btnSaveUps = document.getElementById('btn-save-ups');
+    if (btnSaveUps) {
+        btnSaveUps.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.saveSettingsAtomic) return;
+            const upsEnabled = document.getElementById('ups-enabled')?.checked === true;
+            const upsHost = (document.getElementById('ups-host')?.value || '127.0.0.1').trim();
+            const upsName = (document.getElementById('ups-name')?.value || 'ups').trim();
+            const res = await window.electronAPI.saveSettingsAtomic({ settings: { upsEnabled, upsHost, upsName } });
+            if (res && res.success !== false) showToast(t('toastSettingsSaved'), 'success');
+            else showToast((res && res.message) || t('errorSaveFailed'), 'error');
+        });
+    }
+    const btnTestUps = document.getElementById('btn-test-ups');
+    if (btnTestUps) {
+        btnTestUps.addEventListener('click', async () => {
+            const box = document.getElementById('ups-test-result');
+            if (!window.electronAPI || !window.electronAPI.testUps) return;
+            const host = (document.getElementById('ups-host')?.value || '127.0.0.1').trim();
+            const ups = (document.getElementById('ups-name')?.value || 'ups').trim();
+            const res = await window.electronAPI.testUps({ host, ups });
+            if (box) {
+                box.classList.remove('hidden');
+                box.textContent = res && res.reachable
+                    ? `OK · ${res.model || ups} · ${res.charge != null ? `${res.charge}%` : '—'} · ${res.status || 'OL'}`
+                    : `${t('upsUnreachable')} (${host} / ${ups})`;
+            }
+            showToast(res && res.reachable ? t('upsReachableToast') : t('upsUnreachable'), res && res.reachable ? 'success' : 'error');
+        });
+    }
+
+    async function loadEnterprisePanel() {
+        const auditBox = document.getElementById('ent-audit-summary');
+        const storeNotice = document.getElementById('enterprise-store-notice');
+        const wrap = document.getElementById('enterprise-controls-wrap');
+        try {
+            if (window.electronAPI && window.electronAPI.getDistribution) {
+                const dist = await window.electronAPI.getDistribution();
+                const isStore = !!(dist && dist.channel === 'store');
+                if (storeNotice) storeNotice.classList.toggle('hidden', !isStore);
+                if (wrap) wrap.classList.toggle('hidden', isStore);
+            }
+            if (auditBox && window.electronAPI && window.electronAPI.getAudit) {
+                const res = await window.electronAPI.getAudit({ limit: 5, verify: true });
+                if (res) {
+                    const count = Array.isArray(res.records) ? res.records.length : (res.total || 0);
+                    const ok = res.verified !== false && (!res.verify || res.verify.ok !== false);
+                    auditBox.textContent = `${t('diagKpiAudit')}: ${ok ? 'OK' : 'WARN'} · ${count}`;
+                }
+            }
+        } catch (_) { /* opsiyonel */ }
+    }
+
+    const btnSaveEnt = document.getElementById('btn-save-enterprise');
+    if (btnSaveEnt) {
+        btnSaveEnt.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.saveSettingsAtomic) return;
+            const url = (document.getElementById('ent-console-url')?.value || '').trim();
+            const agentId = (document.getElementById('ent-agent-id')?.value || '').trim();
+            const deviceRole = document.getElementById('ent-device-role')?.value || 'workstation';
+            const agentKey = (document.getElementById('ent-agent-key')?.value || '').trim();
+            const patch = {
+                agentId: agentId || null,
+                deviceRole,
+                consoleUrl: url || null,
+                ...(agentKey ? { consoleAgentKey: agentKey } : {})
+            };
+            const run = (pin) => window.electronAPI.saveSettingsAtomic({ settings: patch, pin });
+            const res = await run();
+            if (isPinChallenge(res)) {
+                if (await pinRequiredWithoutPin(res)) return;
+                requestPin(t('pinPromptCancel'), {
+                    run,
+                    done: (r2) => showToast(r2 && r2.success !== false ? t('toastSettingsSaved') : ((r2 && r2.message) || t('errorSaveFailed')), r2 && r2.success !== false ? 'success' : 'error')
+                });
+                paintPinError(res);
+                return;
+            }
+            showToast(res && res.success !== false ? t('toastSettingsSaved') : ((res && res.message) || t('errorSaveFailed')), res && res.success !== false ? 'success' : 'error');
+        });
+    }
+    const btnConsoleSyncNow = document.getElementById('btn-console-sync-now');
+    if (btnConsoleSyncNow) {
+        btnConsoleSyncNow.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.consoleSync) return;
+            const res = await window.electronAPI.consoleSync();
+            showToast(res && res.ok ? t('entSyncSuccess') : ((res && res.error) || t('entSyncFailed')), res && res.ok ? 'success' : 'error');
+        });
+    }
+    const btnAuditVerifyNow = document.getElementById('btn-audit-verify-now');
+    if (btnAuditVerifyNow) {
+        btnAuditVerifyNow.addEventListener('click', async () => {
+            await loadEnterprisePanel();
+            showToast(t('entAuditChecked'), 'info');
         });
     }
 
@@ -2932,8 +4054,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const auth = document.getElementById('wh-auth').value;
             const secret = document.getElementById('wh-secret').value;
             const user = document.getElementById('wh-user').value.trim();
-            if (!url || !(url.startsWith('http://') || url.startsWith('https://'))) {
-                showToast(t('errorUrl'), 'error');
+            if (!url || !url.startsWith('https://')) {
+                showToast(t('errorWebhookHttpsOnly'), 'error');
                 return;
             }
             const events = Array.from(document.querySelectorAll('#wh-events input:checked')).map(c => c.value);
@@ -2968,8 +4090,310 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // AI Assistant (WBS-7.4) — öneri kartı: Kur / Düzenle / Vazgeç.
+    // AI Assistant 2.0 (WBS-7.4 + WP-8: Görev, Şablon, Bağlantı Yapılandırma, Yerel Docs RAG)
     let aiProposal = null;
+    const aiFeedEl = document.getElementById('ai-chat-feed');
+
+    function appendAiMessage(role, contentNode) {
+        const asstEmpty = document.getElementById('assistant-empty');
+        if (asstEmpty) asstEmpty.classList.add('hidden');
+        if (!aiFeedEl) return;
+        aiFeedEl.classList.remove('hidden');
+        const msg = document.createElement('div');
+        msg.className = `pp-ai-msg pp-ai-msg--${role === 'user' ? 'user' : 'assistant'}`;
+        if (typeof contentNode === 'string') {
+            msg.textContent = contentNode;
+        } else if (contentNode instanceof Node) {
+            msg.appendChild(contentNode);
+        }
+        aiFeedEl.appendChild(msg);
+        aiFeedEl.scrollTop = aiFeedEl.scrollHeight;
+    }
+
+    function clearAiFeed() {
+        aiProposal = null;
+        if (aiFeedEl) {
+            aiFeedEl.replaceChildren();
+            aiFeedEl.classList.add('hidden');
+        }
+        const box = document.getElementById('ai-result');
+        if (box) box.replaceChildren();
+        const asstEmpty = document.getElementById('assistant-empty');
+        if (asstEmpty) asstEmpty.classList.remove('hidden');
+    }
+
+    const btnAiClearFeed = document.getElementById('btn-ai-clear-feed');
+    if (btnAiClearFeed) btnAiClearFeed.addEventListener('click', clearAiFeed);
+
+    function buildTemplateProposalNode(tpl, summary) {
+        const wrap = document.createElement('div');
+        wrap.className = 'space-y-2.5';
+        const head = document.createElement('div');
+        head.className = 'flex items-center justify-between gap-2';
+        const title = document.createElement('p');
+        title.className = 'text-sm font-bold text-slate-900 dark:text-white';
+        title.textContent = tpl.name || t('suggestedTask');
+        const badge = document.createElement('span');
+        badge.className = 'pp-template-badge pp-template-badge--custom';
+        badge.textContent = t((typeof TPL_CAT_I18N !== 'undefined' && TPL_CAT_I18N[tpl.category]) || 'tplCatCustom');
+        head.append(title, badge);
+
+        const desc = document.createElement('p');
+        desc.className = 'text-xs text-slate-600 dark:text-slate-300';
+        desc.textContent = summary || tpl.description || getActionString(tpl.action);
+
+        const meta = document.createElement('p');
+        meta.className = 'text-[11px] font-mono text-slate-600 dark:text-slate-400';
+        const trigInfo = tpl.schedule
+            ? `${tpl.schedule.timeOfDay}${tpl.schedule.recurrence ? ` (${tpl.schedule.recurrence})` : ''}`
+            : (tpl.trigger && tpl.trigger.type === 'duration'
+                ? `${Math.round(tpl.trigger.durationMs / 60000)} ${t('shortMinute')}`
+                : (tpl.defaultCondition ? describeCondition(tpl.defaultCondition) : 'Smart Finish'));
+        meta.textContent = `${getActionString(tpl.action)} · ${trigInfo}`;
+
+        const row = document.createElement('div');
+        row.className = 'flex flex-wrap gap-2 pt-1';
+
+        const bSave = document.createElement('button');
+        bSave.type = 'button';
+        bSave.className = 'px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90';
+        bSave.textContent = t('aiSaveTemplateBtn');
+        bSave.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.saveTemplate) return;
+            const res = await window.electronAPI.saveTemplate(tpl);
+            if (res && res.success !== false) {
+                bSave.disabled = true;
+                showToast(t('toastTemplateSaved'), 'success');
+                if (typeof loadTemplates === 'function') loadTemplates();
+            } else {
+                showToast((res && res.message) || t('errorTemplateSave'), 'error');
+            }
+        });
+
+        const bSaveUse = document.createElement('button');
+        bSaveUse.type = 'button';
+        bSaveUse.className = 'pp-btn-secondary text-xs';
+        bSaveUse.textContent = t('aiSaveAndUseBtn');
+        bSaveUse.addEventListener('click', async () => {
+            if (!window.electronAPI || !window.electronAPI.saveTemplate) return;
+            const res = await window.electronAPI.saveTemplate(tpl);
+            if (res && res.success !== false) {
+                showToast(t('toastTemplateSaved'), 'success');
+                if (typeof loadTemplates === 'function') loadTemplates();
+                applyTemplate(res.template || tpl);
+            } else {
+                showToast((res && res.message) || t('errorTemplateSave'), 'error');
+            }
+        });
+
+        const bEdit = document.createElement('button');
+        bEdit.type = 'button';
+        bEdit.className = 'pp-btn-secondary text-xs';
+        bEdit.textContent = t('edit');
+        bEdit.addEventListener('click', () => {
+            switchView('nav-templates');
+            if (typeof openTemplateEditor === 'function') openTemplateEditor(tpl);
+        });
+
+        row.append(bSave, bSaveUse, bEdit);
+        wrap.append(head, desc, meta, row);
+        return wrap;
+    }
+
+    async function applyConnectionProposal(proposal, triggerBtn) {
+        if (!proposal || !window.electronAPI) return;
+        const markDone = () => {
+            if (triggerBtn) triggerBtn.disabled = true;
+            if (typeof loadIntegrations === 'function') loadIntegrations();
+        };
+        if (proposal.target === 'webhook' && proposal.webhook && window.electronAPI.getWebhooks && window.electronAPI.saveWebhooks) {
+            const existing = await window.electronAPI.getWebhooks();
+            const next = [...(Array.isArray(existing) ? existing : []), proposal.webhook];
+            const res = await window.electronAPI.saveWebhooks(next);
+            if (res && res.success !== false) {
+                showToast(t('toastWebhooksSaved'), 'success');
+                markDone();
+            } else {
+                showToast((res && res.message) || t('errorSaveFailed'), 'error');
+            }
+            return;
+        }
+        if (proposal.target === 'wol_send' && proposal.wolDevice && window.electronAPI.sendWakeOnLan) {
+            const res = await window.electronAPI.sendWakeOnLan({
+                macAddress: proposal.wolDevice.macAddress,
+                broadcastIp: proposal.wolDevice.broadcastIp || undefined,
+                port: proposal.wolDevice.port || 9
+            });
+            showToast(res && res.success ? t('toastWolSent') : t('errorWol', { error: (res && res.error) || '' }), res && res.success ? 'success' : 'error');
+            if (res && res.success) markDone();
+            return;
+        }
+        if (proposal.target === 'wol_device' && proposal.wolDevice && window.electronAPI.getWolDevices && window.electronAPI.saveWolDevices) {
+            const existing = await window.electronAPI.getWolDevices();
+            const next = [...(Array.isArray(existing) ? existing : []), proposal.wolDevice];
+            const res = await window.electronAPI.saveWolDevices(next);
+            if (res && res.success !== false) {
+                showToast(t('toastSettingsSaved'), 'success');
+                markDone();
+            } else {
+                showToast((res && res.message) || t('errorSaveFailed'), 'error');
+            }
+            return;
+        }
+        const patch = proposal.settingsPatch || {};
+        if (Object.keys(patch).length === 0) {
+            if (proposal.snippet) await copyTextWithFeedback(proposal.snippet, triggerBtn);
+            return;
+        }
+        if (window.electronAPI.saveSettingsAtomic) {
+            const run = (pin) => window.electronAPI.saveSettingsAtomic({ settings: patch, pin });
+            const res = await run();
+            if (isPinChallenge(res)) {
+                if (await pinRequiredWithoutPin(res)) return;
+                requestPin(t('pinPromptCancel'), {
+                    run,
+                    done: (final) => {
+                        if (final && final.success !== false) {
+                            showToast(t('toastSettingsSaved'), 'success');
+                            markDone();
+                        } else {
+                            showToast((final && final.message) || t('errorSaveFailed'), 'error');
+                        }
+                    }
+                });
+                paintPinError(res);
+                return;
+            }
+            if (res && res.success !== false) {
+                showToast(t('toastSettingsSaved'), 'success');
+                markDone();
+            } else {
+                showToast((res && res.message) || t('errorSaveFailed'), 'error');
+            }
+        }
+    }
+
+    function buildConnectionProposalNode(proposal) {
+        const wrap = document.createElement('div');
+        wrap.className = 'space-y-2.5';
+        const title = document.createElement('p');
+        title.className = 'text-sm font-bold text-slate-900 dark:text-white';
+        title.textContent = proposal.title || t('navIntegrations');
+
+        const summary = document.createElement('p');
+        summary.className = 'text-xs text-slate-600 dark:text-slate-300';
+        summary.textContent = proposal.summary || '';
+        wrap.append(title, summary);
+
+        if (proposal.requiresPin) {
+            const pinNote = document.createElement('p');
+            pinNote.className = 'text-[11px] text-amber-700 dark:text-amber-400';
+            pinNote.textContent = t('aiConnectionPinNotice');
+            wrap.appendChild(pinNote);
+        }
+
+        if (proposal.snippet) {
+            const pre = document.createElement('pre');
+            pre.className = 'p-2.5 rounded-lg bg-slate-900/90 text-slate-100 text-[11px] font-mono overflow-x-auto max-h-40';
+            pre.textContent = proposal.snippet;
+            wrap.appendChild(pre);
+        }
+
+        const row = document.createElement('div');
+        row.className = 'flex flex-wrap gap-2 pt-1';
+
+        const hasApplyWork = proposal.target === 'webhook'
+            || proposal.target === 'wol_send'
+            || proposal.target === 'wol_device'
+            || (proposal.settingsPatch && Object.keys(proposal.settingsPatch).length > 0);
+        if (hasApplyWork) {
+            const bApply = document.createElement('button');
+            bApply.type = 'button';
+            bApply.className = 'px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90';
+            bApply.textContent = t('aiApplyConnectionBtn');
+            bApply.addEventListener('click', () => applyConnectionProposal(proposal, bApply));
+            row.appendChild(bApply);
+        }
+        if (proposal.snippet) {
+            const bCopy = document.createElement('button');
+            bCopy.type = 'button';
+            bCopy.className = 'pp-btn-secondary text-xs';
+            bCopy.textContent = t('docsCopyBtn');
+            bCopy.addEventListener('click', () => copyTextWithFeedback(proposal.snippet, bCopy));
+            row.appendChild(bCopy);
+        }
+        if (proposal.integrationSection) {
+            const bOpen = document.createElement('button');
+            bOpen.type = 'button';
+            bOpen.className = 'pp-btn-secondary text-xs';
+            bOpen.textContent = t('aiOpenIntegrationBtn');
+            bOpen.addEventListener('click', () => {
+                switchView('nav-integrations');
+                switchSplitSubpage(proposal.integrationSection);
+            });
+            row.appendChild(bOpen);
+        }
+        wrap.appendChild(row);
+        return wrap;
+    }
+
+    function buildDocsAnswerNode(res) {
+        const wrap = document.createElement('div');
+        wrap.className = 'space-y-2.5';
+
+        const header = document.createElement('div');
+        header.className = 'flex items-center justify-between gap-2';
+        const title = document.createElement('p');
+        title.className = 'text-sm font-bold text-slate-900 dark:text-white';
+        title.textContent = res.title || t('aboutNavDocs');
+        const modePill = document.createElement('span');
+        modePill.className = 'pp-template-badge';
+        modePill.textContent = res.mode === 'rag_llm' ? 'Docs RAG + LLM' : 'Docs RAG';
+        header.append(title, modePill);
+
+        const body = document.createElement('p');
+        body.className = 'text-xs text-slate-700 dark:text-slate-200 whitespace-pre-line leading-relaxed';
+        body.textContent = res.answer || '';
+        wrap.append(header, body);
+
+        if (res.command) {
+            const cmdRow = document.createElement('div');
+            cmdRow.className = 'flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-900/90 text-slate-100';
+            const code = document.createElement('code');
+            code.className = 'text-[11px] font-mono break-all';
+            code.textContent = res.command;
+            const bCopy = document.createElement('button');
+            bCopy.type = 'button';
+            bCopy.className = 'px-2 py-1 text-[11px] font-bold bg-white/10 hover:bg-white/20 rounded shrink-0';
+            bCopy.textContent = t('docsCopyBtn');
+            bCopy.addEventListener('click', () => copyTextWithFeedback(res.command, bCopy));
+            cmdRow.append(code, bCopy);
+            wrap.appendChild(cmdRow);
+        }
+
+        const cites = Array.isArray(res.citations) ? res.citations : [];
+        if (cites.length > 0) {
+            const citeWrap = document.createElement('div');
+            citeWrap.className = 'flex flex-wrap items-center gap-1.5 pt-1';
+            const lbl = document.createElement('span');
+            lbl.className = 'text-[11px] font-semibold text-slate-600 dark:text-slate-400';
+            lbl.textContent = t('aiDocsSourcesLabel');
+            citeWrap.appendChild(lbl);
+            cites.forEach((c) => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'pp-ai-cite-chip';
+                chip.textContent = c.title;
+                chip.addEventListener('click', () => {
+                    switchView('nav-docs');
+                    switchSplitSubpage(c.sectionId || 'docs-sec-quickstart');
+                });
+                citeWrap.appendChild(chip);
+            });
+            wrap.appendChild(citeWrap);
+        }
+        return wrap;
+    }
 
     async function loadAssistant() {
         const line = document.getElementById('ai-status-line');
@@ -2982,13 +4406,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const st = await window.electronAPI.aiStatus();
             if (st.loaded) {
                 line.innerText = t('aiReadyWithModel', { model: st.modelId || 'model' });
-                line.className = 'text-xs text-green-700 dark:text-green-400 mb-4';
+                line.className = 'text-xs text-green-700 dark:text-green-400';
             } else if (st.code === 'MODEL_MISSING') {
                 line.innerText = t('aiModelNotDownloaded');
-                line.className = 'text-xs text-amber-700 dark:text-amber-400 mb-4';
+                line.className = 'text-xs text-amber-700 dark:text-amber-400';
             } else {
                 line.innerText = st.message || t('aiNotReady');
-                line.className = 'text-xs text-slate-600 dark:text-slate-400 mb-4';
+                line.className = 'text-xs text-slate-600 dark:text-slate-400';
             }
         } catch (_) {
             line.innerText = t('aiStatusUnknown');
@@ -3000,7 +4424,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!box) return;
         box.replaceChildren();
         const asstEmpty = document.getElementById('assistant-empty');
-        if (asstEmpty) asstEmpty.classList.add('hidden');
+        if (asstEmpty && (aiProposal || (aiFeedEl && aiFeedEl.children.length > 0))) {
+            asstEmpty.classList.add('hidden');
+        }
         if (!aiProposal) return;
         if (aiProposal.clarify) {
             const p = document.createElement('p');
@@ -3107,33 +4533,105 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnAiParse) {
         btnAiParse.addEventListener('click', () => { aiParseCurrent(); });
     }
+    const aiInputEl = document.getElementById('ai-input');
+    if (aiInputEl) {
+        aiInputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                aiParseCurrent();
+            }
+        });
+    }
 
-    async function aiParseCurrent() {
-        const text = document.getElementById('ai-input').value.trim();
+    async function aiParseCurrent(intentHint = null) {
+        const inputEl = document.getElementById('ai-input');
+        const text = (inputEl ? inputEl.value : '').trim();
         if (!text) { showToast(t('errorWriteSentence'), 'error'); return; }
-        if (!window.electronAPI || !window.electronAPI.aiParse) return;
-        const res = await window.electronAPI.aiParse(text);
+        if (!window.electronAPI) return;
+        const callAssist = typeof window.electronAPI.aiAssist === 'function';
+        if (!callAssist && typeof window.electronAPI.aiParse !== 'function') return;
+
+        appendAiMessage('user', text);
+        const res = callAssist
+            ? await window.electronAPI.aiAssist({ text, intentHint })
+            : await window.electronAPI.aiParse(text);
         if (!res) return;
         if (res.ok === false) {
-            showToast(res.message || t('aiNoResponse'), 'error');
+            const msg = res.message || t('aiNoResponse');
+            appendAiMessage('assistant', msg);
+            showToast(msg, 'error');
             return;
         }
         if (res.needsClarification) {
-            aiProposal = { clarify: res.needsClarification.question };
+            aiProposal = null;
+            renderAiResult();
+            appendAiMessage('assistant', res.needsClarification.question);
             aiSpeak(res.needsClarification.question);
-        } else if (res.proposal) {
-            aiProposal = { ...res.proposal, name: res.proposal.name, detail: describeProposal(res.proposal), task: res.proposal };
+            return;
         }
-        renderAiResult();
+        if (res.kind === 'template_proposal' && res.templateProposal) {
+            aiProposal = null;
+            renderAiResult();
+            appendAiMessage('assistant', buildTemplateProposalNode(res.templateProposal, res.summary));
+            if (inputEl) inputEl.value = '';
+            return;
+        }
+        if (res.kind === 'connection_proposal' && res.connectionProposal) {
+            aiProposal = null;
+            renderAiResult();
+            appendAiMessage('assistant', buildConnectionProposalNode(res.connectionProposal));
+            if (inputEl) inputEl.value = '';
+            return;
+        }
+        if (res.kind === 'docs_answer') {
+            aiProposal = null;
+            renderAiResult();
+            appendAiMessage('assistant', buildDocsAnswerNode(res));
+            aiSpeak(res.answer);
+            if (inputEl) inputEl.value = '';
+            return;
+        }
+        if (res.kind === 'diagnose') {
+            const body = `${res.explanation || ''} ${res.whatToDo || ''}`.trim();
+            appendAiMessage('assistant', body || t('diagnosisFailed'));
+            return;
+        }
+        if (res.kind === 'energy') {
+            const body = `${res.summary || ''}${res.suggestion ? ' ' + res.suggestion.text : ''}`.trim();
+            appendAiMessage('assistant', body);
+            aiSpeak(res.summary);
+            return;
+        }
+        if (res.kind === 'recommender') {
+            appendAiMessage('assistant', res.suggestion ? res.suggestion.text : t('noPattern'));
+            return;
+        }
+        if (res.proposal) {
+            aiProposal = { ...res.proposal, name: res.proposal.name, detail: describeProposal(res.proposal), task: res.proposal };
+            renderAiResult();
+        }
     }
 
     // Sesli komut (WBS-8.2/8.3): kayıt → 16kHz mono → STT → giriş kutusu + otomatik çözümleme.
     let micRecorder = null, micStream = null, micChunks = [], micWatch = null, micCap = null, micCtx = null, micLastSound = 0;
 
-    function paintMicIdle() {
+    function setMicBtnIcon(iconName, pulsing) {
         const b = document.getElementById('btn-ai-mic');
+        if (!b) return;
+        let span = b.querySelector('.material-symbols-outlined');
+        if (!span) {
+            span = document.createElement('span');
+            span.className = 'material-symbols-outlined text-[20px]';
+            span.setAttribute('aria-hidden', 'true');
+            b.replaceChildren(span);
+        }
+        span.textContent = iconName;
+        b.classList.toggle('animate-pulse', !!pulsing);
+    }
+
+    function paintMicIdle() {
         const s = document.getElementById('ai-mic-status');
-        if (b) { b.textContent = '🎤'; b.classList.remove('animate-pulse'); }
+        setMicBtnIcon('mic', false);
         if (s) s.classList.add('hidden');
     }
 
@@ -3235,8 +4733,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 micRecorder.start(250);
                 micLastSound = Date.now();
                 const startedAt = Date.now();
-                btnAiMic.textContent = '⏹';
-                btnAiMic.classList.add('animate-pulse');
+                setMicBtnIcon('stop', true);
                 const stEl = document.getElementById('ai-mic-status');
                 stEl.textContent = t('aiMicListening');
                 stEl.classList.remove('hidden');
@@ -3489,13 +4986,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function wizardDone() {
         try { localStorage.setItem('pp-wizard-done', '1'); } catch (_) { }
         document.getElementById('wizard-overlay').classList.add('hidden');
-        if (wzPoll) { clearInterval(wzPoll); wzPoll = null; }
-        if (wzClock) { clearInterval(wzClock); wzClock = null; }
-    }
-
-    function wizardDone() {
-        try { localStorage.setItem('pp-wizard-done', '1'); } catch (_) { }
-        document.getElementById('wizard-overlay').classList.add('hidden');
         wizardStopTimers();
     }
 
@@ -3567,10 +5057,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         return Math.round(n * 100) / 100;
     }
 
-    // WBS-E4: Otomatik cihaz kartı (sınıf + watt önerisi + kaynak etiketi).
+    function getDefaultElectricityProfile(lang) {
+        const l = String(lang || getCurrentLanguage() || 'tr').toLowerCase();
+        if (l === 'tr') return { rate: 3.24, currency: 'TL' };
+        if (['de', 'fr', 'it', 'es', 'nl', 'pt', 'sv', 'no', 'da', 'pl', 'cs'].includes(l)) {
+            return { rate: 0.30, currency: 'EUR' };
+        }
+        return { rate: 0.17, currency: 'USD' };
+    }
+
+    const wzWattInputEl = document.getElementById('wz-watt');
+    const wzBillInputEl = document.getElementById('wz-bill');
+    if (wzWattInputEl) {
+        wzWattInputEl.addEventListener('input', () => { wzWattInputEl.dataset.userEdited = '1'; });
+    }
+    if (wzBillInputEl) {
+        wzBillInputEl.addEventListener('input', () => { wzBillInputEl.dataset.userEdited = '1'; });
+    }
+
+    // WBS-E4: Otomatik cihaz kartı + otomatik doldurulan watt ve tarife varsayılanı (kullanıcı isterse değiştirebilir).
     async function wizardRefreshDevice() {
         const card = document.getElementById('wz-auto-card');
         if (!card) return;
+        const lang = (document.getElementById('wz-lang') && document.getElementById('wz-lang').value) || getCurrentLanguage();
+        const defTariff = getDefaultElectricityProfile(lang);
+        if (wzBillInputEl && wzBillInputEl.dataset.userEdited !== '1') {
+            wzBillInputEl.value = String(defTariff.rate);
+            wzBillInputEl.dataset.autoBill = String(defTariff.rate);
+            wzBillInputEl.dataset.autoCurrency = defTariff.currency;
+        }
         if (!window.electronAPI || !window.electronAPI.deviceEstimate) {
             card.innerText = t('wizardAutoUnavailable');
             return;
@@ -3586,6 +5101,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const classTr = { laptop: t('wizardLaptop'), desktop: t('wizardDesktop'), server: t('wizardServer'), unknown: t('wizardUnknownDevice') }[p.deviceClass] || p.deviceClass;
             const srcTr = p.wattSource === 'measured' ? t('wizardMeasuredFromBattery') : t('wizardEstimatedFromHardware');
             card.innerText = t('wizardDetectedInfo', { deviceClass: classTr, watt: p.wattW, source: srcTr });
+            const roundedWatt = Math.round(Number(p.wattW));
+            if (wzWattInputEl && Number.isInteger(roundedWatt) && roundedWatt >= 5 && roundedWatt <= 2000) {
+                wzWattInputEl.placeholder = String(roundedWatt);
+                if (wzWattInputEl.dataset.userEdited !== '1') {
+                    wzWattInputEl.value = String(roundedWatt);
+                    wzWattInputEl.dataset.autoWatt = String(roundedWatt);
+                    wzWattInputEl.dataset.autoWattSource = p.wattSource === 'measured' ? 'measured' : 'estimated';
+                }
+            }
         } catch (_) {
             card.innerText = t('wizardNotDetectedBlank');
         }
@@ -3607,9 +5131,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 paintWizardDots();
                 wizardRefreshDevice();
             } else if (wzStep === 2) {
-                // WBS-E4: İki alan da opsiyonel — boş geçilirse patch'e girmez.
+                // WBS-E4: İki alan otomatik önerilir; kullanıcı isterse değiştirebilir veya boş bırakabilir.
                 const patch = {};
-                const wattRaw = document.getElementById('wz-watt').value.trim();
+                const wattEl = document.getElementById('wz-watt');
+                const wattRaw = wattEl ? wattEl.value.trim() : '';
                 if (wattRaw !== '') {
                     const watt = parseInt(wattRaw, 10);
                     if (!Number.isInteger(watt) || watt < 5 || watt > 2000) {
@@ -3617,9 +5142,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return;
                     }
                     patch.deviceWattage = watt;
-                    patch.wattSource = 'manual';
+                    const isAutoWatt = wattEl && wattEl.dataset.userEdited !== '1' && wattEl.dataset.autoWatt === String(watt);
+                    patch.wattSource = isAutoWatt ? (wattEl.dataset.autoWattSource || 'estimated') : 'manual';
                 }
-                const billRaw = document.getElementById('wz-bill').value;
+                const billEl = document.getElementById('wz-bill');
+                const billRaw = billEl ? billEl.value : '';
                 const bill = parseDecimalInput(billRaw);
                 if (billRaw.trim() !== '' && bill === null) {
                     showToast(t('wizardBillNumber'), 'error');
@@ -3627,7 +5154,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 if (bill !== null) {
                     patch.electricityCostPerKwh = bill;
-                    patch.priceSource = 'manual';
+                    const isAutoBill = billEl && billEl.dataset.userEdited !== '1' && billEl.dataset.autoBill === String(bill);
+                    patch.priceSource = isAutoBill ? 'default' : 'manual';
+                    if (billEl && billEl.dataset.autoCurrency) {
+                        patch.currency = billEl.dataset.autoCurrency;
+                    }
                 }
                 if (Object.keys(patch).length > 0 && window.electronAPI && window.electronAPI.saveSettings) {
                     window.electronAPI.saveSettings(patch).catch(() => { });
@@ -3992,6 +5523,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         else showToast(t('templateNotFound'), 'error');
     }
 
+    const chipTemplate = document.getElementById('chip-ai-template');
+    if (chipTemplate) chipTemplate.addEventListener('click', () => {
+        const inp = document.getElementById('ai-input');
+        if (inp && !inp.value.trim()) inp.value = t('aiSampleTemplate');
+        aiParseCurrent('template');
+    });
+    const chipConnection = document.getElementById('chip-ai-connection');
+    if (chipConnection) chipConnection.addEventListener('click', () => {
+        const inp = document.getElementById('ai-input');
+        if (inp && !inp.value.trim()) inp.value = t('aiSampleConnection');
+        aiParseCurrent('connection');
+    });
+    const chipDocs = document.getElementById('chip-ai-docs');
+    if (chipDocs) chipDocs.addEventListener('click', () => {
+        const inp = document.getElementById('ai-input');
+        if (inp && !inp.value.trim()) inp.value = t('aiSampleDocs');
+        aiParseCurrent('docs_qa');
+    });
+
     const chipWhy = document.getElementById('chip-ai-why');
     if (chipWhy) chipWhy.addEventListener('click', async () => {
         if (!window.electronAPI || !window.electronAPI.aiDiagnose) return;
@@ -4346,6 +5896,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         language: defaultLang,
                         theme: 'dark',
                         themeId: 'obsidian',
+                        appIcon: 'monochrome-dark',
                         wakeMode: 'run',
                         wakeToleranceMinutes: 10
                     };
@@ -4362,6 +5913,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     activeThemeId = 'obsidian';
                     committedTheme = 'dark';
                     committedThemeId = 'obsidian';
+                    activeAppIcon = 'monochrome-dark';
+                    committedAppIcon = 'monochrome-dark';
                     committedLanguage = defaultLang;
                     if (elNotifications) elNotifications.checked = true;
                     if (elSoundMode) elSoundMode.value = 'auto';
@@ -4375,6 +5928,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         localStorage.setItem('voice', 'false');
                         localStorage.setItem('theme', 'dark');
                         localStorage.setItem('themeId', 'obsidian');
+                        localStorage.setItem('appIcon', 'monochrome-dark');
                         localStorage.setItem('notifications', 'true');
                         localStorage.setItem('soundMode', 'auto');
                         localStorage.setItem('language', defaultLang);
@@ -4385,6 +5939,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         window.electronAPI.setAutostart(false);
                     }
                     applyTheme('dark', 'obsidian');
+                    applyAppIconUi('monochrome-dark');
                     await applyLanguage(defaultLang);
                     showToast(t('toastDefaultsLoaded'), 'success');
                 }
@@ -4396,22 +5951,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     function switchSplitSubpage(targetId) {
         const target = targetId ? document.getElementById(targetId) : null;
         if (!target) return false;
-        const subpage = target.classList.contains('pp-settings-subpage') || target.classList.contains('pp-docs-subpage')
+        const subpage = target.classList.contains('pp-settings-subpage')
+            || target.classList.contains('pp-docs-subpage')
+            || target.classList.contains('pp-integrations-subpage')
             ? target
-            : target.closest('.pp-settings-subpage, .pp-docs-subpage');
+            : target.closest('.pp-settings-subpage, .pp-docs-subpage, .pp-integrations-subpage');
         if (subpage) {
-            const groupClass = subpage.classList.contains('pp-docs-subpage') ? '.pp-docs-subpage' : '.pp-settings-subpage';
+            const isDocs = subpage.classList.contains('pp-docs-subpage');
+            const isInt = subpage.classList.contains('pp-integrations-subpage');
+            const groupClass = isDocs
+                ? '.pp-docs-subpage'
+                : (isInt ? '.pp-integrations-subpage' : '.pp-settings-subpage');
             const pane = subpage.closest('.pp-split-content-pane');
             document.querySelectorAll(groupClass).forEach((sec) => {
                 sec.classList.toggle('hidden', sec !== subpage);
             });
             if (pane) pane.scrollTop = 0;
-            const navScope = subpage.classList.contains('pp-docs-subpage') ? '[data-split-nav="docs"]' : '[data-split-nav="settings"]';
+            const navScope = isDocs
+                ? '[data-split-nav="docs"]'
+                : (isInt ? '[data-split-nav="integrations"]' : '[data-split-nav="settings"]');
             const navRoot = document.querySelector(navScope);
             if (navRoot) {
                 navRoot.querySelectorAll('.pp-split-nav-link').forEach((link) => {
                     link.classList.toggle('is-active', link.getAttribute('data-scroll-target') === subpage.id);
                 });
+            }
+            if (subpage.id === 'settings-sec-diagnostics' && typeof loadDiagnostics === 'function') {
+                loadDiagnostics();
+            } else if (subpage.id === 'int-sec-mcp' && typeof loadMcpPanel === 'function') {
+                loadMcpPanel();
+            } else if (subpage.id === 'int-sec-wol' && typeof loadWolDevices === 'function') {
+                loadWolDevices();
+            } else if (subpage.id === 'int-sec-webhooks' && typeof loadWebhooks === 'function') {
+                loadWebhooks();
+            } else if (subpage.id === 'int-sec-enterprise' && typeof loadEnterprisePanel === 'function') {
+                loadEnterprisePanel();
             }
             if (target !== subpage) {
                 try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) { }
@@ -4428,7 +6002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const origFocus = HTMLElement.prototype.focus;
         HTMLElement.prototype.focus = function (...args) {
             const sub = this && typeof this.closest === 'function'
-                ? this.closest('.pp-settings-subpage, .pp-docs-subpage')
+                ? this.closest('.pp-settings-subpage, .pp-docs-subpage, .pp-integrations-subpage')
                 : null;
             if (sub && sub.classList.contains('hidden')) {
                 switchSplitSubpage(sub.id);
@@ -4438,7 +6012,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const origScroll = HTMLElement.prototype.scrollIntoView;
         HTMLElement.prototype.scrollIntoView = function (...args) {
             const sub = this && typeof this.closest === 'function'
-                ? this.closest('.pp-settings-subpage, .pp-docs-subpage')
+                ? this.closest('.pp-settings-subpage, .pp-docs-subpage, .pp-integrations-subpage')
                 : null;
             if (sub && sub.classList.contains('hidden')) {
                 switchSplitSubpage(sub.id);
@@ -4446,6 +6020,272 @@ document.addEventListener('DOMContentLoaded', async () => {
             return origScroll.apply(this, args);
         };
     })();
+
+    // WP-4: Dokümantasyon anlık arama (#docs-search-input -> searchDocs IPC)
+    const docsSearchInput = document.getElementById('docs-search-input');
+    const docsSearchResults = document.getElementById('docs-search-results');
+    let docsSearchTimer = null;
+    if (docsSearchInput && docsSearchResults) {
+        const runDocsSearch = async () => {
+            const q = docsSearchInput.value.trim();
+            if (!q) {
+                docsSearchResults.classList.add('hidden');
+                docsSearchResults.replaceChildren();
+                return;
+            }
+            if (!window.electronAPI || typeof window.electronAPI.searchDocs !== 'function') return;
+            try {
+                const hits = await window.electronAPI.searchDocs(q);
+                docsSearchResults.replaceChildren();
+                if (!Array.isArray(hits) || hits.length === 0) {
+                    const empty = document.createElement('p');
+                    empty.className = 'text-xs text-slate-600 dark:text-slate-400 p-2';
+                    empty.textContent = t('docsSearchEmpty');
+                    docsSearchResults.appendChild(empty);
+                    docsSearchResults.classList.remove('hidden');
+                    return;
+                }
+                hits.forEach((hit) => {
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'pp-docs-search-item';
+                    const ttl = document.createElement('span');
+                    ttl.className = 'text-xs font-bold text-slate-900 dark:text-white';
+                    ttl.textContent = hit.title;
+                    const snippet = document.createElement('span');
+                    snippet.className = 'text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2';
+                    snippet.textContent = String(hit.body || '').slice(0, 160);
+                    item.append(ttl, snippet);
+                    item.addEventListener('click', () => {
+                        switchSplitSubpage(hit.sectionId || 'docs-sec-quickstart');
+                        docsSearchResults.classList.add('hidden');
+                    });
+                    docsSearchResults.appendChild(item);
+                });
+                docsSearchResults.classList.remove('hidden');
+            } catch (_) { /* yut */ }
+        };
+        docsSearchInput.addEventListener('input', () => {
+            if (docsSearchTimer) clearTimeout(docsSearchTimer);
+            docsSearchTimer = setTimeout(runDocsSearch, 150);
+        });
+    }
+
+    // WP-5: Tanılama, Hata ve Çökme Raporları + Destek Paketi (ZIP)
+    let diagSnapshot = null;
+    let activeDiagTab = 'errors';
+    let lastCreatedBundlePath = null;
+    let lastCreatedBundleName = null;
+
+    function getActiveDiagPlainText() {
+        if (!diagSnapshot) return '';
+        if (activeDiagTab === 'errors') {
+            return (diagSnapshot.errors || [])
+                .map((e) => `[${e.ts}] [${String(e.level || 'error').toUpperCase()}] [${e.source}/${e.kind}] ${e.message}${e.stack ? `\n${e.stack}` : ''}`)
+                .join('\n\n');
+        }
+        if (activeDiagTab === 'system') {
+            return (diagSnapshot.systemEvents || [])
+                .map((e) => `[${e.ts}] [${String(e.level || 'info').toUpperCase()}] [${e.scope}] ${e.message}`)
+                .join('\n');
+        }
+        return (diagSnapshot.backendLogLines || []).join('\n');
+    }
+
+    function renderDiagnosticsLogs() {
+        const listEl = document.getElementById('diag-log-list');
+        if (!listEl) return;
+        listEl.replaceChildren();
+        if (!diagSnapshot) {
+            const p = document.createElement('p');
+            p.className = 'text-xs text-slate-600 dark:text-slate-400 py-4 text-center';
+            p.textContent = t('diagEmptyLogs');
+            listEl.appendChild(p);
+            return;
+        }
+        if (activeDiagTab === 'errors') {
+            const items = Array.isArray(diagSnapshot.errors) ? diagSnapshot.errors : [];
+            if (items.length === 0) {
+                const p = document.createElement('p');
+                p.className = 'text-xs text-slate-600 dark:text-slate-400 py-4 text-center';
+                p.textContent = t('diagNoErrors');
+                listEl.appendChild(p);
+                return;
+            }
+            items.forEach((e) => {
+                const row = document.createElement('div');
+                row.className = 'pp-diag-log-row';
+                const lvl = document.createElement('span');
+                const lv = e.level === 'crash' ? 'crash' : (e.level === 'warn' ? 'warn' : 'error');
+                lvl.className = `pp-diag-level pp-diag-level--${lv}`;
+                lvl.textContent = lv.toUpperCase();
+                const body = document.createElement('div');
+                body.className = 'min-w-0 flex-1 space-y-0.5';
+                const head = document.createElement('p');
+                head.className = 'text-[11px] font-mono text-slate-600 dark:text-slate-400';
+                head.textContent = `${e.ts} · ${e.source}/${e.kind}`;
+                const msg = document.createElement('p');
+                msg.className = 'text-xs font-mono text-slate-900 dark:text-slate-100 break-words';
+                msg.textContent = e.message;
+                body.append(head, msg);
+                if (e.stack) {
+                    const st = document.createElement('pre');
+                    st.className = 'text-[10px] font-mono text-slate-600 dark:text-slate-400 whitespace-pre-wrap break-all mt-1';
+                    st.textContent = e.stack;
+                    body.appendChild(st);
+                }
+                row.append(lvl, body);
+                listEl.appendChild(row);
+            });
+            return;
+        }
+        if (activeDiagTab === 'system') {
+            const items = Array.isArray(diagSnapshot.systemEvents) ? diagSnapshot.systemEvents : [];
+            if (items.length === 0) {
+                const p = document.createElement('p');
+                p.className = 'text-xs text-slate-600 dark:text-slate-400 py-4 text-center';
+                p.textContent = t('diagEmptyLogs');
+                listEl.appendChild(p);
+                return;
+            }
+            items.forEach((e) => {
+                const row = document.createElement('div');
+                row.className = 'pp-diag-log-row';
+                const lvl = document.createElement('span');
+                const lv = e.level === 'error' ? 'error' : (e.level === 'warn' ? 'warn' : 'info');
+                lvl.className = `pp-diag-level pp-diag-level--${lv}`;
+                lvl.textContent = lv.toUpperCase();
+                const msg = document.createElement('p');
+                msg.className = 'text-[11px] font-mono text-slate-700 dark:text-slate-200 break-words flex-1';
+                msg.textContent = `[${e.ts}] [${e.scope}] ${e.message}`;
+                row.append(lvl, msg);
+                listEl.appendChild(row);
+            });
+            return;
+        }
+        const lines = Array.isArray(diagSnapshot.backendLogLines) ? diagSnapshot.backendLogLines : [];
+        if (lines.length === 0) {
+            const p = document.createElement('p');
+            p.className = 'text-xs text-slate-600 dark:text-slate-400 py-4 text-center';
+            p.textContent = t('diagEmptyLogs');
+            listEl.appendChild(p);
+            return;
+        }
+        const pre = document.createElement('pre');
+        pre.className = 'text-[11px] font-mono text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-all';
+        pre.textContent = lines.join('\n');
+        listEl.appendChild(pre);
+    }
+
+    async function loadDiagnostics() {
+        if (!window.electronAPI || typeof window.electronAPI.getDiagnostics !== 'function') return;
+        try {
+            const snap = await window.electronAPI.getDiagnostics();
+            if (!snap) return;
+            diagSnapshot = snap;
+            const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+            setTxt('diag-count-crashes', snap.counts ? snap.counts.crashes : 0);
+            setTxt('diag-count-errors', snap.counts ? snap.counts.errors : 0);
+            setTxt('diag-count-system', snap.counts ? snap.counts.systemEvents : 0);
+            const auditEl = document.getElementById('diag-audit-state');
+            if (auditEl && snap.auditStatus) {
+                auditEl.textContent = snap.auditStatus.ok ? t('diagAuditOk') : t('diagAuditWarn');
+            }
+            const sysEl = document.getElementById('diag-sysinfo-line');
+            if (sysEl && snap.systemInfo) {
+                const s = snap.systemInfo;
+                sysEl.textContent = `Power Pilot v${s.appVersion} (${s.distribution}${s.portable ? '/portable' : ''}) · ${s.platform} ${s.release} (${s.arch}) · Electron ${s.electronVersion} · RAM ${s.freeRamGb}/${s.totalRamGb} GB`;
+            }
+            if (snap.lastBundlePath) {
+                lastCreatedBundlePath = snap.lastBundlePath;
+                const resRow = document.getElementById('diag-bundle-result');
+                const pathEl = document.getElementById('diag-bundle-path');
+                if (pathEl) pathEl.textContent = snap.lastBundlePath;
+                if (resRow) resRow.classList.remove('hidden');
+            }
+            renderDiagnosticsLogs();
+        } catch (_) { /* opsiyonel */ }
+    }
+
+    document.querySelectorAll('[data-diag-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            activeDiagTab = btn.getAttribute('data-diag-tab') || 'errors';
+            document.querySelectorAll('[data-diag-tab]').forEach((b) => b.classList.toggle('is-active', b === btn));
+            renderDiagnosticsLogs();
+        });
+    });
+
+    const btnDiagRefresh = document.getElementById('btn-diag-refresh');
+    if (btnDiagRefresh) btnDiagRefresh.addEventListener('click', loadDiagnostics);
+    const btnDiagCopyLogs = document.getElementById('btn-diag-copy-logs');
+    if (btnDiagCopyLogs) btnDiagCopyLogs.addEventListener('click', () => copyTextWithFeedback(getActiveDiagPlainText(), btnDiagCopyLogs));
+    const btnDiagClear = document.getElementById('btn-diag-clear');
+    if (btnDiagClear) {
+        btnDiagClear.addEventListener('click', async () => {
+            if (!window.electronAPI || typeof window.electronAPI.clearDiagnostics !== 'function') return;
+            const res = await window.electronAPI.clearDiagnostics();
+            if (res && res.ok) {
+                if (res.snapshot) diagSnapshot = res.snapshot;
+                await loadDiagnostics();
+                showToast(t('diagLogsCleared'), 'info');
+            }
+        });
+    }
+    const btnDiagCreateBundle = document.getElementById('btn-diag-create-bundle');
+    if (btnDiagCreateBundle) {
+        btnDiagCreateBundle.addEventListener('click', async () => {
+            if (!window.electronAPI || typeof window.electronAPI.createSupportBundle !== 'function') return;
+            const res = await window.electronAPI.createSupportBundle();
+            if (res && res.ok) {
+                lastCreatedBundlePath = res.filePath;
+                lastCreatedBundleName = res.fileName;
+                const resRow = document.getElementById('diag-bundle-result');
+                const pathEl = document.getElementById('diag-bundle-path');
+                if (pathEl) pathEl.textContent = res.filePath;
+                if (resRow) resRow.classList.remove('hidden');
+                showToast(t('diagBundleCreated', { file: res.fileName }), 'success');
+                loadDiagnostics();
+            } else {
+                showToast((res && res.message) || t('errorSaveFailed'), 'error');
+            }
+        });
+    }
+    const btnDiagReveal = document.getElementById('btn-diag-reveal-bundle');
+    if (btnDiagReveal) {
+        btnDiagReveal.addEventListener('click', async () => {
+            if (!lastCreatedBundlePath || !window.electronAPI || typeof window.electronAPI.revealSupportBundle !== 'function') return;
+            await window.electronAPI.revealSupportBundle(lastCreatedBundlePath);
+        });
+    }
+    const btnDiagCopyBundle = document.getElementById('btn-diag-copy-bundle');
+    if (btnDiagCopyBundle) {
+        btnDiagCopyBundle.addEventListener('click', () => {
+            if (lastCreatedBundlePath) copyTextWithFeedback(lastCreatedBundlePath, btnDiagCopyBundle);
+        });
+    }
+    const btnDiagMail = document.getElementById('btn-diag-mail');
+    if (btnDiagMail) {
+        btnDiagMail.addEventListener('click', async () => {
+            if (!window.electronAPI || typeof window.electronAPI.composeSupportMail !== 'function') return;
+            const res = await window.electronAPI.composeSupportMail({ bundleFileName: lastCreatedBundleName });
+            if (!res || !res.ok) showToast(t('errorOpenFolder'), 'error');
+        });
+    }
+    const btnDiagGithub = document.getElementById('btn-diag-github');
+    if (btnDiagGithub) {
+        btnDiagGithub.addEventListener('click', async () => {
+            if (!window.electronAPI || typeof window.electronAPI.openGithubIssue !== 'function') return;
+            await window.electronAPI.openGithubIssue();
+        });
+    }
+    const btnDiagOpenFolder = document.getElementById('btn-diag-open-folder');
+    if (btnDiagOpenFolder) {
+        btnDiagOpenFolder.addEventListener('click', async () => {
+            if (!window.electronAPI || typeof window.electronAPI.openLogsFolder !== 'function') return;
+            const res = await window.electronAPI.openLogsFolder();
+            if (!res || !res.ok) showToast(t('errorOpenFolder'), 'error');
+        });
+    }
 
     document.querySelectorAll('[data-split-nav]').forEach((navRoot) => {
         navRoot.addEventListener('click', (e) => {
@@ -4549,7 +6389,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function bindLocalPref(el, key, onChange) {
+    function persistSingleSetting(serverKey, value) {
+        if (!serverKey || !window.electronAPI || typeof window.electronAPI.saveSettingsAtomic !== 'function') return;
+        window.electronAPI.saveSettingsAtomic({ settings: { [serverKey]: value } })
+            .then((res) => {
+                if (res && res.success === false) {
+                    showToast(res.message || t('errorModeSave'), 'error');
+                }
+            })
+            .catch(() => { /* çevrimdışı */ });
+    }
+
+    function bindLocalPref(el, key, onChange, serverKey = null, parseForServer = null) {
         if (!el) return;
         const saved = localStorage.getItem(key);
         if (saved !== null) {
@@ -4559,17 +6410,79 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.addEventListener('change', () => {
             const val = el.type === 'checkbox' ? String(el.checked) : el.value;
             try { localStorage.setItem(key, val); } catch (_) { }
+            if (serverKey) {
+                const parsed = typeof parseForServer === 'function'
+                    ? parseForServer(el.type === 'checkbox' ? el.checked : el.value)
+                    : (el.type === 'checkbox' ? el.checked : el.value);
+                persistSingleSetting(serverKey, parsed);
+            }
             if (onChange) onChange(val);
         });
     }
 
-    bindLocalPref(elCloseToTray, 'pp-close-to-tray');
-    bindLocalPref(elStartMinimized, 'pp-start-minimized');
-    bindLocalPref(elAutoMiniWidget, 'pp-auto-mini-widget');
+    function hydrateExtendedSettingsFromServer(s) {
+        if (!s || typeof s !== 'object') return;
+        const syncBool = (el, localKey, val) => {
+            if (typeof val !== 'boolean') return;
+            if (el) el.checked = val;
+            try { localStorage.setItem(localKey, String(val)); } catch (_) { }
+        };
+        const syncVal = (el, localKey, val) => {
+            if (val === undefined || val === null || val === '') return;
+            if (el) el.value = String(val);
+            try { localStorage.setItem(localKey, String(val)); } catch (_) { }
+        };
+        syncBool(elCloseToTray, 'pp-close-to-tray', s.closeToTray);
+        syncBool(elStartMinimized, 'pp-start-minimized', s.startMinimized);
+        syncBool(elAutoMiniWidget, 'pp-auto-mini-widget', s.autoMiniWidget);
+        syncVal(elDefaultAction, 'pp-default-action', s.defaultAction);
+        syncVal(elDefaultMinutes, 'pp-default-minutes', s.defaultMinutes);
+        syncVal(elUiDensity, 'pp-ui-density', s.uiDensity);
+        syncVal(elClockFormat, 'pp-clock-format', s.clockFormat);
+        syncVal(elToastPosition, 'pp-toast-position', s.toastPosition);
+        syncVal(elSoundMode, 'soundMode', s.soundMode);
+        syncBool(elDesktopNotifyStart, 'pp-desktop-notify-start', s.desktopNotifyStart);
+        syncBool(elDesktopNotifyWarn, 'pp-desktop-notify-warn', s.desktopNotifyWarn);
+        syncBool(elDesktopNotifySkip, 'pp-desktop-notify-skip', s.desktopNotifySkip);
+        syncVal(elPrewarnSeconds, 'pp-prewarn-seconds', s.prewarnSeconds);
+        syncVal(elQuietStart, 'pp-quiet-start', s.quietStart);
+        syncVal(elQuietEnd, 'pp-quiet-end', s.quietEnd);
+        syncVal(elFallbackAction, 'pp-fallback-action', s.fallbackAction);
+        syncVal(elGraceSeconds, 'pp-grace-seconds', s.graceSeconds);
+        syncBool(elProtectFullscreen, 'pp-protect-fullscreen', s.protectFullscreen);
+        syncBool(elProtectActiveIo, 'pp-protect-active-io', s.protectActiveIo);
+        syncVal(elPinLengthMode, 'pp-pin-length-mode', s.pinLengthMode);
+        syncBool(elAutoBackup, 'pp-auto-backup', s.autoBackupEnabled);
+
+        if (s.shortcuts && typeof s.shortcuts === 'object') {
+            ['theme', 'quickstart', 'cancel', 'settings', 'docs'].forEach((k) => {
+                if (typeof s.shortcuts[k] === 'string' && s.shortcuts[k].trim()) {
+                    const inp = document.getElementById(`shortcut-${k}`);
+                    if (inp) inp.value = s.shortcuts[k].trim();
+                    try { localStorage.setItem(`pp-shortcut-${k}`, s.shortcuts[k].trim()); } catch (_) { }
+                }
+            });
+        }
+        if (s.defaultAction) {
+            const btn = document.querySelector(`.action-btn[data-action="${s.defaultAction}"]`);
+            if (btn && !isTimerActive) btn.click();
+        }
+        if (Number.isInteger(s.defaultMinutes) && s.defaultMinutes > 0 && !isTimerActive) {
+            if (dInput) dInput.value = 0;
+            if (hInput) hInput.value = Math.floor(s.defaultMinutes / 60);
+            if (mInput) mInput.value = s.defaultMinutes % 60;
+        }
+        applyExtendedUiPrefs();
+    }
+
+    const toInt = (v) => parseInt(v, 10);
+    bindLocalPref(elCloseToTray, 'pp-close-to-tray', null, 'closeToTray');
+    bindLocalPref(elStartMinimized, 'pp-start-minimized', null, 'startMinimized');
+    bindLocalPref(elAutoMiniWidget, 'pp-auto-mini-widget', null, 'autoMiniWidget');
     bindLocalPref(elDefaultAction, 'pp-default-action', (val) => {
         const btn = document.querySelector(`.action-btn[data-action="${val}"]`);
         if (btn) btn.click();
-    });
+    }, 'defaultAction');
     bindLocalPref(elDefaultMinutes, 'pp-default-minutes', (val) => {
         const mins = parseInt(val, 10);
         if (Number.isInteger(mins) && mins > 0) {
@@ -4577,25 +6490,48 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (hInput) hInput.value = Math.floor(mins / 60);
             if (mInput) mInput.value = mins % 60;
         }
-    });
-    bindLocalPref(elUiDensity, 'pp-ui-density', () => applyExtendedUiPrefs());
+    }, 'defaultMinutes', toInt);
+    bindLocalPref(elUiDensity, 'pp-ui-density', () => applyExtendedUiPrefs(), 'uiDensity');
     bindLocalPref(elReduceMotion, 'pp-reduce-motion', () => applyExtendedUiPrefs());
-    bindLocalPref(elClockFormat, 'pp-clock-format');
-    bindLocalPref(elToastPosition, 'pp-toast-position', () => applyExtendedUiPrefs());
+    bindLocalPref(elClockFormat, 'pp-clock-format', null, 'clockFormat');
+    bindLocalPref(elToastPosition, 'pp-toast-position', () => applyExtendedUiPrefs(), 'toastPosition');
     bindLocalPref(elToastDuration, 'pp-toast-duration');
-    bindLocalPref(elDesktopNotifyStart, 'pp-desktop-notify-start');
-    bindLocalPref(elDesktopNotifyWarn, 'pp-desktop-notify-warn');
-    bindLocalPref(elDesktopNotifySkip, 'pp-desktop-notify-skip');
-    bindLocalPref(elPrewarnSeconds, 'pp-prewarn-seconds');
-    bindLocalPref(elQuietStart, 'pp-quiet-start');
-    bindLocalPref(elQuietEnd, 'pp-quiet-end');
-    bindLocalPref(elFallbackAction, 'pp-fallback-action');
-    bindLocalPref(elGraceSeconds, 'pp-grace-seconds');
-    bindLocalPref(elProtectFullscreen, 'pp-protect-fullscreen');
-    bindLocalPref(elProtectActiveIo, 'pp-protect-active-io');
-    bindLocalPref(elPinLengthMode, 'pp-pin-length-mode', () => applyExtendedUiPrefs());
-    bindLocalPref(elAutoBackup, 'pp-auto-backup');
+    bindLocalPref(elDesktopNotifyStart, 'pp-desktop-notify-start', null, 'desktopNotifyStart');
+    bindLocalPref(elDesktopNotifyWarn, 'pp-desktop-notify-warn', null, 'desktopNotifyWarn');
+    bindLocalPref(elDesktopNotifySkip, 'pp-desktop-notify-skip', null, 'desktopNotifySkip');
+    bindLocalPref(elPrewarnSeconds, 'pp-prewarn-seconds', null, 'prewarnSeconds', toInt);
+    bindLocalPref(elQuietStart, 'pp-quiet-start', null, 'quietStart');
+    bindLocalPref(elQuietEnd, 'pp-quiet-end', null, 'quietEnd');
+    bindLocalPref(elFallbackAction, 'pp-fallback-action', null, 'fallbackAction');
+    bindLocalPref(elGraceSeconds, 'pp-grace-seconds', null, 'graceSeconds', toInt);
+    bindLocalPref(elProtectFullscreen, 'pp-protect-fullscreen', null, 'protectFullscreen');
+    bindLocalPref(elProtectActiveIo, 'pp-protect-active-io', null, 'protectActiveIo');
+    bindLocalPref(elPinLengthMode, 'pp-pin-length-mode', () => applyExtendedUiPrefs(), 'pinLengthMode');
+    bindLocalPref(elAutoBackup, 'pp-auto-backup', null, 'autoBackupEnabled');
     applyExtendedUiPrefs();
+
+    // WP-9: Etkileşimli klavye kısayolu kaydedicisi (#shortcut-*)
+    ['theme', 'quickstart', 'cancel', 'settings', 'docs'].forEach((k) => {
+        const inp = document.getElementById(`shortcut-${k}`);
+        if (!inp) return;
+        const saved = localStorage.getItem(`pp-shortcut-${k}`);
+        if (saved) inp.value = saved;
+        inp.readOnly = true;
+        inp.addEventListener('focus', () => inp.classList.add('pp-shortcut-recording'));
+        inp.addEventListener('blur', () => inp.classList.remove('pp-shortcut-recording'));
+        inp.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') return;
+            e.preventDefault();
+            e.stopPropagation();
+            const combo = normalizeComboFromEvent(e);
+            if (!combo) return;
+            inp.value = combo;
+            try { localStorage.setItem(`pp-shortcut-${k}`, combo); } catch (_) { }
+            persistSingleSetting('shortcuts', getActiveShortcuts());
+            inp.blur();
+            showToast(t('toastShortcutSaved', { combo }), 'success');
+        });
+    });
 
     // One-Click Preset Profiles
     document.querySelectorAll('[data-settings-preset]').forEach((btn) => {
@@ -4626,26 +6562,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnTestNotification = document.getElementById('btn-test-notification');
     if (btnTestNotification) {
-        btnTestNotification.addEventListener('click', () => {
-            showToast(t('toastSettingsSaved'), 'info');
+        btnTestNotification.addEventListener('click', async () => {
+            if (window.electronAPI && typeof window.electronAPI.testDesktopNotification === 'function') {
+                try { await window.electronAPI.testDesktopNotification(); } catch (_) { }
+            }
+            uiBeep();
+            showToast(t('toastNotifyTestBody'), 'info');
         });
     }
 
     const btnResetShortcuts = document.getElementById('btn-reset-shortcuts');
     if (btnResetShortcuts) {
         btnResetShortcuts.addEventListener('click', () => {
-            const defaults = {
-                'shortcut-theme': 'Ctrl+T',
-                'shortcut-quickstart': 'Ctrl+Enter',
-                'shortcut-cancel': 'Escape',
-                'shortcut-settings': 'Ctrl+,',
-                'shortcut-docs': 'F1'
-            };
-            Object.entries(defaults).forEach(([id, val]) => {
-                const el = document.getElementById(id);
+            Object.entries(DEFAULT_SHORTCUTS).forEach(([k, val]) => {
+                const el = document.getElementById(`shortcut-${k}`);
                 if (el) el.value = val;
-                try { localStorage.setItem(`pp-${id}`, val); } catch (_) { }
+                try { localStorage.setItem(`pp-shortcut-${k}`, val); } catch (_) { }
             });
+            persistSingleSetting('shortcuts', { ...DEFAULT_SHORTCUTS });
             showToast(t('toastDefaultsLoaded'), 'success');
         });
     }
@@ -4653,30 +6587,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnExportSettingsJson = document.getElementById('btn-export-settings-json');
     if (btnExportSettingsJson) {
         btnExportSettingsJson.addEventListener('click', async () => {
-            const snapshot = {
-                app: 'Power Pilot',
-                version: '1.0.0',
-                exportedAt: new Date().toISOString(),
-                preferences: {
-                    theme: localStorage.getItem('theme') || 'dark',
-                    themeId: localStorage.getItem('themeId') || 'obsidian',
-                    language: localStorage.getItem('language') || 'tr',
-                    notifications: localStorage.getItem('notifications') !== 'false',
-                    soundMode: localStorage.getItem('soundMode') || 'auto',
-                    uiDensity: localStorage.getItem('pp-ui-density') || 'comfortable',
-                    toastPosition: localStorage.getItem('pp-toast-position') || 'bottom-right',
-                    fallbackAction: localStorage.getItem('pp-fallback-action') || 'none',
-                    pinLengthMode: localStorage.getItem('pp-pin-length-mode') || 'flex'
+            if (window.electronAPI && typeof window.electronAPI.exportSettings === 'function') {
+                const res = await window.electronAPI.exportSettings();
+                if (res && res.success) {
+                    showToast(t('toastExported'), 'success');
+                } else if (res && res.code !== 'CANCELLED') {
+                    showToast(res.message || t('errorSaveFailed'), 'error');
                 }
-            };
-            await copyTextWithFeedback(JSON.stringify(snapshot, null, 2), btnExportSettingsJson);
+                return;
+            }
+            showToast(t('errorSaveFailed'), 'error');
         });
     }
 
     const btnImportSettingsJson = document.getElementById('btn-import-settings-json');
     if (btnImportSettingsJson) {
-        btnImportSettingsJson.addEventListener('click', () => {
-            showToast(t('toastSettingsSaved'), 'success');
+        btnImportSettingsJson.addEventListener('click', async () => {
+            if (!window.electronAPI || typeof window.electronAPI.importSettings !== 'function') return;
+            const res = await window.electronAPI.importSettings();
+            if (res && res.success) {
+                await loadSettings();
+                showToast(t('toastSettingsImported', { count: res.count || 0 }), 'success');
+            } else if (res && res.code !== 'CANCELLED') {
+                showToast((res && res.message) || t('errorInvalidRequest'), 'error');
+            }
         });
     }
 
@@ -4692,6 +6626,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         'modal-confirm-link': 'modal-confirm-link-cancel',
         'modal-confirm-action': 'modal-confirm-action-cancel',
         'modal-delete-data': 'modal-delete-data-cancel',
+        'modal-template-editor': 'modal-template-editor-close',
+        'modal-restore-templates': 'modal-restore-templates-close',
         'modal-eula': 'modal-eula-close',
         'modal-privacy': 'modal-privacy-close',
         'modal-oss': 'modal-oss-close'
@@ -4796,11 +6732,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    document.getElementById('modal-confirm-link-close').addEventListener('click', () => closeModal('modal-confirm-link'));
-    document.getElementById('modal-confirm-link-cancel').addEventListener('click', () => closeModal('modal-confirm-link'));
-    document.getElementById('modal-confirm-link-backdrop').addEventListener('click', () => closeModal('modal-confirm-link'));
+    document.getElementById('modal-confirm-link-close')?.addEventListener('click', () => closeModal('modal-confirm-link'));
+    document.getElementById('modal-confirm-link-cancel')?.addEventListener('click', () => closeModal('modal-confirm-link'));
+    document.getElementById('modal-confirm-link-backdrop')?.addEventListener('click', () => closeModal('modal-confirm-link'));
 
-    document.getElementById('modal-confirm-link-yes').addEventListener('click', () => {
+    document.getElementById('modal-confirm-link-yes')?.addEventListener('click', () => {
         if (pendingExternalUrl && window.electronAPI && window.electronAPI.openExternal) {
             window.electronAPI.openExternal(pendingExternalUrl);
         }
@@ -4808,17 +6744,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // ── Verilerimi sil (Store 10.2.7) ──
+    let isDeletingAllData = false;
+    const setDeleteModalBusy = (busy, statusText) => {
+        isDeletingAllData = busy;
+        const progressEl = document.getElementById('modal-delete-data-progress');
+        const progressTextEl = document.getElementById('modal-delete-data-progress-text');
+        const btnYes = document.getElementById('modal-delete-data-yes');
+        const btnCancel = document.getElementById('modal-delete-data-cancel');
+        const btnClose = document.getElementById('modal-delete-data-close');
+        const pinInput = document.getElementById('modal-delete-data-pin');
+        if (progressEl) progressEl.classList.toggle('hidden', !busy);
+        if (progressTextEl && statusText) progressTextEl.textContent = statusText;
+        if (btnCancel) btnCancel.disabled = busy;
+        if (btnClose) btnClose.disabled = busy;
+        if (pinInput) pinInput.disabled = busy;
+        if (btnYes) {
+            btnYes.disabled = busy;
+            if (busy) {
+                const spin = document.createElement('span');
+                spin.className = 'pp-spin';
+                spin.setAttribute('aria-hidden', 'true');
+                const txt = document.createElement('span');
+                txt.textContent = statusText || t('privacyDeletingProgress');
+                btnYes.replaceChildren(spin, txt);
+            } else {
+                btnYes.textContent = t('privacyConfirmYes');
+            }
+        }
+    };
     const btnDeleteAllData = document.getElementById('btn-delete-all-data');
     if (btnDeleteAllData) {
-        const showDeleteError = (msg) => {
-            const errEl = document.getElementById('modal-delete-data-error');
-            if (!errEl) return;
-            errEl.textContent = msg;
-            errEl.classList.remove('hidden');
-        };
         btnDeleteAllData.addEventListener('click', async () => {
             const errEl = document.getElementById('modal-delete-data-error');
             if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+            setDeleteModalBusy(false);
             const pinInput = document.getElementById('modal-delete-data-pin');
             const pinWrap = document.getElementById('modal-delete-data-pin-wrap');
             if (pinInput) pinInput.value = '';
@@ -4834,7 +6793,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             openModal('modal-delete-data');
         });
     }
-    const deleteDataCancel = () => closeModal('modal-delete-data');
+    const deleteDataCancel = () => {
+        if (isDeletingAllData) return;
+        closeModal('modal-delete-data');
+    };
     ['modal-delete-data-close', 'modal-delete-data-cancel', 'modal-delete-data-backdrop'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('click', deleteDataCancel);
@@ -4842,14 +6804,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnDeleteDataYes = document.getElementById('modal-delete-data-yes');
     if (btnDeleteDataYes) {
         btnDeleteDataYes.addEventListener('click', async () => {
+            if (isDeletingAllData) return;
             const pinInput = document.getElementById('modal-delete-data-pin');
-            const btn = btnDeleteDataYes;
+            const errEl = document.getElementById('modal-delete-data-error');
+            if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
             if (!window.electronAPI || typeof window.electronAPI.deleteAllData !== 'function') {
                 return;
             }
             const payload = { confirm: true };
             if (pinInput && pinInput.value) payload.pin = pinInput.value;
-            btn.disabled = true;
+            setDeleteModalBusy(true, t('privacyDeletingProgress'));
             let result = null;
             try {
                 result = await window.electronAPI.deleteAllData(payload);
@@ -4857,15 +6821,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 result = { success: false, code: 'WIPE_FAILED' };
             }
             if (result && result.success) {
-                closeModal('modal-delete-data');
-                return; // ana süreç uygulamayı kapatır
+                setDeleteModalBusy(true, t('privacyDeleteClosing'));
+                return; // ana süreç 350ms içinde uygulamayı temizce kapatır
             }
-            btn.disabled = false;
+            setDeleteModalBusy(false);
             const code = result && result.code;
-            const msg = (code === 'PIN_REQUIRED' || code === 'PIN_INVALID')
-                ? t('pinVerifyFailed')
+            const msg = (code === 'PIN_REQUIRED' || code === 'PIN_WRONG' || code === 'PIN_LOCKED' || code === 'PIN_INVALID')
+                ? (result && result.message) || t('pinVerifyFailed')
                 : t('privacyDeleteFailed');
-            const errEl = document.getElementById('modal-delete-data-error');
             if (errEl) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
         });
     }

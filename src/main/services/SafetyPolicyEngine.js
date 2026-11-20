@@ -78,6 +78,15 @@ class SafetyPolicyEngine {
             return deny('AGENT_DISABLED', 'Konsol kill-switch devrede; ajan devre-dışı.');
         }
 
+        // WP-9: Kullanıcı ayarlarından tam ekran ve aktif I/O / güç isteği korumasını uygula
+        // (yalnızca görev kendi safetyPolicy'sinde açıkça override etmediyse).
+        if (baseSettings && baseSettings.protectFullscreen === false && (!task || !task.safetyPolicy || task.safetyPolicy.checkFullscreen === undefined)) {
+            policy.checkFullscreen = false;
+        }
+        if (baseSettings && baseSettings.protectActiveIo === false && (!task || !task.safetyPolicy || task.safetyPolicy.checkSystemLoad === undefined)) {
+            policy.checkSystemLoad = false;
+        }
+
         // O-12: ağır alt süreç kontrolleri paralel başlatılır; sonuçlar sırayla
         // değerlendirilir. Böylece toplam gecikme tek tek toplam yerine en yavaşı olur.
         const processesPromise = policy.checkProtectedApps

@@ -38,10 +38,7 @@ const RULES = [
 
 // Bilinçli, geçici istisnalar (dosya:kural → gerekçe + bağlı WP).
 // Her istisna kapatılacak WP ile ilişkilidir; WP tamamlanınca silinir.
-const ALLOW = new Map([
-    // WP-14.T3: JSON locale dosyalarına geçiş.
-    ['src/main/i18n.js:VM_RUN', 'WP-14.T3: JSON locale loader pending']
-]);
+const ALLOW = new Map();
 
 async function walk(dir, out = []) {
     let entries;

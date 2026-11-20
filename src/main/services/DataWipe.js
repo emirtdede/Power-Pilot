@@ -201,13 +201,80 @@ function applyPendingWipe(markerPath, { rm = fs.rmSync, readFile = null, unlink 
     return { removed, remaining };
 }
 
+/**
+ * Planı ana iş parçacığını (UI / Win32 mesaj döngüsünü) kilitlemeden asenkron uygular.
+ * Önce temel kullanıcı verileri (DB, anahtarlar, yedekler, modeller, loglar) kısa
+ * asenkron yeniden denemelerle silinir; ardından Chromium çalışma klasörleri tek
+ * geçişte paralel temizlenir (kilitli olanlar olay döngüsünü dondurmadan optionalFailed'a düşer).
+ */
+async function removeWithRetryAsync(target, { rm = fs.promises.rm, attempts = 3, delayMs = 50 } = {}) {
+    let lastError = null;
+    for (let i = 0; i < attempts; i += 1) {
+        try {
+            await rm(target, { recursive: true, force: true });
+            return { path: target, removed: true };
+        } catch (err) {
+            lastError = err;
+            if (i + 1 < attempts && delayMs > 0) {
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+        }
+    }
+    return {
+        path: target,
+        removed: false,
+        error: (lastError && lastError.code) || 'REMOVE_FAILED'
+    };
+}
+
+async function performWipeAsync(userDataPath, {
+    onBefore = null,
+    exists = fs.existsSync,
+    rm = fs.promises.rm,
+    readdir = null
+} = {}) {
+    const { root, targets } = planWipe(userDataPath, { exists, readdir });
+    const essential = new Set(ESSENTIAL_ENTRIES.map((name) => path.join(root, name)));
+    if (typeof onBefore === 'function') await onBefore();
+    const essentialTargets = [];
+    const optionalTargets = [];
+    for (const target of targets) {
+        if (essential.has(target)) essentialTargets.push(target);
+        else optionalTargets.push(target);
+    }
+
+    const removed = [];
+    const failed = [];
+    const optionalFailed = [];
+
+    // 1. Önce zorunlu kullanıcı verileri (asenkron + kısa bekleme)
+    for (const target of essentialTargets) {
+        const result = await removeWithRetryAsync(target, { rm, attempts: 3, delayMs: 50 });
+        if (result.removed) removed.push(result.path);
+        else failed.push({ path: result.path, error: result.error });
+    }
+
+    // 2. İsteğe bağlı Chromium önbellek/oturum klasörleri (tek geçiş, kilitleme yok)
+    const optResults = await Promise.all(
+        optionalTargets.map((target) => removeWithRetryAsync(target, { rm, attempts: 1, delayMs: 0 }))
+    );
+    for (const result of optResults) {
+        if (result.removed) removed.push(result.path);
+        else optionalFailed.push({ path: result.path, error: result.error });
+    }
+
+    return { ok: failed.length === 0, root, removed, failed, optionalFailed };
+}
+
 module.exports = {
     WIPE_ENTRIES,
     ESSENTIAL_ENTRIES,
     PENDING_MARKER_NAME,
     planWipe,
     performWipe,
+    performWipeAsync,
     removeWithRetry,
+    removeWithRetryAsync,
     writePendingWipe,
     applyPendingWipe
 };

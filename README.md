@@ -24,7 +24,7 @@
 
 <div align="center">
 
-[![CI](https://img.shields.io/github/actions/workflow/status/emirtdede/Power-Pilot/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI&color=000000)](https://github.com/emirtdede/Power-Pilot/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/emirtdede/power-pilot/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI&color=000000)](https://github.com/emirtdede/power-pilot/actions/workflows/ci.yml)
 ![Release](https://img.shields.io/badge/Release-v1.0.0-000000?style=flat-square)
 ![Electron](https://img.shields.io/badge/Electron-43.8.1-000000?style=flat-square&logo=electron&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-24.18.1-000000?style=flat-square&logo=node.js&logoColor=white)
@@ -88,33 +88,40 @@ For developers, AI coding agents, and enterprise teams, Power Pilot ships with a
 - **Fail-closed remote shutdown protection** while the user is actively using the PC.
 - Full task states: `Draft`, `Scheduled`, `Monitoring`, `Warning`, `Snoozed`, `Executing`, `Completed`, `Blocked`, `Failed`, `Expired`.
 
-### 🤖 On-Device AI Assistant
-- Optional **Qwen** local LLM for natural-language task creation.
-- Optional **Whisper** speech-to-text for voice commands.
+### 🤖 On-Device AI Assistant 2.0 (Tasks, Templates, Connections & Docs RAG)
+- Optional **Qwen** local LLM and **Whisper** speech-to-text for natural-language and voice commands.
+- **7 Specialized Local Agents**: create timers/tasks, build custom automation templates (`templateAgent`), propose human-in-the-loop integration settings (`connectionAgent`), diagnose system blockers, estimate energy savings, and answer product/troubleshooting questions via offline **Documentation RAG** (`DocsKnowledgeBase` + `docsQaAgent`) with one-click deep links.
 - Model files stay on the device; downloads are pinned to immutable URLs and verified by **SHA-256**.
-- Inference runs locally — no cloud AI service is required.
 
-### 🧩 Built-in MCP Server, Terminal CLI & Documentation Center
+### 🗂️ 22 Categorized Automation Templates & Custom Builder
+- **22 Built-in Templates Across 7 Categories**: *Download*, *Render & Disk*, *Gaming*, *Productivity*, *Scheduled*, *Power & Battery*, and *Security* (plus *Custom*).
+- Supports **Smart Finish conditions**, **time-of-day schedules**, and **countdown duration triggers**.
+- Full CRUD: create custom templates from scratch, edit/override built-in templates (with *Modified* badge), duplicate, hide/delete, reset individual templates, or manage/restore all defaults in one click.
+
+### 📊 Rich Energy, CO₂ & Automation Analytics
+- Period filtering (**7 Days**, **30 Days**, **All Time**) with verified shutdown-to-next-boot off-duration matching.
+- **4 Primary KPI Cards** (*Prevented Uptime*, *Energy Saved kWh + Monthly Forecast*, *Cost Saved + Yearly Forecast*, *Estimated CO₂ Reduction at 0.42 kg/kWh + Success Rate*) and **5 Secondary Operational Metrics** (*Completed*, *Blocked*, *Cancelled/Snoozed*, *Active Streak Days*, *Longest Off Session*).
+- Interactive **SVG daily trend bar chart**, **action & trigger-source distributions**, **24-hour automation intensity heatmap**, **recent measured sessions table**, and **CSV / JSON export**.
+
+### 🧩 Built-in MCP Server, Terminal CLI & 10-Section Documentation Center
 - **Built-in MCP Server (`src/mcp/server.js`)**: JSON-RPC 2.0 over stdio for **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf**, and **Cline** with 8 tools (`powerpilot_status`, `powerpilot_schedule_timer`, `powerpilot_cancel_timer`, `powerpilot_list_tasks`, `powerpilot_power_action`, `powerpilot_audit_verify`, `powerpilot_inventory`, `powerpilot_pending_orders`).
 - **Terminal & PowerShell CLI (`powerpilot`)**: schedule timers (`--minutes` or `--durationMs`), list/cancel tasks, verify audit chains, trigger immediate power actions, or output raw `--json` for scripts.
-- **Dedicated In-App Documentation Tab**: split-layout guide covering Quick Start, CLI & Terminal, MCP Server JSON configs, REST API, and Keyboard Shortcuts with one-click copy buttons.
+- **10-Section In-App Documentation Center with Instant Search**: split-layout guide covering Quick Start, Power & Safety Shields, Smart Finish, Templates, AI Assistant, CLI & Terminal, MCP Server JSON configs, REST API & Webhooks, WoL/UPS/Enterprise, and Shortcuts & Troubleshooting.
 
-### ⚙️ Multi-Subpage Settings & Curated Presets
-- **7 Dedicated Settings Sub-Pages**: *General & Profiles*, *Appearance & Language*, *Notifications & Sound*, *Automation & Fallbacks*, *Energy & AI*, *Keyboard Shortcuts*, and *Security, PIN & Backup*.
+### ⚙️ 8-Subpage Settings, Curated Presets & Diagnostics Center
+- **8 Dedicated Settings Sub-Pages**: *General & Profiles*, *Appearance & Language*, *Notifications & Sound*, *Automation & Fallbacks*, *Energy & AI*, *Keyboard Shortcuts* (interactive key recorder), *Reset & Privacy*, and *Diagnostics & Reports*.
+- **Diagnostics, Crash Reports & Support Bundle (ZIP)**: inspect redacted crash/error history, renderer errors, system summary, and main-process logs, or export a pure-Node Deflate support ZIP (`powerpilot-support-*.zip`).
 - **One-Click Preset Profiles**: *Standard User (Recommended)*, *Night Download & Render*, *Enterprise & Kiosk Security*, and *Maximum Energy Saver*.
 - **Instant Auto-Save + Critical Action Confirmation**: regular preferences save immediately on change; high-impact changes (*Full AI Autonomy*, *Restore Defaults*, *Delete All Data*) require explicit confirmation dialogs.
-- **In-App & Desktop Notifications**: configurable toast corner position, duration, quiet hours range (`22:00–08:00`), pre-action warning timing, and one-click JSON configuration export/import.
 
-### 🎨 28 Theme Palettes, Theme-Reactive SVG Logo & 73-Language Catalog
+### 🎨 28 Theme Palettes, 4 System-Wide App Icons & 73-Language Catalog
 - **2 Modes × 14 Color Themes (28 Palettes)**: `Obsidian`, `Slate`, `Navy`, `Blue`, `Cyan`, `Indigo`, `Purple`, `Pink`, `Red`, `Orange`, `Yellow`, `Emerald`, `Grass`, and `Lime` across Light and Dark modes.
-- **Theme-Reactive In-App SVG Brand Mark**: dynamically adapts to all 28 theme palettes while keeping the native Windows application icon untouched.
-- **73-Language Catalog**: 17 fully translated locales (Turkish, English, German, Swedish, Norwegian, Danish, French, Polish, Italian, Dutch, Czech, Spanish, Portuguese, Japanese, Chinese, Korean, Arabic) + 56 planned languages with automatic English fallback and full **RTL** mirroring (`ar`, `he`, `fa`, `ur`).
+- **4 Selectable System-Wide App & Desktop Icons**: `Monochrome Dark` (default), `Monochrome Light`, `High-Contrast Monochrome`, and `Classic Cyan` — synchronized live across the main window, mini widget, system tray, taskbar, in-app SVG brand marks, and Windows Desktop / Start Menu shortcuts (`.lnk`).
+- **73-Language Catalog**: 17 fully translated locales (Turkish, English, German, Swedish, Norwegian, Danish, French, Polish, Italian, Dutch, Czech, Spanish, Portuguese, Japanese, Chinese, Korean, Arabic — 1,136 keys each) + 56 planned languages with automatic English fallback and full **RTL** mirroring (`ar`, `he`, `fa`, `ur`).
 
-### 🔌 Local REST API & Enterprise Integrations
-- Local **REST API** (OpenAPI 3.0), bound to `127.0.0.1:18456` by default.
-- API-key roles: `viewer`, `operator`, and `admin`, with rotation reminders.
-- **n8n + Telegram** workflow included in [`integrations/n8n/`](integrations/n8n/).
-- Outbound **webhooks** (none/HMAC/Basic auth), **Wake-on-LAN** magic-packet wizard, optional LAN mode with IP/CIDR allowlisting and TLS/mTLS, and **headless Windows service agent**.
+### 🔌 7-Subpage Integrations & Local REST API
+- Dedicated split-navigation pages for **Local REST API (OpenAPI 3.0)**, **Outbound Webhooks**, **MCP Server (AI)**, **CLI & Scripts**, **Wake-on-LAN** (with saved devices list), **UPS / NUT Monitor**, and **Enterprise Console**.
+- API-key roles (`viewer`, `operator`, `admin`), TLS/mTLS, IP/CIDR allowlisting, Ed25519-signed orders, **n8n + Telegram** workflow in [`integrations/n8n/`](integrations/n8n/), and headless Windows service agent.
 
 ---
 
@@ -155,7 +162,7 @@ For developers, AI coding agents, and enterprise teams, Power Pilot ships with a
 
 ### Build, Test & Release
 - **electron-builder 26.15** — custom Windows 11 NSIS installer/uninstaller, Portable build, and APPX packaging
-- **Vitest + Playwright 1.64** — 147 unit test suites (1,699 tests) and 18 Electron E2E test specs
+- **Vitest + Playwright 1.64** — 150 unit test suites (1,724 tests) and 18 Electron E2E test specs
 - **GitHub Actions** — CI (`main` and `development` branches), dependency audit, SBOM, signing, and release gates
 
 ---
@@ -205,7 +212,7 @@ Power_Pilot/
 │   ├── vendor/fonts/                # Locally bundled Material Symbols and Public Sans
 │   ├── index.html                   # Main frameless window markup (12 views)
 │   └── mini.html                    # Compact always-on-top mini widget
-├── tests/                           # Vitest unit tests (147 files) and Playwright Electron E2E tests
+├── tests/                           # Vitest unit tests (150 files) and Playwright Electron E2E tests
 ├── main.js                          # Electron main process, tray, windows, and IPC
 ├── preload.js                       # Context-isolated renderer bridge
 ├── electron-builder.config.cjs      # Signing-aware electron-builder configuration
@@ -345,8 +352,8 @@ Add Power Pilot to **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf**
 ### Run from Source
 
 ```bash
-git clone https://github.com/emirtdede/Power-Pilot.git
-cd Power-Pilot
+git clone https://github.com/emirtdede/power-pilot.git
+cd power-pilot
 npm install
 npm start
 ```
@@ -354,7 +361,7 @@ npm start
 ### Tests & Release Gates
 
 ```bash
-npm test                 # Vitest unit tests (147 suites / 1,699 tests)
+npm test                 # Vitest unit tests (150 suites / 1,724 tests)
 npm run test:security    # Static security & CSP checks
 npm run test:e2e         # Playwright Electron E2E suite
 npm run coverage         # Coverage report (release gate)
@@ -393,7 +400,7 @@ Build artifacts are produced under `dist/`:
 - **SBOM** — `npm run sbom`
 - **Signature verification** — `npm run verify:signature`
 
-Published builds and release notes are available on the [GitHub Releases](https://github.com/emirtdede/Power-Pilot/releases) page.
+Published builds and release notes are available on the [GitHub Releases](https://github.com/emirtdede/power-pilot/releases) page.
 
 ---
 
@@ -455,20 +462,35 @@ Geliştiriciler, yapay zekâ kodlama ajanları ve kurumsal ekipler için Power P
 - **Güç Eylemi Yedekleme (Fallback) Mekanizması**: birincil güç eylemi işletim sistemi veya donanım tarafından reddedilirse otomatik yedek eylem (*Hazırda Beklet → Uyku*, *Uyku → Ekranı Kilitle* veya *30 sn sonra yeniden dene*).
 - Kullanıcı aktifken **fail-closed uzaktan kapatma koruması**.
 
-### 🧩 Yerleşik MCP Sunucusu, Terminal CLI ve Dokümantasyon Merkezi
+### 🤖 Cihaz Üzeri Yapay Zekâ Asistanı 2.0 (Görev, Şablon, Bağlantı ve Doküman RAG)
+- İsteğe bağlı yerel **Qwen** LLM ve **Whisper** konuşmadan metne (STT) motorları; model dosyaları SHA-256 doğrulamalıdır ve bilgisayardan dışarı çıkmaz.
+- **7 Uzman Yerel Ajan (`AgentOrchestrator`)**: doğal dille görev kurma, özel şablon oluşturma (`templateAgent`), insan-onaylı entegrasyon yapılandırma önerisi (`connectionAgent`), sistem engelleyici teşhisi, enerji tasarrufu tahmini ve yerleşik bilgi tabanı (`DocsKnowledgeBase` + `docsQaAgent`) üzerinden çevrimdışı dokümantasyon soru-cevap + bölüm derin bağlantıları.
+
+### 🗂️ 22 Kategorili Otomasyon Şablonu ve Özel Şablon Oluşturucu
+- **7 Kategoride 22 Hazır Şablon**: *İndirme*, *Render ve Disk*, *Oyun*, *Üretkenlik*, *Zamanlı*, *Güç ve Pil*, *Güvenlik* (ve *Özel*).
+- **Geri sayım süresi**, **belirli saat** ve **Smart Finish koşul** tetikleyicileri; sıfırdan özel şablon oluşturma, mevcut şablonları düzenleme (*Düzenlendi* rozeti), çoğaltma, gizleme/silme, tekil sıfırlama ve tüm varsayılanları tek tıkla geri getirme.
+
+### 📊 Zenginleştirilmiş Enerji, CO₂ ve Otomasyon İstatistikleri
+- **7 Gün / 30 Gün / Tümü** dönem filtresi ve gerçek kapanış–yeniden açılış süresine dayalı doğrulama.
+- **4 Ana KPI Kartı** (*Önlenen Açık Kalma*, *Enerji Tasarrufu kWh + Aylık Projeksiyon*, *Maliyet Tasarrufu + Yıllık Projeksiyon*, *0.42 kg/kWh CO₂ Azaltımı + Başarı Oranı*), **5 İkincil Operasyonel Metrik**, etkileşimli **SVG günlük trend grafiği**, **eylem/kaynak dağılımları**, **24 saatlik yoğunluk haritası**, **ölçülen oturumlar tablosu** ve **CSV / JSON dışa aktarma**.
+
+### 🧩 Yerleşik MCP Sunucusu, Terminal CLI ve 10 Bölümlü Dokümantasyon Merkezi
 - **Yerleşik MCP Sunucusu (`src/mcp/server.js`)**: **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf** ve **Cline** ajanları için 8 araçlık (`powerpilot_status`, `powerpilot_schedule_timer`, `powerpilot_cancel_timer`, `powerpilot_list_tasks`, `powerpilot_power_action`, `powerpilot_audit_verify`, `powerpilot_inventory`, `powerpilot_pending_orders`) stdio JSON-RPC 2.0 sunucusu.
 - **Terminal ve PowerShell CLI (`powerpilot`)**: `--minutes` veya `--durationMs` ile görev kurma, görev listeleme/iptal, denetim zinciri doğrulama ve `--json` çıktısı.
-- **Bağımsız Dokümantasyon Sekmesi**: kenar menüsünden doğrudan erişilen; Hızlı Başlangıç, CLI ve Terminal, MCP Sunucusu, REST API ve Kısayollar alt sayfalarını tek tıkla kopyalama düğmeleriyle sunan rehber.
+- **Anlık Aramalı 10 Bölümlü Dokümantasyon Merkezi**: Hızlı Başlangıç, Güç ve Güvenlik, Smart Finish, Şablonlar, Yapay Zekâ Asistanı, CLI ve Terminal, MCP Sunucusu, REST API ve Webhooks, WoL/UPS/Kurumsal, Kısayollar ve Yardım alt sayfaları.
 
-### ⚙️ Çoklu Alt Sayfalı Ayarlar ve Hazır Profiller
-- **7 Ayrı Ayar Alt Sayfası**: *Genel ve Profiller*, *Görünüm ve Dil*, *Bildirimler ve Ses*, *Otomasyon ve Fallback*, *Enerji ve Yapay Zekâ*, *Klavye Kısayolları*, *Güvenlik, PIN ve Yedekleme*.
+### ⚙️ 8 Alt Sayfalı Ayarlar, Hazır Profiller ve Tanılama Merkezi
+- **8 Ayrı Ayar Alt Sayfası**: *Genel ve Profiller*, *Görünüm ve Dil*, *Bildirimler ve Ses*, *Otomasyon ve Fallback*, *Enerji ve Yapay Zekâ*, *Klavye Kısayolları* (canlı tuş kaydedici), *Sıfırlama ve Gizlilik*, *Tanılama ve Raporlar*.
+- **Tanılama, Çökme Raporları ve Destek Paketi (ZIP)**: maskelenmiş çökme/hata, arayüz, sistem ve ana süreç günlüklerini görüntüleme ve tek tıkla `powerpilot-support-*.zip` destek paketi üretme.
 - **Tek Tıkla Hazır Profiller**: *Standart Kullanıcı (Önerilen)*, *Gece İndirme ve Render*, *Kurumsal ve Kiosk Güvenliği*, *Maksimum Enerji Tasarrufu*.
-- **Anında Otomatik Kayıt ve Kritik Değişiklik Onayı**: standart tercihler anında kaydedilir; kritik değişiklikler (*Tam AI Özerkliği*, *Varsayılana Dön*, *Tüm Verileri Sil*) onay penceresi ister.
 
-### 🎨 28 Tema Paleti, Temaya Duyarlı SVG Logo ve 73 Dil Kataloğu
+### 🎨 28 Tema Paleti, 4 Sistem Geneli Uygulama İkonu ve 73 Dil Kataloğu
 - **2 Mod × 14 Renk Teması (28 Palet)**: Açık ve Koyu modlarda `Siyah (Obsidian)`, `Gri`, `Lacivert`, `Mavi`, `Cyan`, `İndigo`, `Mor`, `Pembe`, `Kırmızı`, `Turuncu`, `Sarı`, `Zümrüt Yeşili`, `Çimen Yeşili` ve `Açık Yeşil`.
-- **Temaya Uyumlu Uygulama İçi SVG Logo**: işletim sistemi uygulama ikonu sabit kalırken uygulama içi Power Pilot ve Vellium SVG logoları aktif temaya anında uyum sağlar.
-- **73 Dil Desteği**: 17 tam çevrili dil + 56 planlı dil için otomatik İngilizce yedekleme (fallback) ve 4 RTL dil (`ar`, `he`, `fa`, `ur`) için sağdan-sola arayüz desteği.
+- **4 Seçilebilir Sistem Geneli Uygulama ve Masaüstü İkonu**: `Koyu Monokrom` (varsayılan), `Açık Monokrom`, `Saf Siyah-Beyaz` ve `Klasik Cyan` — ana pencere, mini widget, sistem tepsisi, görev çubuğu, uygulama içi SVG logolar ve Windows Masaüstü/Başlat kısayollarında (`.lnk`) eşzamanlı güncellenir.
+- **73 Dil Desteği**: 17 tam çevrili dil (her biri 1.136 anahtar) + 56 planlı dil için otomatik İngilizce yedekleme (fallback) ve 4 RTL dil (`ar`, `he`, `fa`, `ur`) için sağdan-sola arayüz desteği.
+
+### 🔌 7 Alt Sayfalı Entegrasyonlar ve Yerel REST API
+- **Yerel REST API (OpenAPI 3.0)**, **Webhooks**, **MCP Sunucusu (AI)**, **CLI ve Betikler**, **Wake-on-LAN** (kayıtlı cihazlar listesi), **UPS / NUT İzleme** ve **Kurumsal Konsol** için bağımsız alt sayfalar.
 
 ---
 
@@ -486,8 +508,8 @@ Geliştiriciler, yapay zekâ kodlama ajanları ve kurumsal ekipler için Power P
 ### Kaynaktan Çalıştırma ve Derleme
 
 ```bash
-git clone https://github.com/emirtdede/Power-Pilot.git
-cd Power-Pilot
+git clone https://github.com/emirtdede/power-pilot.git
+cd power-pilot
 npm install
 npm start
 

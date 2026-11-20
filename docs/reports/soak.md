@@ -1,11 +1,11 @@
 # Konsol Yük / Soak Raporu (WP-15.T4)
 
-- Tarih: 2026-10-23T17:14:54.313Z
+- Tarih: 2026-11-20T13:57:58.412Z
 - Ajan: **100**
-- Süre: **1 saat** (720 tur, 5000 ms aralık; ilk 3 turda emir burst'ü)
+- Süre: **0.002 saat** (29 tur, 250 ms aralık; ilk 3 turda emir burst'ü)
 - Emir: **300** üretildi, **300** makbuzlandı, **0** kayıp
-- Gecikme: p50 **0.92 ms**, p95 **1.64 ms**, p99 **3.16 ms**
-- RSS: 82.34 MB → 80.93 MB (**%-1.71**)
+- Gecikme: p50 **0.94 ms**, p95 **1.47 ms**, p99 **2.66 ms**
+- RSS: 77.03 MB → 77.13 MB (**%0.13**)
 
 ## Kabul
 

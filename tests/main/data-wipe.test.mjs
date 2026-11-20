@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const {
-    planWipe, performWipe, WIPE_ENTRIES, ESSENTIAL_ENTRIES,
+    planWipe, performWipe, performWipeAsync, WIPE_ENTRIES, ESSENTIAL_ENTRIES,
     writePendingWipe, applyPendingWipe
 } = require('../../src/main/services/DataWipe.js');
 
@@ -152,6 +152,28 @@ describe('performWipe', () => {
         expect(result.failed).toEqual([]);
         expect(result.optionalFailed.map((f) => path.basename(f.path)).sort())
             .toEqual(['GPUCache', 'Local Storage']);
+    });
+
+    it('performWipeAsync ana iş parçacığını kilitlemeden zorunlu ve isteğe bağlı girdileri siler', async () => {
+        const removedOrder = [];
+        const rm = async (target) => {
+            removedOrder.push(path.basename(target));
+            if (target.endsWith('GPUCache')) {
+                const err = new Error('busy');
+                err.code = 'EBUSY';
+                throw err;
+            }
+        };
+        const result = await performWipeAsync(ROOT, {
+            exists: () => true,
+            readdir: () => ['GPUCache', 'powerpilot.db', 'secrets.v1.json'],
+            rm
+        });
+        expect(result.ok).toBe(true);
+        expect(result.failed).toEqual([]);
+        expect(result.optionalFailed.map((f) => path.basename(f.path))).toEqual(['GPUCache']);
+        // Zorunlu girdiler isteğe bağlılardan önce işlenir.
+        expect(removedOrder.indexOf('powerpilot.db')).toBeLessThan(removedOrder.indexOf('GPUCache'));
     });
 });
 

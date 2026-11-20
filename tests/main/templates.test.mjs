@@ -11,12 +11,14 @@ function condTypesOf(tpl) {
     return [];
 }
 
-describe('TemplateService hazır şablonlar (WBS-6.3)', () => {
-    it('10 hazır şablon döner, id benzersizdir', () => {
+describe('TemplateService hazır şablonlar (WBS-6.3 + WP-7)', () => {
+    it('22 hazır şablon döner, id benzersizdir ve 7 kategoriye dağılmıştır', () => {
         const tpls = new TemplateService().getTemplates();
-        expect(tpls).toHaveLength(10);
+        expect(tpls).toHaveLength(22);
         const ids = tpls.map((t) => t.id);
-        expect(new Set(ids).size).toBe(10);
+        expect(new Set(ids).size).toBe(22);
+        const categories = new Set(tpls.map((t) => t.category));
+        expect(categories.size).toBeGreaterThanOrEqual(7);
     });
 
     it('tüm şablonlar canlıdır: koşul destekli YA DA zamanlamalı (ölü şablon yok)', () => {
@@ -58,14 +60,55 @@ describe('TemplateService hazır şablonlar (WBS-6.3)', () => {
     });
 });
 
-describe('TemplateService kullanıcı şablonları (WBS-6.4)', () => {
+describe('TemplateService kullanıcı şablonları (WBS-6.4 + WP-7)', () => {
     it('kullanıcı şablonları custom bayrağıyla birleşir', () => {
         const storage = { getTemplates: () => [{ id: 'user_tpl_1', name: 'Benimki', action: 'sleep', defaultCondition: { type: 'cpu_usage' } }] };
         const tpls = new TemplateService(storage).getTemplates();
-        expect(tpls).toHaveLength(11);
+        expect(tpls).toHaveLength(23);
         const custom = tpls.find((t) => t.id === 'user_tpl_1');
         expect(custom.custom).toBe(true);
         expect(custom.disabled).toBeUndefined();
+    });
+
+    it('yerleşik şablon override (düzenleme) ve gizleme/geri getirme çalışır', () => {
+        const storage = {
+            getTemplates: () => [],
+            getSettings: () => ({
+                templateOverrides: {
+                    tpl_render_shutdown: {
+                        name: 'Özel Render Kapatma',
+                        action: 'sleep',
+                        defaultCondition: { type: 'cpu_usage', thresholdPercent: 15, stabilitySeconds: 90 }
+                    }
+                },
+                hiddenBuiltInTemplates: ['tpl_meeting_lock']
+            })
+        };
+        const svc = new TemplateService(storage);
+        const tpls = svc.getTemplates();
+        expect(tpls).toHaveLength(21);
+        expect(tpls.find((t) => t.id === 'tpl_meeting_lock')).toBeUndefined();
+        const edited = tpls.find((t) => t.id === 'tpl_render_shutdown');
+        expect(edited.modified).toBe(true);
+        expect(edited.name).toBe('Özel Render Kapatma');
+        expect(edited.action).toBe('sleep');
+        const hidden = svc.getHiddenBuiltIns();
+        expect(hidden.map((h) => h.id)).toEqual(['tpl_meeting_lock']);
+    });
+
+    it('duration tetikleyicili şablonları doğrular', () => {
+        expect(TemplateService.isValidTemplate({
+            id: 'user_tpl_dur',
+            name: '45 Dk Kapat',
+            action: 'shutdown',
+            trigger: { type: 'duration', durationMs: 45 * 60000 }
+        })).toBe(true);
+        expect(TemplateService.isValidTemplate({
+            id: 'user_tpl_bad_dur',
+            name: 'Geçersiz Süre',
+            action: 'shutdown',
+            trigger: { type: 'duration', durationMs: 0 }
+        })).toBe(false);
     });
 
     it('bozuk kullanıcı kaydı karantinaya alınır (uygulama açılır)', () => {

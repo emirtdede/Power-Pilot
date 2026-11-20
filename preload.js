@@ -31,18 +31,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // History & Stats API
     getHistory: (filter) => ipcRenderer.invoke('get-history', filter),
     clearHistory: () => ipcRenderer.invoke('clear-history'),
-    getStatistics: () => ipcRenderer.invoke('get-statistics'),
+    getStatistics: (options) => ipcRenderer.invoke('get-statistics', options),
+    exportStatistics: (args) => ipcRenderer.invoke('export-statistics', args),
 
-    // Templates API
-    getTemplates: () => ipcRenderer.invoke('get-templates'),
+    // Templates API (WP-7: tam CRUD + varsayılan sıfırlama/geri getirme)
+    getTemplates: (options) => ipcRenderer.invoke('get-templates', options),
+    getHiddenTemplates: () => ipcRenderer.invoke('get-hidden-templates'),
     saveTemplate: (tpl) => ipcRenderer.invoke('save-template', tpl),
     deleteTemplate: (templateId) => ipcRenderer.invoke('delete-template', templateId),
+    resetTemplate: (templateId) => ipcRenderer.invoke('reset-template', templateId),
+    restoreDefaultTemplates: (options) => ipcRenderer.invoke('restore-default-templates', options),
     exportTemplates: () => ipcRenderer.invoke('export-templates'),
     importTemplates: () => ipcRenderer.invoke('import-templates'),
 
-    // AI Assistant API (WBS-7.4)
+    // AI Assistant API (WBS-7.4 + WP-8: şablon, bağlantı, yerel Docs RAG)
     aiStatus: () => ipcRenderer.invoke('ai-status'),
     aiParse: (text) => ipcRenderer.invoke('ai-parse', text),
+    aiAssist: (payload) => ipcRenderer.invoke('ai-assist', payload),
+    searchDocs: (query) => ipcRenderer.invoke('search-docs', query),
     aiDiagnose: (reason) => ipcRenderer.invoke('ai-diagnose', reason),
     aiEnergy: () => ipcRenderer.invoke('ai-energy'),
     aiSuggest: () => ipcRenderer.invoke('ai-suggest'),
@@ -83,12 +89,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveWebhooks: (webhooks) => ipcRenderer.invoke('save-webhooks', webhooks),
     testWebhook: (hook) => ipcRenderer.invoke('test-webhook', hook),
     sendWakeOnLan: (args) => ipcRenderer.invoke('send-wol', args),
+    getWolDevices: () => ipcRenderer.invoke('get-wol-devices'),
+    saveWolDevices: (devices) => ipcRenderer.invoke('save-wol-devices', devices),
+    testUps: (args) => ipcRenderer.invoke('test-ups', args),
+    getMcpConfig: () => ipcRenderer.invoke('get-mcp-config'),
+
+    // App Icon & Desktop Shortcut API (WP-2)
+    getAppIconStatus: () => ipcRenderer.invoke('get-app-icon-status'),
+    createDesktopShortcut: () => ipcRenderer.invoke('create-desktop-shortcut'),
+
+    // Diagnostics & Crash Reports API (WP-5)
+    getDiagnostics: () => ipcRenderer.invoke('get-diagnostics'),
+    clearDiagnostics: () => ipcRenderer.invoke('clear-diagnostics'),
+    reportRendererError: (payload) => ipcRenderer.send('report-renderer-error', payload),
+    createSupportBundle: () => ipcRenderer.invoke('create-support-bundle'),
+    revealSupportBundle: (filePath) => ipcRenderer.invoke('reveal-support-bundle', filePath),
+    openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
+    composeSupportMail: (args) => ipcRenderer.invoke('compose-support-mail', args),
+    openGithubIssue: () => ipcRenderer.invoke('open-github-issue'),
+
+    // Settings Backup & Test Notification API (WP-9)
+    exportSettings: () => ipcRenderer.invoke('export-settings'),
+    importSettings: (args) => ipcRenderer.invoke('import-settings', args),
+    testDesktopNotification: () => ipcRenderer.invoke('test-desktop-notification'),
 
     // Enterprise pilot API (FAZ B/D) — konsol eşleştirme, envanter, denetim
     getInventory: () => ipcRenderer.invoke('get-inventory'),
     getExemptions: () => ipcRenderer.invoke('get-exemptions'),
     getSecurityStatus: () => ipcRenderer.invoke('get-security-status'),
-    getAudit: () => ipcRenderer.invoke('get-audit'),
+    getAudit: (args) => ipcRenderer.invoke('get-audit', args),
     consoleSync: () => ipcRenderer.invoke('console-sync'),
 
     // Event listeners

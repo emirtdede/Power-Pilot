@@ -22,17 +22,30 @@ function makeOrchestrator(overrides = {}) {
     return { orch: new AgentOrchestrator({ aiService, storage, history }), storage, history, aiService };
 }
 
-describe('AgentOrchestrator yönlendirme (TS-9.1)', () => {
-    it('manifest 4 ajanı listeler', () => {
+describe('AgentOrchestrator yönlendirme (TS-9.1 + WP-8)', () => {
+    it('manifest 7 ajanı listeler', () => {
         const ids = AgentOrchestrator.manifests().map((m) => m.id).sort();
-        expect(ids).toEqual(['command', 'diagnose', 'energy', 'recommender']);
-        expect(AGENT_MANIFESTS).toHaveLength(4);
+        expect(ids).toEqual(['command', 'connection', 'diagnose', 'docs_qa', 'energy', 'recommender', 'template']);
+        expect(AGENT_MANIFESTS).toHaveLength(7);
     });
 
     it('niyetler doğru ajana gider', () => {
         expect(AgentOrchestrator.route('neden kapanmadı?').agentId).toBe('diagnose');
         expect(AgentOrchestrator.route('bu ay ne kadar tasarruf ettim').agentId).toBe('energy');
         expect(AgentOrchestrator.route('bana kural öner').agentId).toBe('recommender');
+        expect(AgentOrchestrator.route('render bitince kapatan şablon oluştur').agentId).toBe('template');
+        expect(AgentOrchestrator.route('REST API 18456 portunu aç').agentId).toBe('connection');
+        expect(AgentOrchestrator.route('Smart Finish koşulları nasıl çalışır?').agentId).toBe('docs_qa');
+    });
+
+    it('runAssistant LLM yokken doküman sorusunu yerel Docs RAG ile yanıtlar', async () => {
+        const { orch } = makeOrchestrator({
+            aiService: { parseCommand: vi.fn(async () => ({ ok: false, code: 'AI_NOT_READY' })) }
+        });
+        const res = await orch.runAssistant('MCP sunucusu nasıl bağlanır?', { language: 'tr' });
+        expect(res.ok).toBe(true);
+        expect(res.kind).toBe('docs_answer');
+        expect(res.citations.length).toBeGreaterThan(0);
     });
 
     it('eşleşme yoksa güvenli varsayılan command', () => {

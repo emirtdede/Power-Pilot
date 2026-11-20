@@ -358,6 +358,7 @@ function validateWol(payload) {
 }
 
 const { ALL_LANGUAGE_CODES } = require('../i18n');
+const { APP_ICON_IDS } = require('../services/AppIconService');
 const SUPPORTED_LANGUAGES = ALL_LANGUAGE_CODES;
 const THEME_IDS = [
     'obsidian', 'slate', 'navy', 'blue', 'cyan', 'indigo', 'purple',
@@ -368,6 +369,7 @@ const SETTINGS_SCHEMA = {
     autostart: 'boolean',
     theme: ['light', 'dark'],
     themeId: THEME_IDS,
+    appIcon: [...APP_ICON_IDS],
     sidebarCollapsed: 'boolean',
     notifications: 'boolean',
     // null = kullanıcı henüz dil seçmedi → ilk çalıştırmada sistem dili algılanır.
@@ -406,6 +408,30 @@ const SETTINGS_SCHEMA = {
     // Uyku/standby dönüşü politikası: kaçırılan görev çalıştırılsın mı, atlansın mı?
     wakeMode: ['run', 'skip'],
     wakeToleranceMinutes: { int: [0, 1440] },
+    // WP-9: Gerçekten kablolanmış kullanıcı tercihleri ve güvenlik politikası ayarları
+    closeToTray: 'boolean',
+    startMinimized: 'boolean',
+    autoMiniWidget: 'boolean',
+    defaultAction: ['shutdown', 'restart', 'sleep', 'hibernate', 'lock', 'signout'],
+    defaultMinutes: { int: [1, 1440] },
+    clockFormat: ['24h', '12h'],
+    soundMode: ['auto', 'always', 'never', 'on', 'off'],
+    uiDensity: ['comfortable', 'compact'],
+    toastPosition: ['bottom-right', 'top-right', 'bottom-left', 'top-left'],
+    desktopNotifyStart: 'boolean',
+    desktopNotifyWarn: 'boolean',
+    desktopNotifySkip: 'boolean',
+    prewarnSeconds: { int: [0, 300] },
+    quietHoursEnabled: 'boolean',
+    quietStart: { str: [5, 5], pattern: /^([01]\d|2[0-3]):([0-5]\d)$/ },
+    quietEnd: { str: [5, 5], pattern: /^([01]\d|2[0-3]):([0-5]\d)$/ },
+    fallbackAction: ['none', 'hibernate_to_sleep', 'sleep_to_lock', 'retry_once', 'sleep', 'hibernate', 'lock'],
+    graceSeconds: { int: [0, 120] },
+    protectFullscreen: 'boolean',
+    protectActiveIo: 'boolean',
+    pinLengthMode: ['flex', '4', '6', '8'],
+    autoBackupEnabled: 'boolean',
+    shortcuts: { shortcutMap: true }
 };
 
 /**
@@ -490,6 +516,23 @@ function validateSettings(patch, currentSettings = {}, schema = SETTINGS_SCHEMA)
             try { parsed = new URL(val); } catch (_) { return fail(`${key} geçerli URL olmalı.`, 'INVALID_SETTING'); }
             if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
                 return fail(`${key} http(s) ile başlamalı.`, 'INVALID_SETTING');
+            }
+        }
+        // WP-9: özel klavye kısayol haritası (5 sabit anahtar)
+        if (rule && rule.shortcutMap) {
+            if (!val || typeof val !== 'object' || Array.isArray(val)) {
+                return fail(`${key} geçerli bir kısayol nesnesi olmalı.`, 'INVALID_SETTING');
+            }
+            const allowedShortcutKeys = new Set(['theme', 'quickstart', 'cancel', 'settings', 'docs']);
+            const entries = Object.entries(val);
+            if (entries.length === 0 || entries.length > 5) {
+                return fail(`${key} 1..5 kısayol içermeli.`, 'INVALID_SETTING');
+            }
+            for (const [sk, sv] of entries) {
+                if (!allowedShortcutKeys.has(sk)) return fail(`${key}.${sk} bilinmeyen kısayol.`, 'INVALID_SETTING');
+                if (typeof sv !== 'string' || sv.length < 1 || sv.length > 32 || !/^[A-Za-z0-9+,\-. ]+$/.test(sv)) {
+                    return fail(`${key}.${sk} geçersiz tuş kombinasyonu.`, 'INVALID_SETTING');
+                }
             }
         }
     }

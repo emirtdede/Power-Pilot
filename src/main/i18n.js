@@ -259,7 +259,19 @@ const BUILTIN_TEMPLATE_KEYS = {
     'Her Gece 01:00 Uyut': 'tplNightlySleep',
     'Pil Azalınca Hazırda Beklet': 'tplBatteryHibernate',
     'İndirilenler Sabitlenince Kapat': 'tplBackupStable',
-    'Sunum Kapanınca Kilitle': 'tplPresentationLock'
+    'Sunum Kapanınca Kilitle': 'tplPresentationLock',
+    'Ağ ve Disk Durunca Kapat': 'tplTorrentCompleteShutdown',
+    'Render Bitince Uyku Modu': 'tplRenderSleep',
+    'Büyük Kopyalama / Yedek Bitince Kapat': 'tplDiskCopyShutdown',
+    'Epic Games İndirmesi Bitince Kapat': 'tplEpicDownloadShutdown',
+    'Oyun Sonrası 30 Dk Boşta Uyut': 'tplGamingIdleSleep',
+    '30 Dakika Sonra Mola Kilidi': 'tplFocusLock30m',
+    'Hafta İçi 18:30 Ekranı Kilitle': 'tplWorkdayEndLock',
+    'OBS Yayını Kapanınca Uyut': 'tplObsStreamSleep',
+    'Her Gece 02:00 Kapat': 'tplNightlyShutdown',
+    'Gece 04:00 Bakım Yeniden Başlat': 'tplWeeklyRestart',
+    '1 Saat Sonra Uyut': 'tplTimer60mSleep',
+    '2 Saat Sonra Kapat': 'tplTimer120mShutdown'
 };
 
 function taskName(language, task) {

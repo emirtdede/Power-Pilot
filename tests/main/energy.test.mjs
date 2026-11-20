@@ -108,4 +108,32 @@ describe('EnergyEstimateService', () => {
         expect(st.preventedUptimeHours).toBe('0.0');
         expect(st.totalActionsCount).toBe(1);
     });
+
+    it('WP-6: dönem filtresi, CO2 tahmini, dağılımlar, 24s harita ve projeksiyon üretir', () => {
+        const nowMs = Date.parse('2026-10-16T12:00:00.000Z');
+        const history = [
+            { resultCode: 'success', action: 'shutdown', source: 'user_interface', timestamp: '2026-10-14T19:30:00.000Z' },
+            { resultCode: 'success', action: 'sleep', source: 'cli', timestamp: '2026-10-15T22:00:00.000Z' },
+            { resultCode: 'blocked_by_policy', action: 'shutdown', source: 'local_api', timestamp: '2026-10-15T23:00:00.000Z' },
+            { resultCode: 'success', action: 'shutdown', source: 'user_interface', timestamp: '2026-08-01T20:00:00.000Z' }
+        ];
+        const boots = ['2026-10-15T07:30:00.000Z', '2026-10-16T06:00:00.000Z'];
+        const st = makeService(BASE_SETTINGS, history, boots).getStatistics({ days: 7, nowMs });
+
+        expect(st.totalRuns).toBe(3);
+        expect(st.totalActionsCount).toBe(2);
+        expect(st.blockedCount).toBe(1);
+        expect(st.successRatePct).toBe(67);
+        expect(st.preventedUptimeHours).toBe('20.0');
+        expect(st.kwhSaved).toBe('3.00');
+        expect(st.estimatedCo2Kg).toBe('1.26');
+        expect(st.monthlyProjectedKwh).not.toBeNull();
+        expect(st.yearlyProjectedCostFormatted).toContain('TL');
+        expect(st.hourlyDistribution).toHaveLength(24);
+        expect(st.dailySeries).toHaveLength(7);
+        expect(st.actionBreakdown.length).toBeGreaterThanOrEqual(2);
+        expect(st.sourceBreakdown.length).toBeGreaterThanOrEqual(2);
+        expect(st.recentSavingsEvents).toHaveLength(2);
+        expect(st.longestOffSessionHours).toBe(12);
+    });
 });

@@ -568,6 +568,27 @@ class TaskManager {
                 result = { success: false, error: err && err.message ? err.message : 'Güç işlemi hatası.' };
             }
 
+            // WP-9: Ana güç eylemi başarısızsa ve ayarlı yedek eylem (fallbackAction) uygunsa dene.
+            let usedFallback = null;
+            if ((!result || !result.success) && this.storage && typeof this.storage.getSettings === 'function') {
+                try {
+                    const fb = this.storage.getSettings().fallbackAction;
+                    let targetFb = null;
+                    if (fb === 'hibernate_to_sleep' && task.action === 'hibernate') targetFb = 'sleep';
+                    else if (fb === 'sleep_to_lock' && task.action === 'sleep') targetFb = 'lock';
+                    else if (fb === 'retry_once') targetFb = task.action;
+                    else if (fb && fb !== 'none' && fb !== task.action && ['sleep', 'hibernate', 'lock'].includes(fb)) targetFb = fb;
+                    if (targetFb) {
+                        log.warn(`[TaskManager] Ana eylem (${task.action}) başarısız; yedek eylem deneniyor: ${targetFb}`);
+                        const fbRes = await this.power.execute(targetFb);
+                        if (fbRes && fbRes.success) {
+                            result = fbRes;
+                            usedFallback = fb === 'retry_once' ? 'retry_once' : targetFb;
+                        }
+                    }
+                } catch (_) { /* ana hata korunur */ }
+            }
+
             // OS çağrısı başladıktan sonra iptal "çok geç"tir; sonuç yine yazılır.
             const cancelTooLate = claim.cancelRequested === true;
 
@@ -576,10 +597,11 @@ class TaskManager {
                 task.errorInfo = null;
                 task.lastResult = {
                     code: EXECUTION_RESULT_CODE.SUCCESS,
-                    message: 'Başarıyla çalıştırıldı',
+                    message: usedFallback ? `Yedek eylem (${usedFallback}) çalıştırıldı` : 'Başarıyla çalıştırıldı',
+                    ...(usedFallback ? { fallbackAction: usedFallback } : {}),
                     ...(cancelTooLate ? { note: 'CANCEL_TOO_LATE' } : {})
                 };
-                if (this.history) this.history.record(task, EXECUTION_RESULT_CODE.SUCCESS, 'Başarılı');
+                if (this.history) this.history.record(task, EXECUTION_RESULT_CODE.SUCCESS, usedFallback ? `Yedek eylem: ${usedFallback}` : 'Başarılı');
                 this.notifyResult(task, true);
 
                 // A6: kapatma komutu döndü ama oturum kapanmadıysa Windows
@@ -726,13 +748,29 @@ class TaskManager {
                 }
             }
             : taskData;
-        const task = new AutomationTask({
+        const defaultPrewarn = (() => {
+            try {
+                const s = this.storage && typeof this.storage.getSettings === 'function' ? this.storage.getSettings() : {};
+                return Number.isInteger(s.prewarnSeconds) && s.prewarnSeconds >= 0 && s.prewarnSeconds <= 300 ? s.prewarnSeconds : null;
+            } catch (_) {
+                return null;
+            }
+        })();
+        const taskInput = {
             ...normalizedData,
             // K-04: mod istemci payload'ından değil, kalıcı güvenlik ayarından gelir.
             mode: this.resolveAutonomyMode(),
             // ADR-08: gelen `id` ne olursa olsun sunucu yeni kimlik üretir.
             id: AutomationTask.generateId()
-        });
+        };
+        if (defaultPrewarn !== null && (!taskInput.warningConfig || taskInput.warningConfig.durationSeconds === undefined)) {
+            taskInput.warningConfig = {
+                enabled: defaultPrewarn > 0,
+                durationSeconds: defaultPrewarn,
+                ...(taskInput.warningConfig || {})
+            };
+        }
+        const task = new AutomationTask(taskInput);
         const hasConditions = !!(task.conditionGroup && Array.isArray(task.conditionGroup.conditions) && task.conditionGroup.conditions.length > 0);
         if (hasConditions) {
             // ADR-09 invariant: koşullu görev Windows'a/timer'a çevrilmez.

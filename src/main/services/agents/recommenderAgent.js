@@ -1,18 +1,18 @@
 /**
- * agents/recommenderAgent.js — F9.1
- * Proaktif önerici: 7 günlük desen + katı sessizlik kuralları.
- * - Haftada en fazla 1 teklif (settings.aiAdvisorLastAt).
- * - Reddedilen konuda 30 gün susma (settings.aiDismissed = {konu: ts}).
- * - 22:00–08:00 arası teklif üretilmez.
+ * agents/recommenderAgent.js — F9.1 + WP-8
+ * Proaktif önerici (TR / EN): 7 günlük desen + katı sessizlik kuralları.
  */
+'use strict';
+
 const DAY_MS = 86400000;
 
 module.exports = {
     id: 'recommender',
     version: '1.0.0',
     description: 'Kullanım deseninden tek kural teklifi üretir.',
-    async execute({ history, settings, now }) {
+    async execute({ history, settings, now, language = 'tr' }) {
         const at = now || Date.now();
+        const isTr = String(language || 'tr').toLowerCase().startsWith('tr');
         const hour = new Date(at).getHours();
         if (hour >= 22 || hour < 8) {
             return { ok: true, suggestion: null, reason: 'QUIET_HOURS' };
@@ -40,7 +40,9 @@ module.exports = {
                 suggestion: {
                     templateId: 'tpl_nightly_sleep',
                     topic: 'nightly',
-                    text: `Son 7 günde ${nightlies.length} kez gece kapatmışsın. Her gece 01:00 uyku kuralı kuralım mı?`
+                    text: isTr
+                        ? `Son 7 günde ${nightlies.length} kez gece kapatmışsın. Her gece 01:00 uyku kuralı kuralım mı?`
+                        : `You shut down late at night ${nightlies.length} times in the last 7 days. Schedule automatic sleep at 01:00 every night?`
                 }
             };
         }

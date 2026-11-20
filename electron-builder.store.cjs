@@ -60,6 +60,7 @@ module.exports = {
         applicationId: 'PowerPilot',
         identityName: 'Vellium.PowerPilot',
         displayName: 'Power Pilot',
+        backgroundColor: '#09090b',
         publisher: process.env.APPX_PUBLISHER,
         publisherDisplayName: 'Vellium.dev',
         languages: [

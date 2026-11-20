@@ -13,6 +13,7 @@
     "mcp": "node src/mcp/server.js",
     "build:renderer": "node scripts/build-renderer.mjs",
     "build:locales": "node scripts/build-locales.mjs",
+    "build:icons": "node scripts/generate-brand-assets.cjs && node scripts/generate-installer-assets.cjs",
     "prepack": "npm run build:renderer",
     "pack": "electron-builder --dir --config electron-builder.config.cjs --publish never",
     "pack:store": "electron-builder --dir --config electron-builder.store.cjs --publish never",
@@ -87,6 +88,7 @@
       "!node_modules/node-llama-cpp/llama/gitRelease.bundle",
       "!node_modules/@fugood/whisper.node/src/**",
       "!node_modules/@fugood/node-whisper-wasm/**",
+      "!scripts/generate-*.cjs",
       "!**/*.map"
     ],
     "electronLanguages": [
@@ -111,7 +113,10 @@
     ],
     "asarUnpack": [
       "**/*.node",
-      "**/node_modules/ps-list/vendor/*.exe"
+      "**/node_modules/ps-list/vendor/*.exe",
+      "powerpilot_icon.ico",
+      "src/assets/icons/*.ico",
+      "src/assets/icons/*.png"
     ],
     "win": {
       "target": [
@@ -138,6 +143,7 @@
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "powerpilot_icon.ico",
       "uninstallerIcon": "powerpilot_icon.ico",
+      "installerHeaderIcon": "powerpilot_icon.ico",
       "installerSidebar": "build/installerSidebar.bmp",
       "uninstallerSidebar": "build/uninstallerSidebar.bmp",
       "installerHeader": "build/installerHeader.bmp",
@@ -147,6 +153,7 @@
       "artifactName": "${productName} ${version}.${ext}",
       "applicationId": "PowerPilot",
       "identityName": "Vellium.PowerPilot",
+      "backgroundColor": "#09090b",
       "publisher": "${env.APPX_PUBLISHER}",
       "publisherDisplayName": "Vellium",
       "languages": [

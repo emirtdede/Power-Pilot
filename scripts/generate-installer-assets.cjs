@@ -60,12 +60,22 @@ function encodeBmp24(rgbaBuffer, width, height) {
     return out;
 }
 
-function powerPilotMark(ringColor, boltColor, bgColor, borderColor) {
+function powerPilotMark(idPrefix, ringColor, boltTop, boltBottom, bgTop, bgBottom, innerOpacity = '0.35') {
     return `
-      <rect x="6" y="6" width="244" height="244" rx="56" fill="${bgColor}" stroke="${borderColor}" stroke-width="10"/>
-      <circle cx="128" cy="128" r="80" fill="none" stroke="${ringColor}" stroke-width="13" stroke-dasharray="22 15" stroke-linecap="round"/>
-      <circle cx="128" cy="128" r="61" fill="none" stroke="${ringColor}" stroke-width="4.5" opacity="0.45"/>
-      <path d="M136 62 L76 146 L120 146 L112 196 L180 106 L136 106 Z" fill="${boltColor}"/>
+      <defs>
+        <linearGradient id="${idPrefix}-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${bgTop}"/>
+          <stop offset="100%" stop-color="${bgBottom}"/>
+        </linearGradient>
+        <linearGradient id="${idPrefix}-bolt" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${boltTop}"/>
+          <stop offset="100%" stop-color="${boltBottom}"/>
+        </linearGradient>
+      </defs>
+      <rect x="4" y="4" width="248" height="248" rx="56" fill="url(#${idPrefix}-bg)" stroke="rgba(255,255,255,0.12)" stroke-width="6"/>
+      <circle cx="128" cy="128" r="80" fill="none" stroke="${ringColor}" stroke-width="12" stroke-dasharray="20 15" stroke-linecap="round"/>
+      <circle cx="128" cy="128" r="62" fill="none" stroke="#ffffff" stroke-width="4" opacity="${innerOpacity}"/>
+      <path d="M136 64 L76 148 L120 148 L112 196 L180 108 L136 108 Z" fill="url(#${idPrefix}-bolt)"/>
     `;
 }
 
@@ -95,7 +105,7 @@ const installerSidebarSvg = `<svg xmlns="${SVG_NS}" viewBox="0 0 328 628" width=
   <circle cx="292" cy="70" r="146" fill="none" stroke="#ffffff" stroke-opacity="0.02" stroke-width="2" />
 
   <g transform="translate(36 52) scale(0.375)">
-    ${powerPilotMark('#a1a1aa', '#fafafa', '#18181b', '#3f3f46')}
+    ${powerPilotMark('inst', '#a1a1aa', '#ffffff', '#d4d4d8', '#09090b', '#27272a', '0.35')}
   </g>
 
   <text x="36" y="194" fill="#fafafa" font-family="'Segoe UI', system-ui, sans-serif" font-size="36" font-weight="700" letter-spacing="-0.8">Power Pilot</text>
@@ -144,7 +154,7 @@ const uninstallerSidebarSvg = `<svg xmlns="${SVG_NS}" viewBox="0 0 328 628" widt
   <line x1="327" y1="0" x2="327" y2="628" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2" />
 
   <g transform="translate(36 52) scale(0.375)">
-    ${powerPilotMark('#fda4af', '#f43f5e', '#1f1619', '#4c222b')}
+    ${powerPilotMark('uninst', '#a1a1aa', '#ffffff', '#d4d4d8', '#09090b', '#27272a', '0.35')}
   </g>
 
   <text x="36" y="194" fill="#fafafa" font-family="'Segoe UI', system-ui, sans-serif" font-size="36" font-weight="700" letter-spacing="-0.8">Power Pilot</text>
@@ -169,7 +179,7 @@ const uninstallerSidebarSvg = `<svg xmlns="${SVG_NS}" viewBox="0 0 328 628" widt
 const installerHeaderSvg = `<svg xmlns="${SVG_NS}" viewBox="0 0 300 114" width="300" height="114">
   <rect width="300" height="114" fill="#ffffff" />
   <g transform="translate(20 23) scale(0.265625)">
-    ${powerPilotMark('#a1a1aa', '#ffffff', '#09090b', '#27272a')}
+    ${powerPilotMark('hdr', '#a1a1aa', '#ffffff', '#d4d4d8', '#09090b', '#27272a', '0.35')}
   </g>
   <text x="102" y="67" fill="#09090b" font-family="'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="700" letter-spacing="-0.6">Power Pilot</text>
 </svg>`;
