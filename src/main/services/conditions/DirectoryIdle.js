@@ -46,8 +46,8 @@ function scanDirectory(dirPath, limits = {}) {
     } catch (err) {
         return { ok: false, code: 'DIRECTORY_UNAVAILABLE', error: err.message };
     }
-    if (!rootStat.isDirectory()) return { ok: false, code: 'NOT_A_DIRECTORY' };
     if (rootStat.isSymbolicLink()) return { ok: false, code: 'REPARSE_POINT' };
+    if (!rootStat.isDirectory()) return { ok: false, code: 'NOT_A_DIRECTORY' };
 
     let latestMtime = 0;
     let totalSize = 0;

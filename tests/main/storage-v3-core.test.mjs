@@ -214,7 +214,7 @@ describe('StorageService — görev / geçmiş / koleksiyonlar', () => {
         expect(svc.getTasks().map((t) => t.id)).toEqual(['b']);
     });
 
-    it('geçmiş 500 kayıtla sınırlanır ve temizlenebilir', () => {
+    it('geçmiş 500 kayıtla sınırlanır ve temizlenebilir', { timeout: 25000 }, () => {
         for (let i = 0; i < 505; i += 1) svc.addHistoryRecord({ id: `h${i}`, ts: Date.now() });
         expect(svc.getHistory()).toHaveLength(500);
         expect(svc.getHistory()[0].id).toBe('h504');

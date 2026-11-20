@@ -686,49 +686,19 @@
                         <div class="pp-split-sidebar-nav" data-split-nav="settings">
                             <div class="pp-split-nav-group">
                                 <span class="pp-split-nav-group-title" data-i18n="settingsNavPrefs">Tercihler</span>
-                                <button type="button" class="pp-split-nav-link is-active"
-                                    data-scroll-target="settings-sec-general">
-                                    <span class="material-symbols-outlined" aria-hidden="true">tune</span>
-                                    <span data-i18n="settingsTabGeneral">Genel ve Profiller</span>
-                                </button>
-                                <button type="button" class="pp-split-nav-link"
-                                    data-scroll-target="settings-sec-appearance">
-                                    <span class="material-symbols-outlined" aria-hidden="true">palette</span>
-                                    <span data-i18n="settingsSecAppearance">Görünüm ve Dil</span>
-                                </button>
-                                <button type="button" class="pp-split-nav-link"
-                                    data-scroll-target="settings-sec-notifications">
-                                    <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
-                                    <span data-i18n="settingsTabNotifications">Bildirimler ve Ses</span>
-                                </button>
+                                <button type="button" class="pp-split-nav-link is-active" data-scroll-target="settings-sec-general"><span class="material-symbols-outlined" aria-hidden="true">tune</span><span data-i18n="settingsTabGeneral">Genel ve Profiller</span></button>
+                                <button type="button" class="pp-split-nav-link" data-scroll-target="settings-sec-appearance"><span class="material-symbols-outlined" aria-hidden="true">palette</span><span data-i18n="settingsSecAppearance">Görünüm ve Dil</span></button>
+                                <button type="button" class="pp-split-nav-link" data-scroll-target="settings-sec-notifications"><span class="material-symbols-outlined" aria-hidden="true">notifications</span><span data-i18n="settingsTabNotifications">Bildirimler ve Ses</span></button>
                             </div>
                             <div class="pp-split-nav-group">
-                                <span class="pp-split-nav-group-title"
-                                    data-i18n="settingsNavAutomation">Otomasyon</span>
-                                <button type="button" class="pp-split-nav-link"
-                                    data-scroll-target="settings-sec-automation">
-                                    <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
-                                    <span data-i18n="settingsNavAutomation">Otomasyon</span>
-                                </button>
-                                <button type="button" class="pp-split-nav-link"
-                                    data-scroll-target="settings-sec-energy">
-                                    <span class="material-symbols-outlined" aria-hidden="true">bolt</span>
-                                    <span data-i18n="settingsSecEnergyAi">Enerji ve Yapay Zeka</span>
-                                </button>
-                                <button type="button" class="pp-split-nav-link"
-                                    data-scroll-target="settings-sec-shortcuts">
-                                    <span class="material-symbols-outlined" aria-hidden="true">keyboard</span>
-                                    <span data-i18n="settingsTabShortcuts">Klavye Kısayolları</span>
-                                </button>
+                                <span class="pp-split-nav-group-title" data-i18n="settingsNavAutomation">Otomasyon</span>
+                                <button type="button" class="pp-split-nav-link" data-scroll-target="settings-sec-automation"><span class="material-symbols-outlined" aria-hidden="true">schedule</span><span data-i18n="settingsNavAutomation">Otomasyon</span></button>
+                                <button type="button" class="pp-split-nav-link" data-scroll-target="settings-sec-energy"><span class="material-symbols-outlined" aria-hidden="true">bolt</span><span data-i18n="settingsSecEnergyAi">Enerji ve Yapay Zeka</span></button>
+                                <button type="button" class="pp-split-nav-link" data-scroll-target="settings-sec-shortcuts"><span class="material-symbols-outlined" aria-hidden="true">keyboard</span><span data-i18n="settingsTabShortcuts">Klavye Kısayolları</span></button>
                             </div>
                             <div class="pp-split-nav-group">
-                                <span class="pp-split-nav-group-title" data-i18n="settingsNavSecurity">Güvenlik ve
-                                    Veri</span>
-                                <button type="button" class="pp-split-nav-link"
-                                    data-scroll-target="settings-sec-security">
-                                    <span class="material-symbols-outlined" aria-hidden="true">shield_lock</span>
-                                    <span data-i18n="settingsSecDanger">Sıfırlama ve Gizlilik</span>
-                                </button>
+                                <span class="pp-split-nav-group-title" data-i18n="settingsNavSecurity">Güvenlik ve Veri</span>
+                                <button type="button" class="pp-split-nav-link" data-scroll-target="settings-sec-security"><span class="material-symbols-outlined" aria-hidden="true">shield_lock</span><span data-i18n="settingsSecDanger">Sıfırlama ve Gizlilik</span></button>
                             </div>
                         </div>
                     </aside>
@@ -868,38 +838,23 @@
                                             <option value="never" data-i18n="soundModeNever">Kapalı</option>
                                         </select>
                                     </div>
-                                    <label
-                                        class="relative shrink-0 flex h-6 w-11 cursor-pointer items-center rounded-full bg-slate-300 dark:bg-slate-700 p-1 has-[:checked]:bg-primary transition-colors">
-                                        <input id="setting-autostart"
-                                            class="absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0 peer"
-                                            type="checkbox" />
-                                        <div
-                                            class="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
-                                            <div class="space-y-0.5">
-                                                <p id="setting-sound-mode-label" class="text-sm font-medium"
-                                                    data-i18n="soundMode">Uyarı sesi</p>
-                                                <p id="setting-sound-mode-desc"
-                                                    class="text-xs text-slate-600 dark:text-slate-400"
-                                                    data-i18n="descSoundMode">Süre dolmadan önce sesli uyarı çal.</p>
-                                            </div>
-                                            <select id="setting-sound-mode" aria-labelledby="setting-sound-mode-label"
-                                                aria-describedby="setting-sound-mode-desc"
-                                                class="bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary min-w-[140px] py-1.5 px-3 cursor-pointer">
-                                                <option value="auto" data-i18n="soundModeAuto">Otomatik (gece sessiz)
-                                                </option>
-                                                <option value="always" data-i18n="soundModeAlways">Her zaman</option>
-                                                <option value="never" data-i18n="soundModeNever">Kapalı</option>
-                                            </select>
+                                    <!-- Autostart -->
+                                    <div
+                                        class="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
+                                        <div class="space-y-0.5">
+                                            <p class="text-sm font-medium" data-i18n="autostartWindows">Uygulama
+                                                açılışta Windows ile başlasın</p>
+                                            <p class="text-xs text-slate-600 dark:text-slate-400"
+                                                data-i18n="descAutostart">Bilgisayar her açıldığında
+                                                Power Pilot arka planda otomatik çalışır.</p>
                                         </div>
-                                        <!-- Autostart -->
-                                        <div
-                                            class="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-white dark:hover:bg-slate-800/60 transition-colors">
-                                            <div class="space-y-0.5">
-                                                <p class="text-sm font-medium" data-i18n="autostartWindows">Uygulama
-                                                    açılışta Windows ile başlasın</p>
-                                                <p class="text-xs text-slate-600 dark:text-slate-400"
-                                                    data-i18n="descAutostart">Bilgisayar her açıldığında
-                                                    Power Pilot arka planda otomatik çalışır.</p>
+                                        <label
+                                            class="relative shrink-0 flex h-6 w-11 cursor-pointer items-center rounded-full bg-slate-300 dark:bg-slate-700 p-1 has-[:checked]:bg-primary transition-colors">
+                                            <input id="setting-autostart"
+                                                class="absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0 peer"
+                                                type="checkbox" />
+                                            <div
+                                                class="h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 ring-offset-white dark:ring-offset-slate-900">
                                             </div>
                                         </label>
                                     </div>
@@ -1056,16 +1011,9 @@
                                         <option value="dark" data-i18n="themeDark">Koyu Tema</option>
                                     </select>
                                 </div>
-                                        <select id="setting-theme" aria-labelledby="setting-theme-label"
-                                            aria-describedby="setting-theme-desc"
-                                            class="bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary min-w-[140px] py-1.5 px-3 cursor-pointer">
-                                            <option value="light" data-i18n="themeLight">Açık Tema</option>
-                                            <option value="dark" data-i18n="themeDark">Koyu Tema</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <p class="text-xs font-semibold text-slate-600 dark:text-slate-400"
-                                            data-i18n="appearanceMode">Görünüm Modu</p>
+                                <div class="space-y-2">
+                                    <p class="text-xs font-semibold text-slate-600 dark:text-slate-400"
+                                        data-i18n="appearanceMode">Görünüm Modu</p>
                                         <div class="pp-mode-segmented" role="group" aria-label="Görünüm Modu"
                                             data-i18n-aria-label="appearanceMode">
                                             <button type="button" id="btn-mode-light" class="pp-mode-btn"
@@ -1553,71 +1501,19 @@
                                     uyku modundayken zamanı geçen görevler ne olsun? Atlanan her görev gerekçesiyle
                                     Geçmiş'te görünür.</p>
                             </div>
-                            <div class="space-y-2">
-                                <!-- Uyku/Standby dönüş politikası -->
-                                <div
-                                    class="p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl">
-                                    <div class="space-y-0.5 mb-3">
-                                        <p class="text-sm font-medium" data-i18n="wakeTitle">Uykudan Dönüşte
-                                            Kaçırılan Görev</p>
-                                        <p class="text-xs text-slate-600 dark:text-slate-400" data-i18n="wakeDesc">
-                                            Bilgisayar uyku modundayken zamanı geçen görevler ne olsun? Atlanan her
-                                            görev gerekçesiyle Geçmiş'te görünür.</p>
-                                    </div>
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <label
-                                            class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
-                                            <input type="radio" name="wakeMode" value="run" checked class="mt-0.5" />
-                                            <span class="text-xs leading-snug" data-i18n="wakeModeRun">Tolerans
-                                                içindeyse çalıştır</span>
-                                        </label>
-                                        <label
-                                            class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
-                                            <input type="radio" name="wakeMode" value="skip" class="mt-0.5" />
-                                            <span class="text-xs leading-snug" data-i18n="wakeModeSkip">Her durumda
-                                                atla ve bildir</span>
-                                        </label>
-                                    </div>
-                                    <div class="flex items-center justify-between mt-3 gap-3">
-                                        <label for="setting-wake-tolerance"
-                                            class="text-xs text-slate-600 dark:text-slate-400"
-                                            data-i18n="wakeToleranceLabel">Tolerans (dakika)</label>
-                                        <input id="setting-wake-tolerance" type="number" min="0" max="1440" value="10"
-                                            class="w-24 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm text-right tabular-nums" />
-                                    </div>
-                                </div>
-                                <!-- AI Özerklik Modu (WBS-9.4) -->
-                                <div
-                                    class="p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl">
-                                    <div class="space-y-0.5 mb-3">
-                                        <p class="text-sm font-medium" data-i18n="autonomyTitle">AI Özerklik Modu
-                                        </p>
-                                        <p class="text-xs text-slate-600 dark:text-slate-400" data-i18n="autonomyDesc">
-                                            AI görevlerinde onay davranışı. Değişim sonraki
-                                            görevden geçerli olur.</p>
-                                    </div>
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <label
-                                            class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
-                                            <input type="radio" name="autonomyMode" value="classic" checked
-                                                class="mt-0.5" />
-                                            <span><span class="block text-xs font-bold"
-                                                    data-i18n="autonomyClassic">Klasik (Onaylı)</span>
-                                                <span class="block text-[11px] text-slate-600 dark:text-slate-400"
-                                                    data-i18n="autonomyClassicDesc">Her adımda sorar, vade dolunca
-                                                    durur.</span></span>
-                                        </label>
-                                        <label
-                                            class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
-                                            <input type="radio" name="autonomyMode" value="full" class="mt-0.5" />
-                                            <span><span class="block text-xs font-bold" data-i18n="autonomyFull">Tam
-                                                    Yetki</span>
-                                                <span class="block text-[11px] text-slate-600 dark:text-slate-400"
-                                                    data-i18n="autonomyFullDesc">Yapar, deftere yazar, geri-al
-                                                    sunar.</span></span>
-                                        </label>
-                                    </div>
-                                </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <label
+                                    class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
+                                    <input type="radio" name="wakeMode" value="run" checked class="mt-0.5" />
+                                    <span class="text-xs leading-snug" data-i18n="wakeModeRun">Tolerans
+                                        içindeyse çalıştır</span>
+                                </label>
+                                <label
+                                    class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
+                                    <input type="radio" name="wakeMode" value="skip" class="mt-0.5" />
+                                    <span class="text-xs leading-snug" data-i18n="wakeModeSkip">Her durumda
+                                        atla ve bildir</span>
+                                </label>
                             </div>
                             <div class="flex items-center justify-between mt-3 gap-3">
                                 <label for="setting-wake-tolerance" class="text-xs text-slate-600 dark:text-slate-400"
@@ -1720,20 +1616,10 @@
                             <div class="space-y-0.5 mb-3">
                                 <p class="text-sm font-medium" data-i18n="energyAccount">Enerji Hesabı</p>
                                 <p class="text-xs text-slate-600 dark:text-slate-400"><span
-                                        data-i18n="energyAccountDesc">Boş bırakılabilir — boş alanların kartları "—"
-                                        gösterir.</span> <span id="nrg-source" class="font-bold"></span></p>
+                                        data-i18n="energyAccountDesc">Boş bırakılabilir — boş alanların
+                                        kartları "—" gösterir.</span> <span id="nrg-source"
+                                        class="font-bold"></span></p>
                             </div>
-                            <div class="space-y-2">
-                                <!-- Enerji Hesabı (WBS-E5) -->
-                                <div id="settings-energy"
-                                    class="p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl">
-                                    <div class="space-y-0.5 mb-3">
-                                        <p class="text-sm font-medium" data-i18n="energyAccount">Enerji Hesabı</p>
-                                        <p class="text-xs text-slate-600 dark:text-slate-400"><span
-                                                data-i18n="energyAccountDesc">Boş bırakılabilir — boş alanların
-                                                kartları "—" gösterir.</span> <span id="nrg-source"
-                                                class="font-bold"></span></p>
-                                    </div>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                         <label
                                             class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-400"><span
@@ -1930,24 +1816,32 @@
                                         Tema, dil, bildirim ve zamanlama tercihlerini başlangıç değerlerine sıfırlar.
                                     </p>
                                 </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <label class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
-                                        <input type="radio" name="wakeMode" value="run" checked class="mt-0.5" />
-                                        <span class="text-xs leading-snug" data-i18n="wakeModeRun">Tolerans içindeyse çalıştır</span>
-                                    </label>
-                                    <label class="flex items-start gap-2 p-3 bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer">
-                                        <input type="radio" name="wakeMode" value="skip" class="mt-0.5" />
-                                        <span class="text-xs leading-snug" data-i18n="wakeModeSkip">Her durumda atla ve bildir</span>
-                                    </label>
-                                </div>
+                                <button type="button" id="btn-settings-default"
+                                    class="pp-btn-secondary text-xs shrink-0"
+                                    data-i18n="restoreDefaults">Varsayılana Dön</button>
                             </div>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="space-y-0.5 min-w-0 flex-1">
+                                    <p class="text-sm font-medium text-red-600 dark:text-red-400"
+                                        data-i18n="privacyDataTitle">Verilerimi sil</p>
+                                    <p class="text-xs text-slate-600 dark:text-slate-400"
+                                        data-i18n="privacyDataDesc">Görevler, ayarlar, geçmiş, anahtarlar,
+                                        yedekler ve indirilen modeller kalıcı olarak silinir. Bu işlem geri
+                                        alınamaz.</p>
+                                </div>
+                                <button type="button" id="btn-delete-all-data"
+                                    class="shrink-0 px-4 py-2 bg-red-500/10 border border-red-500/40 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg hover:bg-red-500/20 transition-colors"
+                                    data-i18n="privacyDataButton">Tüm verilerimi sil</button>
+                            </div>
+                        </div>
+                    </div>
                 </section>
+                        </div>
+                    </div>
+                </div>
             </div>
-    </div>
-    </div>
-    </div>
 
-    <!-- Dedicated Documentation View (Dev Cleaner Split-Layout: Quick Start, CLI, MCP, REST API, Shortcuts) -->
+            <!-- Dedicated Documentation View (Dev Cleaner Split-Layout: Quick Start, CLI, MCP, REST API, Shortcuts) -->
     <div id="view-docs" class="view-section hidden w-full h-full flex flex-col overflow-hidden">
         <div class="pp-split-layout">
             <aside class="pp-split-sidebar" aria-label="Dokümantasyon" data-i18n-aria-label="aboutNavDocs">
@@ -2034,42 +1928,16 @@
                                     aria-hidden="true">terminal</span></span>
                             <h3 class="pp-section-bar-title" data-i18n="docsNavCli">CLI ve Terminal</h3>
                         </div>
-                        <div class="space-y-2">
-                            <!-- Enerji Hesabı (WBS-E5) -->
-                            <div id="settings-energy"
-                                class="p-4 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl">
-                                <div class="space-y-0.5 mb-3">
-                                    <p class="text-sm font-medium" data-i18n="energyAccount">Enerji Hesabı</p>
-                                    <p class="text-xs text-slate-600 dark:text-slate-400"><span
-                                            data-i18n="energyAccountDesc">Boş bırakılabilir — boş alanların
-                                            kartları "—" gösterir.</span> <span id="nrg-source"
-                                            class="font-bold"></span></p>
+                        <div class="pp-bento-panel">
+                            <div class="pp-docs-card">
+                                <div class="pp-docs-card-head">
+                                    <span class="pp-docs-card-title" data-i18n="docsCliTermTitle">Terminal ve PowerShell Komut Satırı (powerpilot CLI)</span>
+                                    <span class="material-symbols-outlined text-[15px] pp-sep" aria-hidden="true">terminal</span>
                                 </div>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                                            <label
-                                                class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-400"><span
-                                                    data-i18n="powerWatt">Güç (Watt)</span>
-                                                <input id="nrg-watt" type="number" min="5" max="2000"
-                                                    placeholder="Örn: 65" data-i18n-placeholder="wattPlaceholder"
-                                                    class="mt-1.5 w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm tabular-nums" />
-                                            </label>
-                                            <label
-                                                class="block text-xs font-bold uppercase text-slate-600 dark:text-slate-400"><span
-                                                    data-i18n="unitPrice">Birim fiyat (TL/kWh)</span>
-                                                <input id="nrg-price" type="text" inputmode="decimal"
-                                                    placeholder="Örn: 3,24" data-i18n-placeholder="pricePlaceholder"
-                                                    class="mt-1.5 w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm tabular-nums" />
-                                            </label>
-                                        </div>
-                                        <div class="flex flex-wrap gap-2">
-                                            <button type="button" id="btn-nrg-measure" class="pp-btn-secondary text-xs"
-                                                data-i18n="autoMeasure">Otomatik Ölç</button>
-                                            <button type="button" id="btn-nrg-clear"
-                                                class="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg"
-                                                data-i18n="clear">Temizle</button>
-                                        </div>
-                                        <p id="nrg-measure-note"
-                                            class="text-[11px] text-slate-600 dark:text-slate-400 mt-2 hidden"></p>
+                                <div class="pp-docs-cmd-row">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="pp-docs-cmd-label" data-i18n="docsCliStatusLabel">Aktif görev ve API durumunu sorgula</p>
+                                        <code class="pp-docs-cmd-code">powerpilot status --json</code>
                                     </div>
                                     <button type="button" class="pp-btn-secondary text-xs shrink-0"
                                         data-copy-cmd="powerpilot status --json"
@@ -2263,44 +2131,12 @@
                                     <kbd class="pp-kbd">Esc</kbd>
                                 </div>
                             </div>
-                            <!-- Sıfırlama & Tehlikeli Alan -->
-                            <div id="settings-danger"
-                                class="p-4 bg-white dark:bg-slate-800/40 border border-red-300 dark:border-red-900/60 rounded-xl space-y-4">
-                                <div
-                                    class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
-                                    <div class="space-y-0.5 min-w-0 flex-1">
-                                        <p class="text-sm font-medium" data-i18n="settingsResetTitle">Ayarları
-                                            Varsayılana Döndür</p>
-                                        <p class="text-xs text-slate-600 dark:text-slate-400"
-                                            data-i18n="settingsResetDesc">Tema, dil, bildirim ve zamanlama
-                                            tercihlerini başlangıç değerlerine sıfırlar.</p>
-                                    </div>
-                                    <button type="button" id="btn-settings-default"
-                                        class="pp-btn-secondary text-xs shrink-0"
-                                        data-i18n="restoreDefaults">Varsayılana Dön</button>
-                                </div>
-                                <div class="flex flex-wrap items-center justify-between gap-3">
-                                    <div class="space-y-0.5 min-w-0 flex-1">
-                                        <p class="text-sm font-medium text-red-600 dark:text-red-400"
-                                            data-i18n="privacyDataTitle">Verilerimi sil</p>
-                                        <p class="text-xs text-slate-600 dark:text-slate-400"
-                                            data-i18n="privacyDataDesc">Görevler, ayarlar, geçmiş, anahtarlar,
-                                            yedekler ve indirilen modeller kalıcı olarak silinir. Bu işlem geri
-                                            alınamaz.</p>
-                                    </div>
-                                    <button type="button" id="btn-delete-all-data"
-                                        class="shrink-0 px-4 py-2 bg-red-500/10 border border-red-500/40 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg hover:bg-red-500/20 transition-colors"
-                                        data-i18n="privacyDataButton">Tüm verilerimi sil</button>
-                                </div>
-                            </div>
                         </div>
                     </section>
                         </div>
-                    </section>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
 
     <!-- About View (Dev Cleaner Split-Layout + Bento KPIs — Docs Moved to Dedicated Sidebar View) -->
     <div id="view-about" class="view-section hidden w-full h-full flex flex-col overflow-hidden">
