@@ -18,8 +18,6 @@ Power-Pilot/
 ├── main.js                     # Electron Main Process (Ana Süreç)
 ├── preload.js                  # Preload Script (ContextBridge IPC köprüsü)
 ├── package.json                # Bağımlılıklar, scriptler ve build konfigürasyonu
-├── powerpilot_icon.ico         # Uygulama simgesi (Windows ICO)
-├── powerpilot_icon.png         # Uygulama simgesi (PNG)
 ├── public/                     # Statik kaynaklar
 └── src/                        # Renderer UI (Arayüz)
     ├── index.html              # Ana pencere (Dashboard, Aktif Görev, Ayarlar, Hakkında, Modallar)

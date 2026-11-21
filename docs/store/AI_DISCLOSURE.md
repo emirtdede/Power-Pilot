@@ -3,7 +3,7 @@
 Bu dosya Partner Center gönderiminde kopyala-yapıştır için hazırlanmıştır.
 11.16 gereği: (1) meta veride beyan, (2) Partner Center notu,
 (3) içerik uyumu, (4) kullanıcı bildirim kanalı (uygulama içi:
-Hakkında > Uygunsuz İçeriği Bildir → info@vellium.dev).
+Hakkında > Uygunsuz İçeriği Bildir → support@vellium.dev).
 
 ---
 
@@ -28,5 +28,5 @@ Hakkında > Uygunsuz İçeriği Bildir → info@vellium.dev).
 > calls) that converts natural-language input into power-automation task
 > proposals. All executions go through the existing safety pipeline and user
 > confirmation flow. In-app reporting: About > Report inappropriate content
-> (mailto info@vellium.dev). Demo mode: AI works without an account; if no
+> (mailto support@vellium.dev). Demo mode: AI works without an account; if no
 > model is installed the assistant shows setup guidance instead of failing.

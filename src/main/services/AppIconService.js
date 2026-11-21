@@ -55,17 +55,17 @@ function resolveIconIcoPath(iconId, {
     const candidates = [];
     if (isPackaged && resourcesPath) {
         candidates.push(path.join(resourcesPath, 'app.asar.unpacked', 'src', 'assets', 'icons', `${id}.ico`));
-        candidates.push(path.join(resourcesPath, 'app.asar.unpacked', 'powerpilot_icon.ico'));
+        candidates.push(path.join(resourcesPath, 'app.asar.unpacked', 'src', 'assets', 'icons', `${DEFAULT_APP_ICON}.ico`));
     }
     candidates.push(path.join(rootDir, 'src', 'assets', 'icons', `${id}.ico`));
-    candidates.push(path.join(rootDir, 'powerpilot_icon.ico'));
+    candidates.push(path.join(rootDir, 'src', 'assets', 'icons', `${DEFAULT_APP_ICON}.ico`));
 
     for (const candidate of candidates) {
         try {
             if (fsImpl.existsSync(candidate)) return candidate;
         } catch (_) { /* sonraki adaya düş */ }
     }
-    return path.join(rootDir, 'powerpilot_icon.ico');
+    return path.join(rootDir, 'src', 'assets', 'icons', `${DEFAULT_APP_ICON}.ico`);
 }
 
 /**
@@ -333,14 +333,14 @@ function updateUninstallDisplayIcon(icoPath, {
         "$ErrorActionPreference='SilentlyContinue'",
         `$ico = ${psSingleQuote(`${icoPath},0`)}`,
         "$roots = @('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*')",
-        "Get-ItemProperty $roots | Where-Object { $_.DisplayName -eq 'Power Pilot' -and $_.Publisher -eq 'Vellium' } | ForEach-Object { Set-ItemProperty -Path $_.PSPath -Name DisplayIcon -Value $ico }"
+        "Get-ItemProperty $roots | Where-Object { $_.DisplayName -eq 'Power Pilot' -and $_.Publisher -like 'Vellium*' } | ForEach-Object { Set-ItemProperty -Path $_.PSPath -Name DisplayIcon -Value $ico }"
     ].join('\n');
     try {
         execFileImpl(
             'powershell.exe',
             ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', encodePowerShellUtf16(psScript)],
             { windowsHide: true, timeout: 15000 },
-            () => {}
+            () => { }
         );
     } catch (_) { /* best-effort */ }
 }
@@ -361,7 +361,7 @@ function refreshWindowsIconCache({
     const ie4uinit = path.join(sysRoot, 'System32', 'ie4uinit.exe');
     try {
         if (fs.existsSync(ie4uinit)) {
-            execFileImpl(ie4uinit, ['-show'], { windowsHide: true, timeout: 8000 }, () => {});
+            execFileImpl(ie4uinit, ['-show'], { windowsHide: true, timeout: 8000 }, () => { });
         }
     } catch (_) { /* best-effort */ }
 
@@ -396,7 +396,7 @@ function refreshWindowsIconCache({
             'powershell.exe',
             ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', encodePowerShellUtf16(psScript)],
             { windowsHide: true, timeout: 15000 },
-            () => {}
+            () => { }
         );
     } catch (_) { /* best-effort */ }
 }

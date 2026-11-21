@@ -21,13 +21,13 @@ Power Pilot is distributed through the Microsoft Store:
 ## Security issues
 
 Do not open a public issue. Follow [`SECURITY.md`](SECURITY.md) and email
-<info@vellium.dev>; use GitHub private vulnerability reporting if the Security
+<security@vellium.dev>; use GitHub private vulnerability reporting if the Security
 tab offers it.
 
 ## Commercial and pilot support
 
 For licensing, pilot agreements, or deployment questions, contact
-<info@vellium.dev> or visit <https://vellium.dev>.
+<support@vellium.dev> (general inquiries: <contact@vellium.dev>, licensing: <legal@vellium.dev>) or visit <https://vellium.dev>.
 
 Support is provided on a best-effort basis unless a separate written agreement
 states otherwise.

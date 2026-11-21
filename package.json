@@ -114,7 +114,6 @@
     "asarUnpack": [
       "**/*.node",
       "**/node_modules/ps-list/vendor/*.exe",
-      "powerpilot_icon.ico",
       "src/assets/icons/*.ico",
       "src/assets/icons/*.png"
     ],
@@ -122,7 +121,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "powerpilot_icon.ico",
+      "icon": "src/assets/icons/monochrome-dark.ico",
       "signtoolOptions": {
         "signingHashAlgorithms": [
           "sha256"
@@ -141,9 +140,9 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "powerpilot_icon.ico",
-      "uninstallerIcon": "powerpilot_icon.ico",
-      "installerHeaderIcon": "powerpilot_icon.ico",
+      "installerIcon": "src/assets/icons/monochrome-dark.ico",
+      "uninstallerIcon": "src/assets/icons/monochrome-dark.ico",
+      "installerHeaderIcon": "src/assets/icons/monochrome-dark.ico",
       "installerSidebar": "build/installerSidebar.bmp",
       "uninstallerSidebar": "build/uninstallerSidebar.bmp",
       "installerHeader": "build/installerHeader.bmp",
@@ -179,7 +178,7 @@
         "/v"
       ]
     },
-    "copyright": "Copyright © 2026 Vellium. All rights reserved.",
+    "copyright": "Copyright © 2026 Vellium Teknoloji Anonim Şirketi. All rights reserved.",
     "electronFuses": {
       "runAsNode": false,
       "enableCookieEncryption": true,
@@ -193,8 +192,8 @@
     "electronDist": "node_modules/electron/dist"
   },
   "author": {
-    "name": "Vellium",
-    "email": "support@vellium.dev",
+    "name": "Vellium Teknoloji Anonim Şirketi",
+    "email": "contact@vellium.dev",
     "url": "https://vellium.dev"
   },
   "license": "UNLICENSED",

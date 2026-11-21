@@ -57,10 +57,10 @@ describe('AppIconService — varlık bütünlüğü ve Microsoft Store uyumu', (
             const ico = path.join(root, 'src', 'assets', 'icons', `${id}.ico`);
             expect(readIcoSizes(ico), `${id}.ico kareleri`).toEqual([16, 24, 32, 48, 64, 128, 256]);
         }
-        // Kök powerpilot_icon.ico varsayılan monochrome-dark ile bayt-bayt aynı olmalı.
-        const rootIco = fs.readFileSync(path.join(root, 'powerpilot_icon.ico'));
-        const darkIco = fs.readFileSync(path.join(root, 'src', 'assets', 'icons', 'monochrome-dark.ico'));
-        expect(rootIco.equals(darkIco)).toBe(true);
+        // Kök dizinde dağınık powerpilot_icon.ico / powerpilot_icon.png bulunmamalı;
+        // kanonik ikonlar src/assets/icons/ altında tutulur.
+        expect(fs.existsSync(path.join(root, 'powerpilot_icon.ico'))).toBe(false);
+        expect(fs.existsSync(path.join(root, 'powerpilot_icon.png'))).toBe(false);
     });
 
     it('build/appx tam çoklu-DPI (scale-100..400 + targetsize unplated) Store setini içerir', () => {
@@ -90,13 +90,12 @@ describe('AppIconService — varlık bütünlüğü ve Microsoft Store uyumu', (
 
     it('package.json NSIS ikonları ve asarUnpack yapılandırılmış', () => {
         const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-        expect(pkg.build.win.icon).toBe('powerpilot_icon.ico');
-        expect(pkg.build.nsis.installerIcon).toBe('powerpilot_icon.ico');
-        expect(pkg.build.nsis.uninstallerIcon).toBe('powerpilot_icon.ico');
-        expect(pkg.build.nsis.installerHeaderIcon).toBe('powerpilot_icon.ico');
+        expect(pkg.build.win.icon).toBe('src/assets/icons/monochrome-dark.ico');
+        expect(pkg.build.nsis.installerIcon).toBe('src/assets/icons/monochrome-dark.ico');
+        expect(pkg.build.nsis.uninstallerIcon).toBe('src/assets/icons/monochrome-dark.ico');
+        expect(pkg.build.nsis.installerHeaderIcon).toBe('src/assets/icons/monochrome-dark.ico');
         expect(pkg.build.asarUnpack).toContain('src/assets/icons/*.ico');
         expect(pkg.build.asarUnpack).toContain('src/assets/icons/*.png');
-        expect(pkg.build.asarUnpack).toContain('powerpilot_icon.ico');
     });
 });
 
@@ -183,7 +182,7 @@ describe('AppIconService — ayar doğrulama ve çalışma zamanı uygulaması',
             writeShortcutLink: (p) => { written.push(p); return true; }
         };
 
-        const res = AppIconService.updateWindowsShortcuts(path.join(root, 'powerpilot_icon.ico'), {
+        const res = AppIconService.updateWindowsShortcuts(path.join(root, 'src', 'assets', 'icons', 'monochrome-dark.ico'), {
             shell: fakeShell,
             desktopDirs: [desktop],
             startMenuDirs: [startMenu],

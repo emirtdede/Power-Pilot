@@ -29,7 +29,7 @@ commit messages, and private communication about the project.
 
 ## Reporting and enforcement
 
-Report conduct concerns to <info@vellium.dev>. Maintainers may edit or remove
+Report conduct concerns to <contact@vellium.dev> (or <legal@vellium.dev>). Maintainers may edit or remove
 content, close or lock threads, reject contributions, or restrict access.
 Reports will be handled as confidentially as practical. Retaliation against a
 good-faith reporter is itself a violation.

@@ -8,10 +8,10 @@ seriously.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.1.x   | :white_check_mark: |
-| < 1.1   | :x:                |
+| 1.0.x   | :white_check_mark: |
+| < 1.0   | :x:                |
 
-Only the latest 1.1.x release receives security fixes. Upgrade to the latest
+Only the latest 1.0.x release receives security fixes. Upgrade to the latest
 Microsoft Store or NSIS build before reporting an issue that may already have
 been fixed.
 
@@ -21,7 +21,7 @@ been fixed.
 
 Use one of these private channels:
 
-1. Email: <info@vellium.dev> with `SECURITY` in the subject line. This is the
+1. Email: <security@vellium.dev> (https://vellium.dev/en/legal/security-disclosure) with `SECURITY` in the subject line. This is the
    primary reporting channel.
 2. If the repository Security tab offers **Report a vulnerability**, you may
    use GitHub private vulnerability reporting instead.

@@ -109,11 +109,12 @@
 !macro customInstall
   ; Windows 11 Ayarlar > Yüklü Uygulamalar ve Denetim Masası yayıncı, ikon ve destek bilgileri
   WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "DisplayIcon" "$INSTDIR\${APP_EXECUTABLE_FILENAME},0"
-  WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "Publisher" "Vellium"
+  WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "Publisher" "Vellium Teknoloji Anonim Şirketi"
   WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "URLInfoAbout" "https://vellium.dev"
-  WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "HelpLink" "https://vellium.dev"
+  WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "URLUpdateInfo" "https://vellium.dev/en/products/power-pilot"
+  WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "HelpLink" "https://vellium.dev/en/legal/support"
   WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "Contact" "support@vellium.dev"
-  WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "Comments" "Smart, local-first power management and task automation for Windows."
+  WriteRegStr SHCTX "${UNINSTALL_REGISTRY_KEY}" "Comments" "Smart, local-first power management and task automation for Windows. Published by Vellium Teknoloji Anonim Şirketi (https://vellium.dev)."
   WriteRegDWORD SHCTX "${UNINSTALL_REGISTRY_KEY}" "NoModify" 1
   WriteRegDWORD SHCTX "${UNINSTALL_REGISTRY_KEY}" "NoRepair" 1
   System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'

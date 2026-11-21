@@ -6,7 +6,7 @@
 
 <br /><br />
 
-# ✦ Power Pilot — Local-First Windows Power Management & Automation
+# <img src="assets/icons/spark.svg" width="20" height="20" align="absmiddle" alt="" /> Power Pilot — Local-First Windows Power Management & Automation
 
 </div>
 
@@ -53,7 +53,7 @@
 
 <br>
 
-## 💻 Project Overview
+## <img src="assets/icons/overview.svg" width="20" height="20" align="absmiddle" alt="" /> Project Overview
 
 **Power Pilot (`v1.0.0`)** is a local-first Windows desktop application for scheduling, monitoring, and automating power transitions. Built with **Electron 43**, **Node.js 24**, and **vanilla JavaScript**, it combines a hardened main process, a sandboxed 60 FPS renderer, and a local **WAL-mode SQLite** database. Core scheduling works without an account, a cloud service, or an internet connection.
 
@@ -65,67 +65,67 @@ For developers, AI coding agents, and enterprise teams, Power Pilot ships with a
 
 ---
 
-## 🚀 Key Features
+## <img src="assets/icons/features.svg" width="20" height="20" align="absmiddle" alt="" /> Key Features
 
-### ⚡ Power Actions & Scheduling
+### <img src="assets/icons/bolt.svg" width="20" height="20" align="absmiddle" alt="" /> Power Actions & Scheduling
 - **Shutdown**, **Restart**, **Sleep**, **Hibernate**, **Lock**, and **Sign out** actions.
 - Quick presets (15 min, 30 min, 1 hour, 2 hours) and custom countdowns integrated directly inside the scheduling card without detached floating footer bars.
 - Safety-capped scheduling up to **24 days** (2,073,600 seconds).
 - Persistent tasks with a pre-action warning countdown, snooze, cancel, and optional **4 / 6 / 8-digit PIN protection**.
 - Automatic UI-language detection from the Windows display locale on first launch.
 
-### 🧠 Smart Finish Condition Engine
+### <img src="assets/icons/cpu.svg" width="20" height="20" align="absmiddle" alt="" /> Smart Finish Condition Engine
 - Wait for a selected **process** to close (`handbrake.exe`, `blender.exe`, `steam.exe`, etc.).
 - Wait for **CPU usage**, **network throughput**, or **disk activity** to remain below a configured threshold.
 - Wait for keyboard/mouse **idle time** or **battery percentage** thresholds.
 - Wait for a **file or folder** to stop growing/changing.
 - Configurable **AND / OR condition operator**, **stability duration** (default 15–60 seconds), **recurring schedules** (daily, weekdays, weekends, custom days), and **action chaining**.
 
-### 🛡️ Safety, Fallbacks & Task Lifecycle
+### <img src="assets/icons/shield.svg" width="20" height="20" align="absmiddle" alt="" /> Safety, Fallbacks & Task Lifecycle
 - **Protected-app rules** for games, IDEs, render tools, fullscreen presentations, and active disk/network I/O.
 - **Configurable Power Action Fallbacks**: automatically fall back (e.g., *Hibernate → Sleep*, *Sleep → Lock*, or *Retry Once after 30s*) if the OS or hardware rejects the primary transition.
 - Conflict resolution: one priority action at a time; conflicting tasks become `Blocked`.
 - **Fail-closed remote shutdown protection** while the user is actively using the PC.
 - Full task states: `Draft`, `Scheduled`, `Monitoring`, `Warning`, `Snoozed`, `Executing`, `Completed`, `Blocked`, `Failed`, `Expired`.
 
-### 🤖 On-Device AI Assistant 2.0 (Tasks, Templates, Connections & Docs RAG)
+### <img src="assets/icons/ai.svg" width="20" height="20" align="absmiddle" alt="" /> On-Device AI Assistant 2.0 (Tasks, Templates, Connections & Docs RAG)
 - Optional **Qwen** local LLM and **Whisper** speech-to-text for natural-language and voice commands.
 - **7 Specialized Local Agents**: create timers/tasks, build custom automation templates (`templateAgent`), propose human-in-the-loop integration settings (`connectionAgent`), diagnose system blockers, estimate energy savings, and answer product/troubleshooting questions via offline **Documentation RAG** (`DocsKnowledgeBase` + `docsQaAgent`) with one-click deep links.
 - Model files stay on the device; downloads are pinned to immutable URLs and verified by **SHA-256**.
 
-### 🗂️ 22 Categorized Automation Templates & Custom Builder
+### <img src="assets/icons/templates.svg" width="20" height="20" align="absmiddle" alt="" /> 22 Categorized Automation Templates & Custom Builder
 - **22 Built-in Templates Across 7 Categories**: *Download*, *Render & Disk*, *Gaming*, *Productivity*, *Scheduled*, *Power & Battery*, and *Security* (plus *Custom*).
 - Supports **Smart Finish conditions**, **time-of-day schedules**, and **countdown duration triggers**.
 - Full CRUD: create custom templates from scratch, edit/override built-in templates (with *Modified* badge), duplicate, hide/delete, reset individual templates, or manage/restore all defaults in one click.
 
-### 📊 Rich Energy, CO₂ & Automation Analytics
+### <img src="assets/icons/chart.svg" width="20" height="20" align="absmiddle" alt="" /> Rich Energy, CO₂ & Automation Analytics
 - Period filtering (**7 Days**, **30 Days**, **All Time**) with verified shutdown-to-next-boot off-duration matching.
 - **4 Primary KPI Cards** (*Prevented Uptime*, *Energy Saved kWh + Monthly Forecast*, *Cost Saved + Yearly Forecast*, *Estimated CO₂ Reduction at 0.42 kg/kWh + Success Rate*) and **5 Secondary Operational Metrics** (*Completed*, *Blocked*, *Cancelled/Snoozed*, *Active Streak Days*, *Longest Off Session*).
 - Interactive **SVG daily trend bar chart**, **action & trigger-source distributions**, **24-hour automation intensity heatmap**, **recent measured sessions table**, and **CSV / JSON export**.
 
-### 🧩 Built-in MCP Server, Terminal CLI & 10-Section Documentation Center
+### <img src="assets/icons/terminal.svg" width="20" height="20" align="absmiddle" alt="" /> Built-in MCP Server, Terminal CLI & 10-Section Documentation Center
 - **Built-in MCP Server (`src/mcp/server.js`)**: JSON-RPC 2.0 over stdio for **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf**, and **Cline** with 8 tools (`powerpilot_status`, `powerpilot_schedule_timer`, `powerpilot_cancel_timer`, `powerpilot_list_tasks`, `powerpilot_power_action`, `powerpilot_audit_verify`, `powerpilot_inventory`, `powerpilot_pending_orders`).
 - **Terminal & PowerShell CLI (`powerpilot`)**: schedule timers (`--minutes` or `--durationMs`), list/cancel tasks, verify audit chains, trigger immediate power actions, or output raw `--json` for scripts.
 - **10-Section In-App Documentation Center with Instant Search**: split-layout guide covering Quick Start, Power & Safety Shields, Smart Finish, Templates, AI Assistant, CLI & Terminal, MCP Server JSON configs, REST API & Webhooks, WoL/UPS/Enterprise, and Shortcuts & Troubleshooting.
 
-### ⚙️ 8-Subpage Settings, Curated Presets & Diagnostics Center
+### <img src="assets/icons/sliders.svg" width="20" height="20" align="absmiddle" alt="" /> 8-Subpage Settings, Curated Presets & Diagnostics Center
 - **8 Dedicated Settings Sub-Pages**: *General & Profiles*, *Appearance & Language*, *Notifications & Sound*, *Automation & Fallbacks*, *Energy & AI*, *Keyboard Shortcuts* (interactive key recorder), *Reset & Privacy*, and *Diagnostics & Reports*.
 - **Diagnostics, Crash Reports & Support Bundle (ZIP)**: inspect redacted crash/error history, renderer errors, system summary, and main-process logs, or export a pure-Node Deflate support ZIP (`powerpilot-support-*.zip`).
 - **One-Click Preset Profiles**: *Standard User (Recommended)*, *Night Download & Render*, *Enterprise & Kiosk Security*, and *Maximum Energy Saver*.
 - **Instant Auto-Save + Critical Action Confirmation**: regular preferences save immediately on change; high-impact changes (*Full AI Autonomy*, *Restore Defaults*, *Delete All Data*) require explicit confirmation dialogs.
 
-### 🎨 28 Theme Palettes, 4 System-Wide App Icons & 73-Language Catalog
+### <img src="assets/icons/palette.svg" width="20" height="20" align="absmiddle" alt="" /> 28 Theme Palettes, 4 System-Wide App Icons & 73-Language Catalog
 - **2 Modes × 14 Color Themes (28 Palettes)**: `Obsidian`, `Slate`, `Navy`, `Blue`, `Cyan`, `Indigo`, `Purple`, `Pink`, `Red`, `Orange`, `Yellow`, `Emerald`, `Grass`, and `Lime` across Light and Dark modes.
 - **4 Selectable System-Wide App & Desktop Icons**: `Monochrome Dark` (default), `Monochrome Light`, `High-Contrast Monochrome`, and `Classic Cyan` — synchronized live across the main window, mini widget, system tray, taskbar, in-app SVG brand marks, and Windows Desktop / Start Menu shortcuts (`.lnk`).
 - **73-Language Catalog**: 17 fully translated locales (Turkish, English, German, Swedish, Norwegian, Danish, French, Polish, Italian, Dutch, Czech, Spanish, Portuguese, Japanese, Chinese, Korean, Arabic — 1,136 keys each) + 56 planned languages with automatic English fallback and full **RTL** mirroring (`ar`, `he`, `fa`, `ur`).
 
-### 🔌 7-Subpage Integrations & Local REST API
+### <img src="assets/icons/plug.svg" width="20" height="20" align="absmiddle" alt="" /> 7-Subpage Integrations & Local REST API
 - Dedicated split-navigation pages for **Local REST API (OpenAPI 3.0)**, **Outbound Webhooks**, **MCP Server (AI)**, **CLI & Scripts**, **Wake-on-LAN** (with saved devices list), **UPS / NUT Monitor**, and **Enterprise Console**.
 - API-key roles (`viewer`, `operator`, `admin`), TLS/mTLS, IP/CIDR allowlisting, Ed25519-signed orders, **n8n + Telegram** workflow in [`integrations/n8n/`](integrations/n8n/), and headless Windows service agent.
 
 ---
 
-## 🛠️ Tech Stack
+## <img src="assets/icons/layers.svg" width="20" height="20" align="absmiddle" alt="" /> Tech Stack
 
 <div align="center">
 
@@ -167,7 +167,7 @@ For developers, AI coding agents, and enterprise teams, Power Pilot ships with a
 
 ---
 
-## 📁 Project Structure
+## <img src="assets/icons/folder.svg" width="20" height="20" align="absmiddle" alt="" /> Project Structure
 
 ```tree
 Power_Pilot/
@@ -222,7 +222,7 @@ Power_Pilot/
 
 ---
 
-## 🔐 Architecture & Security Boundaries
+## <img src="assets/icons/lock.svg" width="20" height="20" align="absmiddle" alt="" /> Architecture & Security Boundaries
 
 ```mermaid
 flowchart TD
@@ -273,7 +273,7 @@ flowchart TD
 
 ---
 
-## 💾 Storage & Security Schema
+## <img src="assets/icons/database.svg" width="20" height="20" align="absmiddle" alt="" /> Storage & Security Schema
 
 | Path / Boundary | Protection | Contents |
 | :--- | :--- | :--- |
@@ -286,7 +286,7 @@ flowchart TD
 
 ---
 
-## 🖥️ CLI & Built-in MCP Server Usage
+## <img src="assets/icons/terminal.svg" width="20" height="20" align="absmiddle" alt="" /> CLI & Built-in MCP Server Usage
 
 ### Terminal & PowerShell CLI (`powerpilot`)
 
@@ -332,7 +332,7 @@ Add Power Pilot to **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf**
 
 ---
 
-## ⚙️ Installation & Usage
+## <img src="assets/icons/sliders.svg" width="20" height="20" align="absmiddle" alt="" /> Installation & Usage
 
 ### Installing as an end user (from the setup file)
 
@@ -390,7 +390,7 @@ npm run verify:pack
 
 ---
 
-## 📦 Distribution Packages
+## <img src="assets/icons/package.svg" width="20" height="20" align="absmiddle" alt="" /> Distribution Packages
 
 Build artifacts are produced under `dist/`:
 
@@ -405,13 +405,17 @@ Published builds and release notes are available on the [GitHub Releases](https:
 
 ---
 
-## ⚖️ License
+## <img src="assets/icons/scale.svg" width="20" height="20" align="absmiddle" alt="" /> License & Publisher
 
-**Proprietary commercial software.** Copyright © 2026 Vellium. All rights reserved.
+**Proprietary commercial software.** Copyright © 2026 **Vellium Teknoloji Anonim Şirketi**. All rights reserved.
 
-No rights are granted to copy, modify, publish, distribute, sublicense, or sell the software except under a separate written commercial or pilot agreement with Vellium. See [`LICENSE`](LICENSE) for the full terms.
+No rights are granted to copy, modify, publish, distribute, sublicense, or sell the software except under a separate written commercial or pilot agreement with Vellium Teknoloji Anonim Şirketi. See [`LICENSE`](LICENSE) for the full terms.
 
-**Official Website:** [vellium.dev](https://vellium.dev) &bull; **Publisher:** Vellium &bull; **Support:** [support@vellium.dev](mailto:support@vellium.dev)
+- **Publisher:** Vellium Teknoloji Anonim Şirketi ([Company Information](https://vellium.dev/en/legal/company-information))
+- **Official Website & Product Page:** [vellium.dev](https://vellium.dev) &bull; [vellium.dev/en/products/power-pilot](https://vellium.dev/en/products/power-pilot) &bull; [Microsoft Store](https://apps.microsoft.com/detail/9NQJTP1BKP5R)
+- **Legal Hub:** [Privacy Policy](https://vellium.dev/en/legal/privacy) &bull; [Terms of Service](https://vellium.dev/en/legal/terms) &bull; [Support Policy](https://vellium.dev/en/legal/support) &bull; [Security Disclosure](https://vellium.dev/en/legal/security-disclosure) &bull; [KVKK Notice](https://vellium.dev/en/legal/kvkk-notice)
+- **Official Emails:** General [contact@vellium.dev](mailto:contact@vellium.dev) &bull; Support [support@vellium.dev](mailto:support@vellium.dev) &bull; Privacy [privacy@vellium.dev](mailto:privacy@vellium.dev) &bull; Legal [legal@vellium.dev](mailto:legal@vellium.dev) &bull; Security [security@vellium.dev](mailto:security@vellium.dev) &bull; Billing [billing@vellium.dev](mailto:billing@vellium.dev)
+- **Official Social & Community Channels:** [GitHub @VelliumHQ](https://github.com/VelliumHQ) &bull; [LinkedIn](https://www.linkedin.com/company/vellium/) &bull; [X @VelliumDev](https://x.com/VelliumDev) &bull; [Product Hunt @vellium](https://www.producthunt.com/@vellium) &bull; [Instagram @velliumdev](https://www.instagram.com/velliumdev/) &bull; [Threads @velliumdev](https://www.threads.com/@velliumdev) &bull; [Reddit u/VelliumDev](https://www.reddit.com/user/VelliumDev/) &bull; [Discord](https://discord.gg/ur9KBZBEdj)
 
 ---
 
@@ -431,7 +435,7 @@ No rights are granted to copy, modify, publish, distribute, sublicense, or sell 
 
 <br>
 
-## 💻 Proje Genel Bakışı
+## <img src="assets/icons/overview.svg" width="20" height="20" align="absmiddle" alt="" /> Proje Genel Bakışı
 
 **Power Pilot (`v1.0.0`)**, güç geçişlerini zamanlamak, izlemek ve otomatikleştirmek için geliştirilmiş, yerel öncelikli bir Windows masaüstü uygulamasıdır. **Electron 43**, **Node.js 24** ve **vanilla JavaScript** ile geliştirilmiştir; sıkılaştırılmış bir ana süreç, sandbox içinde 60 FPS çalışan arayüz ve yerel bir **WAL modlu SQLite** veritabanını bir araya getirir. Temel zamanlama; hesap, bulut servisi veya internet bağlantısı gerektirmez.
 
@@ -443,59 +447,59 @@ Geliştiriciler, yapay zekâ kodlama ajanları ve kurumsal ekipler için Power P
 
 ---
 
-## 🚀 Öne Çıkan Özellikler
+## <img src="assets/icons/features.svg" width="20" height="20" align="absmiddle" alt="" /> Öne Çıkan Özellikler
 
-### ⚡ Güç Eylemleri ve Zamanlama
+### <img src="assets/icons/bolt.svg" width="20" height="20" align="absmiddle" alt="" /> Güç Eylemleri ve Zamanlama
 - **Kapatma**, **Yeniden Başlatma**, **Uyku**, **Hazırda Bekletme**, **Kilitleme** ve **Oturumu Kapatma** eylemleri.
 - Hızlı ön ayarlar (15 dk, 30 dk, 1 saat, 2 saat) ve bağımsız alt katman olmadan doğrudan kart içine entegre başlatma/iptal kontrolleri.
 - **24 güne** (2.073.600 saniye) kadar güvenlik sınırlı zamanlama.
 - Eylem öncesi uyarı geri sayımı, erteleme, iptal ve isteğe bağlı **4 / 6 / 8 haneli PIN koruması** ile kalıcı görevler.
 
-### 🧠 Smart Finish Koşul Motoru
+### <img src="assets/icons/cpu.svg" width="20" height="20" align="absmiddle" alt="" /> Smart Finish Koşul Motoru
 - Seçilen **sürecin** kapanmasını bekleme (`handbrake.exe`, `blender.exe`, `steam.exe` vb.).
 - **CPU kullanımının**, **ağ hızının** veya **disk etkinliğinin** belirlenen eşiğin altında kalmasını bekleme.
 - Klavye/fare **boşta kalma süresini** veya **batarya seviyesini** bekleme.
 - Bir **dosya veya klasörün** büyümeyi/değişmeyi bırakmasını bekleme.
 - Yapılandırılabilir **VE / VEYA koşul bağlacı**, **kararlılık süresi** (varsayılan 15–60 sn), **tekrarlayan program** (her gün, hafta içi, hafta sonu, özel günler) ve **zincirleme güç eylemleri**.
 
-### 🛡️ Güvenlik, Fallback ve Görev Yaşam Döngüsü
+### <img src="assets/icons/shield.svg" width="20" height="20" align="absmiddle" alt="" /> Güvenlik, Fallback ve Görev Yaşam Döngüsü
 - Oyunlar, IDE'ler, render araçları, tam ekran sunumlar ve yoğun ağ/disk G/Ç işlemleri için **korunan uygulama kuralları**.
 - **Güç Eylemi Yedekleme (Fallback) Mekanizması**: birincil güç eylemi işletim sistemi veya donanım tarafından reddedilirse otomatik yedek eylem (*Hazırda Beklet → Uyku*, *Uyku → Ekranı Kilitle* veya *30 sn sonra yeniden dene*).
 - Kullanıcı aktifken **fail-closed uzaktan kapatma koruması**.
 
-### 🤖 Cihaz Üzeri Yapay Zekâ Asistanı 2.0 (Görev, Şablon, Bağlantı ve Doküman RAG)
+### <img src="assets/icons/ai.svg" width="20" height="20" align="absmiddle" alt="" /> Cihaz Üzeri Yapay Zekâ Asistanı 2.0 (Görev, Şablon, Bağlantı ve Doküman RAG)
 - İsteğe bağlı yerel **Qwen** LLM ve **Whisper** konuşmadan metne (STT) motorları; model dosyaları SHA-256 doğrulamalıdır ve bilgisayardan dışarı çıkmaz.
 - **7 Uzman Yerel Ajan (`AgentOrchestrator`)**: doğal dille görev kurma, özel şablon oluşturma (`templateAgent`), insan-onaylı entegrasyon yapılandırma önerisi (`connectionAgent`), sistem engelleyici teşhisi, enerji tasarrufu tahmini ve yerleşik bilgi tabanı (`DocsKnowledgeBase` + `docsQaAgent`) üzerinden çevrimdışı dokümantasyon soru-cevap + bölüm derin bağlantıları.
 
-### 🗂️ 22 Kategorili Otomasyon Şablonu ve Özel Şablon Oluşturucu
+### <img src="assets/icons/templates.svg" width="20" height="20" align="absmiddle" alt="" /> 22 Kategorili Otomasyon Şablonu ve Özel Şablon Oluşturucu
 - **7 Kategoride 22 Hazır Şablon**: *İndirme*, *Render ve Disk*, *Oyun*, *Üretkenlik*, *Zamanlı*, *Güç ve Pil*, *Güvenlik* (ve *Özel*).
 - **Geri sayım süresi**, **belirli saat** ve **Smart Finish koşul** tetikleyicileri; sıfırdan özel şablon oluşturma, mevcut şablonları düzenleme (*Düzenlendi* rozeti), çoğaltma, gizleme/silme, tekil sıfırlama ve tüm varsayılanları tek tıkla geri getirme.
 
-### 📊 Zenginleştirilmiş Enerji, CO₂ ve Otomasyon İstatistikleri
+### <img src="assets/icons/chart.svg" width="20" height="20" align="absmiddle" alt="" /> Zenginleştirilmiş Enerji, CO₂ ve Otomasyon İstatistikleri
 - **7 Gün / 30 Gün / Tümü** dönem filtresi ve gerçek kapanış–yeniden açılış süresine dayalı doğrulama.
 - **4 Ana KPI Kartı** (*Önlenen Açık Kalma*, *Enerji Tasarrufu kWh + Aylık Projeksiyon*, *Maliyet Tasarrufu + Yıllık Projeksiyon*, *0.42 kg/kWh CO₂ Azaltımı + Başarı Oranı*), **5 İkincil Operasyonel Metrik**, etkileşimli **SVG günlük trend grafiği**, **eylem/kaynak dağılımları**, **24 saatlik yoğunluk haritası**, **ölçülen oturumlar tablosu** ve **CSV / JSON dışa aktarma**.
 
-### 🧩 Yerleşik MCP Sunucusu, Terminal CLI ve 10 Bölümlü Dokümantasyon Merkezi
+### <img src="assets/icons/terminal.svg" width="20" height="20" align="absmiddle" alt="" /> Yerleşik MCP Sunucusu, Terminal CLI ve 10 Bölümlü Dokümantasyon Merkezi
 - **Yerleşik MCP Sunucusu (`src/mcp/server.js`)**: **Claude Desktop**, **Cursor**, **Antigravity**, **Windsurf** ve **Cline** ajanları için 8 araçlık (`powerpilot_status`, `powerpilot_schedule_timer`, `powerpilot_cancel_timer`, `powerpilot_list_tasks`, `powerpilot_power_action`, `powerpilot_audit_verify`, `powerpilot_inventory`, `powerpilot_pending_orders`) stdio JSON-RPC 2.0 sunucusu.
 - **Terminal ve PowerShell CLI (`powerpilot`)**: `--minutes` veya `--durationMs` ile görev kurma, görev listeleme/iptal, denetim zinciri doğrulama ve `--json` çıktısı.
 - **Anlık Aramalı 10 Bölümlü Dokümantasyon Merkezi**: Hızlı Başlangıç, Güç ve Güvenlik, Smart Finish, Şablonlar, Yapay Zekâ Asistanı, CLI ve Terminal, MCP Sunucusu, REST API ve Webhooks, WoL/UPS/Kurumsal, Kısayollar ve Yardım alt sayfaları.
 
-### ⚙️ 8 Alt Sayfalı Ayarlar, Hazır Profiller ve Tanılama Merkezi
+### <img src="assets/icons/sliders.svg" width="20" height="20" align="absmiddle" alt="" /> 8 Alt Sayfalı Ayarlar, Hazır Profiller ve Tanılama Merkezi
 - **8 Ayrı Ayar Alt Sayfası**: *Genel ve Profiller*, *Görünüm ve Dil*, *Bildirimler ve Ses*, *Otomasyon ve Fallback*, *Enerji ve Yapay Zekâ*, *Klavye Kısayolları* (canlı tuş kaydedici), *Sıfırlama ve Gizlilik*, *Tanılama ve Raporlar*.
 - **Tanılama, Çökme Raporları ve Destek Paketi (ZIP)**: maskelenmiş çökme/hata, arayüz, sistem ve ana süreç günlüklerini görüntüleme ve tek tıkla `powerpilot-support-*.zip` destek paketi üretme.
 - **Tek Tıkla Hazır Profiller**: *Standart Kullanıcı (Önerilen)*, *Gece İndirme ve Render*, *Kurumsal ve Kiosk Güvenliği*, *Maksimum Enerji Tasarrufu*.
 
-### 🎨 28 Tema Paleti, 4 Sistem Geneli Uygulama İkonu ve 73 Dil Kataloğu
+### <img src="assets/icons/palette.svg" width="20" height="20" align="absmiddle" alt="" /> 28 Tema Paleti, 4 Sistem Geneli Uygulama İkonu ve 73 Dil Kataloğu
 - **2 Mod × 14 Renk Teması (28 Palet)**: Açık ve Koyu modlarda `Siyah (Obsidian)`, `Gri`, `Lacivert`, `Mavi`, `Cyan`, `İndigo`, `Mor`, `Pembe`, `Kırmızı`, `Turuncu`, `Sarı`, `Zümrüt Yeşili`, `Çimen Yeşili` ve `Açık Yeşil`.
 - **4 Seçilebilir Sistem Geneli Uygulama ve Masaüstü İkonu**: `Koyu Monokrom` (varsayılan), `Açık Monokrom`, `Saf Siyah-Beyaz` ve `Klasik Cyan` — ana pencere, mini widget, sistem tepsisi, görev çubuğu, uygulama içi SVG logolar ve Windows Masaüstü/Başlat kısayollarında (`.lnk`) eşzamanlı güncellenir.
 - **73 Dil Desteği**: 17 tam çevrili dil (her biri 1.136 anahtar) + 56 planlı dil için otomatik İngilizce yedekleme (fallback) ve 4 RTL dil (`ar`, `he`, `fa`, `ur`) için sağdan-sola arayüz desteği.
 
-### 🔌 7 Alt Sayfalı Entegrasyonlar ve Yerel REST API
+### <img src="assets/icons/plug.svg" width="20" height="20" align="absmiddle" alt="" /> 7 Alt Sayfalı Entegrasyonlar ve Yerel REST API
 - **Yerel REST API (OpenAPI 3.0)**, **Webhooks**, **MCP Sunucusu (AI)**, **CLI ve Betikler**, **Wake-on-LAN** (kayıtlı cihazlar listesi), **UPS / NUT İzleme** ve **Kurumsal Konsol** için bağımsız alt sayfalar.
 
 ---
 
-## ⚙️ Kurulum ve Kullanım
+## <img src="assets/icons/sliders.svg" width="20" height="20" align="absmiddle" alt="" /> Kurulum ve Kullanım
 
 ### Son kullanıcı için kurulum (kurulum dosyasından)
 
@@ -528,10 +532,14 @@ npm run dist:portable
 
 ---
 
-## ⚖️ Lisans
+## <img src="assets/icons/scale.svg" width="20" height="20" align="absmiddle" alt="" /> Lisans ve Yayıncı
 
-**Tescilli ticari yazılım.** Copyright © 2026 Vellium. Tüm hakları saklıdır.
+**Tescilli ticari yazılım.** Copyright © 2026 **Vellium Teknoloji Anonim Şirketi**. Tüm hakları saklıdır.
 
 Tam koşullar için [`LICENSE`](LICENSE) dosyasına bakın.
 
-**Resmi Web Sitesi:** [vellium.dev](https://vellium.dev) &bull; **Yayıncı:** Vellium &bull; **Destek:** [support@vellium.dev](mailto:support@vellium.dev)
+- **Yayıncı:** Vellium Teknoloji Anonim Şirketi ([Şirket Bilgileri](https://vellium.dev/tr/yasal/sirket-bilgileri))
+- **Resmi Web Sitesi ve Ürün Sayfası:** [vellium.dev](https://vellium.dev) &bull; [vellium.dev/en/products/power-pilot](https://vellium.dev/en/products/power-pilot) &bull; [Microsoft Store](https://apps.microsoft.com/detail/9NQJTP1BKP5R)
+- **Yasal Merkez:** [Gizlilik Politikası](https://vellium.dev/tr/yasal/gizlilik-politikasi) &bull; [Hizmet Koşulları](https://vellium.dev/tr/yasal/hizmet-kosullari) &bull; [Destek Politikası](https://vellium.dev/tr/yasal/destek-politikasi) &bull; [Güvenlik Açığı Bildirimi](https://vellium.dev/tr/yasal/guvenlik-acigi-bildirimi) &bull; [KVKK Aydınlatma Metni](https://vellium.dev/tr/yasal/kvkk-aydinlatma-metni)
+- **Resmi E-Posta Kanalları:** Genel [contact@vellium.dev](mailto:contact@vellium.dev) &bull; Destek [support@vellium.dev](mailto:support@vellium.dev) &bull; Gizlilik [privacy@vellium.dev](mailto:privacy@vellium.dev) &bull; Hukuk [legal@vellium.dev](mailto:legal@vellium.dev) &bull; Güvenlik [security@vellium.dev](mailto:security@vellium.dev) &bull; Faturalandırma [billing@vellium.dev](mailto:billing@vellium.dev)
+- **Resmi Sosyal Medya ve Topluluk Hesapları:** [GitHub @VelliumHQ](https://github.com/VelliumHQ) &bull; [LinkedIn](https://www.linkedin.com/company/vellium/) &bull; [X @VelliumDev](https://x.com/VelliumDev) &bull; [Product Hunt @vellium](https://www.producthunt.com/@vellium) &bull; [Instagram @velliumdev](https://www.instagram.com/velliumdev/) &bull; [Threads @velliumdev](https://www.threads.com/@velliumdev) &bull; [Reddit u/VelliumDev](https://www.reddit.com/user/VelliumDev/) &bull; [Discord](https://discord.gg/ur9KBZBEdj)

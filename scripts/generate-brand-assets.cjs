@@ -399,15 +399,10 @@ async function main() {
             const icoBuf = encodeMultiResIco(frames);
             fs.writeFileSync(path.join(iconsDir, `${id}.ico`), icoBuf);
             fs.writeFileSync(path.join(iconsDir, `${id}.png`), frames.find((f) => f.size === 256).png);
-
-            if (id === 'monochrome-dark') {
-                fs.writeFileSync(path.join(ROOT, 'powerpilot_icon.ico'), icoBuf);
-            }
         }
 
-        // 4) Kök ve src/assets varsayılan 512px PNG'leri
+        // 4) src/assets varsayılan 512px PNG
         const png512 = Buffer.from(rendered['hero:512'].png, 'base64');
-        fs.writeFileSync(path.join(ROOT, 'powerpilot_icon.png'), png512);
         fs.writeFileSync(path.join(ROOT, 'src', 'assets', 'powerpilot_icon.png'), png512);
 
         // 5) Partner Center mağaza logoları

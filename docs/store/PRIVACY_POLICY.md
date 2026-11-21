@@ -1,9 +1,9 @@
 # Power Pilot — Privacy Policy / Gizlilik Politikası
 
 **Last updated / Son güncelleme:** 2026-11-17
-**Applies to / Geçerli olduğu sürüm:** Power Pilot 1.1.0 (Microsoft Store / MSIX) and
+**Applies to / Geçerli olduğu sürüm:** Power Pilot 1.0.0 (Microsoft Store / MSIX) and
 Power Pilot Pro (NSIS)
-**Contact / İletişim:** info@vellium.dev
+**Contact / İletişim:** privacy@vellium.dev
 
 ---
 
@@ -79,7 +79,7 @@ If this policy changes, the updated version is published with the app release.
 
 ### Contact
 
-Questions: **info@vellium.dev**
+Questions: **privacy@vellium.dev**
 
 ---
 
@@ -155,4 +155,4 @@ Politika değişirse güncel sürüm uygulama sürümüyle birlikte yayımlanır
 
 ### İletişim
 
-Sorular: **info@vellium.dev**
+Sorular: **privacy@vellium.dev**
